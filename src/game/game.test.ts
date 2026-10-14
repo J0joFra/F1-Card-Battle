@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Card } from '../types';
-import { ALL_CARDS, CARD_BY_ID, careerCardOf, teamCardsOfDriver } from './cards';
-import { buildCpuDeck, cpuChooseStat, matchOutcome, newMatch, playRound, percentile, type MatchState } from './engine';
-import { addCards, drawPack, matchDeck, recordMatch, starterProgress, WINS_PER_PACK } from './collection';
+import { ALL_CARDS, CARD_BY_ID, STATS, careerCardOf, teamCardsOfDriver } from './cards';
+import { DECK_SIZE, ROUNDS, buildCpuDeck, currentCards, isAvailable, matchOutcome, newMatch, playRound } from './engine';
+import { canAdd, deckProblems } from './deckRules';
+import { addCards, autoFillDeck, drawPack, recordMatch, starterProgress, WINS_PER_PACK } from './collection';
 
 // rng deterministico per test ripetibili
 const seeded = (seed = 42) => () => {
@@ -18,17 +19,25 @@ describe('dati delle card', () => {
     expect(teams).toEqual(['mclaren', 'mercedes', 'ferrari']);
     const career = careerCardOf('lewis-hamilton')!;
     expect(career.rarity).toBe('leggendaria');
-    expect(career.stats.mondiali).toBe(7);
+    expect(career.palmares.mondiali).toBe(7);
   });
 
   it('le statistiche della Carriera sono la somma delle scuderie', () => {
     for (const id of ['lewis-hamilton', 'michael-schumacher', 'fernando-alonso']) {
       const career = careerCardOf(id)!;
       const teams = teamCardsOfDriver(id);
-      const sum = teams.reduce((n, c) => n + c.stats.vittorie, 0);
+      const sum = teams.reduce((n, c) => n + c.palmares.vittorie, 0);
       // può includere stint brevi senza card (meno di 3 gare)
-      expect(career.stats.vittorie).toBeGreaterThanOrEqual(sum);
+      expect(career.palmares.vittorie).toBeGreaterThanOrEqual(sum);
+      expect(career.stats.top10).toBeGreaterThanOrEqual(teams.reduce((n, c) => n + c.stats.top10, 0));
       expect(career.stats.gare).toBeGreaterThanOrEqual(teams.reduce((n, c) => n + c.stats.gare, 0));
+    }
+  });
+
+  it('le metriche di gioco sono quasi sempre diverse da 0', () => {
+    for (const s of STATS) {
+      const zeros = ALL_CARDS.filter((c) => c.stats[s.key] === 0).length;
+      expect(zeros / ALL_CARDS.length).toBeLessThan(0.1);
     }
   });
 
@@ -40,61 +49,88 @@ describe('dati delle card', () => {
 describe('motore di gioco', () => {
   const hamMerc = card('lewis-hamilton__mercedes');
   const hamFerr = card('lewis-hamilton__ferrari');
+  const deck = ALL_CARDS.filter((c) => c.rarity === 'bronzo').slice(0, DECK_SIZE);
 
-  it('vince il valore più alto e prende entrambe le card', () => {
-    const state: MatchState = { player: [hamMerc], cpu: [hamFerr], pot: [], turn: 'player', round: 1 };
-    const { state: next, result } = playRound(state, 'vittorie');
-    expect(result.winner).toBe('player');
-    expect(next.player.map((c) => c.id)).toEqual([hamMerc.id, hamFerr.id]);
-    expect(next.cpu).toHaveLength(0);
+  it('una partita dura un round per metrica', () => {
+    expect(ROUNDS).toBe(STATS.length);
+    expect(DECK_SIZE).toBe(ROUNDS);
+  });
+
+  it('vince il valore più alto e prende il punto', () => {
+    const state = newMatch([hamMerc], [hamFerr], seeded());
+    const next = playRound(state, 'top10');
+    expect(next.history[0].winner).toBe('player');
+    expect(next.score).toEqual({ player: 1, cpu: 0 });
     expect(matchOutcome(next)).toBe('player');
   });
 
-  it('il pareggio mette le card nel piatto e il chooser non cambia', () => {
-    const a = { ...hamMerc, id: 'a' } as Card;
-    const b = { ...hamMerc, id: 'b' } as Card;
-    const state: MatchState = { player: [a, hamMerc], cpu: [b, hamFerr], pot: [], turn: 'cpu', round: 1 };
-    const tie = playRound(state, 'gare');
-    expect(tie.result.winner).toBe('tie');
-    expect(tie.state.pot).toHaveLength(2);
-    expect(tie.state.turn).toBe('cpu');
-    const win = playRound(tie.state, 'vittorie');
-    expect(win.result.won).toBe(4);
-    expect(win.state.player).toHaveLength(4);
-    expect(win.state.pot).toHaveLength(0);
+  it('nelle metriche ↓ vince il valore più basso', () => {
+    const alesi = card('jean-alesi__tyrrell');
+    expect(hamMerc.stats.grigliaMedia).toBeLessThan(alesi.stats.grigliaMedia);
+    expect(playRound(newMatch([hamMerc], [alesi], seeded()), 'grigliaMedia').history[0].winner).toBe('player');
+  });
+
+  it('pareggio: nessun punto', () => {
+    const next = playRound(newMatch([hamMerc], [{ ...hamMerc, id: 'copia' }], seeded()), 'gare');
+    expect(next.history[0].winner).toBe('tie');
+    expect(next.score).toEqual({ player: 0, cpu: 0 });
+    expect(matchOutcome(next)).toBe('draw');
+  });
+
+  it('non si può ripetere la metrica del round precedente', () => {
+    const state = playRound(newMatch(deck, buildCpuDeck(deck, seeded()), seeded()), 'gare');
+    expect(isAvailable(state, 'gare')).toBe(false);
+    expect(() => playRound(state, 'gare')).toThrow();
+    const after = playRound(state, 'top10');
+    expect(isAvailable(after, 'gare')).toBe(true);
+  });
+
+  it('ogni card del mazzo viene giocata una volta, in ordine casuale', () => {
+    const rng = seeded(3);
+    let state = newMatch(deck, buildCpuDeck(deck, rng), rng);
+    const used: string[] = [];
+    let i = 0;
+    while (!matchOutcome(state)) {
+      used.push(currentCards(state).player.id);
+      const stat = STATS.map((s) => s.key).find((k) => isAvailable(state, k) && k !== STATS[i % 2].key)!;
+      state = playRound(state, stat);
+      i++;
+    }
+    expect(state.history).toHaveLength(ROUNDS);
+    expect([...used].sort()).toEqual(deck.map((c) => c.id).sort());
+    expect(state.score.player + state.score.cpu).toBeLessThanOrEqual(ROUNDS);
   });
 
   it('il mazzo CPU ha la stessa composizione di rarità', () => {
-    const deck = ALL_CARDS.filter((c, i) => i % 50 === 0).slice(0, 10);
-    const cpu = buildCpuDeck(deck, seeded());
+    const mixed = [...ALL_CARDS.filter((c) => c.rarity === 'argento').slice(0, 3), ...deck.slice(0, 4)];
+    const cpu = buildCpuDeck(mixed, seeded());
     const count = (cs: Card[]) => cs.map((c) => c.rarity).sort().join();
-    expect(count(cpu)).toBe(count(deck));
-    expect(cpu.some((c) => deck.includes(c))).toBe(false);
+    expect(count(cpu)).toBe(count(mixed));
+    expect(cpu.some((c) => mixed.includes(c))).toBe(false);
+  });
+});
+
+describe('regole del mazzo', () => {
+  const legends = ALL_CARDS.filter((c) => c.rarity === 'leggendaria');
+  const bronze = ALL_CARDS.filter((c) => c.rarity === 'bronzo');
+
+  it('serve il numero giusto di card', () => {
+    expect(deckProblems(bronze.slice(0, DECK_SIZE))).toEqual([]);
+    expect(deckProblems(bronze.slice(0, DECK_SIZE - 1))).toHaveLength(1);
   });
 
-  it('nel miglior arrivo vince il valore più basso', () => {
-    const state: MatchState = { player: [hamFerr], cpu: [card('jean-alesi__tyrrell')], pot: [], turn: 'player', round: 1 };
-    expect(hamFerr.stats.migliorArrivo).toBe(1);
-    expect(playRound(state, 'migliorArrivo').result.winner).toBe('player');
-    expect(percentile('migliorArrivo', 1)).toBeGreaterThan(percentile('migliorArrivo', 10));
+  it('non si può fare un mazzo di sole leggende', () => {
+    expect(deckProblems(legends.slice(0, DECK_SIZE)).length).toBeGreaterThan(0);
+    expect(canAdd([legends[0]], legends[1])).toBe(false);
+    expect(canAdd([legends[0]], bronze[0])).toBe(true);
   });
 
-  it('la CPU sceglie la statistica più forte della sua card', () => {
-    const noMistakes = cpuChooseStat(hamMerc, seeded(), 0);
-    expect(['vittorie', 'pole', 'percVittorie', 'mondiali', 'podi', 'gare', 'migliorArrivo']).toContain(noMistakes);
-    expect(percentile(noMistakes, hamMerc.stats[noMistakes])).toBeGreaterThan(0.95);
-  });
-
-  it('una partita simulata finisce sempre', () => {
-    const rng = seeded(7);
-    const deck = ALL_CARDS.slice(0, 10);
-    let state = newMatch(deck, buildCpuDeck(deck, rng), rng);
-    let guard = 0;
-    while (!matchOutcome(state) && guard++ < 100) {
-      const chooser = state.turn === 'player' ? state.player[0] : state.cpu[0];
-      state = playRound(state, cpuChooseStat(chooser, rng)).state;
-    }
-    expect(matchOutcome(state)).not.toBeNull();
+  it('il completamento automatico rispetta i limiti', () => {
+    const owned = Object.fromEntries(ALL_CARDS.slice(0, 120).map((c) => [c.id, 1]));
+    const p = { ...starterProgress(seeded()), owned };
+    const filled = autoFillDeck(p, [], seeded(5));
+    expect(filled).toHaveLength(DECK_SIZE);
+    expect(deckProblems(filled)).toEqual([]);
   });
 });
 
@@ -104,7 +140,7 @@ describe('collezione', () => {
     expect(Object.keys(p.owned)).toHaveLength(15);
     expect(Object.keys(p.owned).some((id) => card(id).rarity === 'leggendaria')).toBe(false);
     expect(p.packs).toBe(1);
-    expect(matchDeck(p, seeded())).toHaveLength(10);
+    expect(autoFillDeck(p, [], seeded())).toHaveLength(DECK_SIZE);
   });
 
   it('pacchetto da 5 card, l\'ultima almeno Argento', () => {

@@ -4,11 +4,26 @@ Gioco di carte F1 in stile **Top Quartetto**: ogni card è un pilota con una scu
 
 ## Regole
 
-- Ogni card ha 7 statistiche: Gran Premi, Vittorie, Podi, Pole position, % Vittorie, Miglior arrivo, Mondiali.
-- Chi è di turno sceglie una statistica: vince il valore più alto (nel **miglior arrivo** vince il più basso) e chi vince prende entrambe le card.
-- Pareggio: le card vanno nel piatto e le prende chi vince la mano successiva.
-- La partita si gioca con 10 card per parte e finisce quando qualcuno resta senza card, oppure dopo 40 giri (vince chi ha più card).
+- Prima di ogni partita crei un **mazzo di 7 card**, una per metrica (massimo 1 Leggendaria e 2 Oro: regole provvisorie in `src/game/deckRules.ts`).
+- La partita dura **7 round**, uno per metrica. A ogni round esce una tua card a caso dal mazzo e **scegli tu la metrica**, ma non puoi ripetere quella del round precedente.
+- Vince il round il valore più alto (↓ = vince il più basso) e prende un punto. Chi fa più punti vince la partita.
 - La CPU gioca con un mazzo che ha la stessa composizione di rarità del tuo.
+
+### Metriche
+
+Sono scelte perché quasi nessun pilota abbia 0: un mix di totali, che premiano le carriere lunghe, e di medie, che premiano chi ha fatto bene anche in poche gare.
+
+| Metrica | Cosa misura |
+|---|---|
+| Gran Premi | gare disputate con la scuderia |
+| Arrivi in top 10 | gare concluse tra i primi 10 |
+| Punti a gara | media punti con il punteggio attuale (25-18-15…) applicato a tutte le epoche |
+| Miglior arrivo ↓ | miglior piazzamento in gara |
+| Griglia media ↓ | posizione media di partenza |
+| % Gare finite | affidabilità: gare portate al traguardo |
+| % Batte compagno | gare chiuse davanti al compagno di squadra |
+
+Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per la rarità.
 
 ## Collezione
 

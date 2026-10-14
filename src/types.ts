@@ -1,6 +1,20 @@
 export type Rarity = 'bronzo' | 'argento' | 'oro' | 'leggendaria';
 
-export type StatKey = 'gare' | 'vittorie' | 'podi' | 'pole' | 'percVittorie' | 'migliorArrivo' | 'mondiali';
+export type StatKey =
+  | 'gare'
+  | 'top10'
+  | 'puntiGara'
+  | 'migliorArrivo'
+  | 'grigliaMedia'
+  | 'percArrivi'
+  | 'percCompagno';
+
+export interface Palmares {
+  vittorie: number;
+  podi: number;
+  pole: number;
+  mondiali: number;
+}
 
 export interface Driver {
   id: string;
@@ -21,6 +35,7 @@ export interface Card {
   firstYear: number;
   rarity: Rarity;
   stats: Record<StatKey, number>;
+  palmares: Palmares;
 }
 
 export interface CardsData {

@@ -8,7 +8,6 @@ import {
   buyPack,
   collectionSize,
   loadProgress,
-  matchDeck,
   openPack,
   recordMatch,
   resetProgress,
@@ -16,12 +15,14 @@ import {
   starterProgress,
   type Progress,
 } from './game/collection';
-import { DECK_SIZE } from './game/engine';
+import { DECK_SIZE, ROUNDS } from './game/engine';
+import { MAX_PER_RARITY } from './game/deckRules';
 import { MatchScreen } from './screens/MatchScreen';
+import { DeckBuilderScreen } from './screens/DeckBuilderScreen';
 import { CollectionScreen } from './screens/CollectionScreen';
 import { PacksScreen } from './screens/PacksScreen';
 
-type Screen = 'home' | 'match' | 'collection' | 'packs';
+type Screen = 'home' | 'builder' | 'match' | 'collection' | 'packs';
 
 export default function App() {
   const [progress, setProgress] = useState<Progress>(() => loadProgress() ?? starterProgress());
@@ -36,8 +37,9 @@ export default function App() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  function startMatch() {
-    setMatchCards(matchDeck(progress));
+  function startMatch(deck: Card[]) {
+    setProgress((p) => ({ ...p, deck: deck.map((c) => c.id) })); // ricorda il mazzo per la prossima volta
+    setMatchCards(deck);
     setScreen('match');
   }
 
@@ -49,14 +51,6 @@ export default function App() {
       setToast('🎁 5 vittorie: hai guadagnato un pacchetto!');
       setScreen('packs');
     } else setScreen('home');
-  }
-
-  function toggleDeck(card: Card) {
-    setProgress((p) => {
-      const has = p.deck.includes(card.id);
-      if (!has && p.deck.length >= DECK_SIZE) return p;
-      return { ...p, deck: has ? p.deck.filter((id) => id !== card.id) : [...p.deck, card.id] };
-    });
   }
 
   function buy(card: Card) {
@@ -113,10 +107,10 @@ export default function App() {
             <section className="hero">
               <h1>Sfida la CPU</h1>
               <p>
-                Ogni card è un pilota con una scuderia. Scegli la statistica giusta: vince il valore più alto
-                (nel miglior arrivo vince il più basso) e chi vince prende le card. Chi resta senza card perde.
+                Ogni card è un pilota con una scuderia. Crea un mazzo da {DECK_SIZE} card e gioca {ROUNDS} round: a
+                ogni round esce una tua card a caso e scegli su quale metrica sfidare la CPU.
               </p>
-              <button className="btn primary big" onClick={startMatch} disabled={!canPlay}>
+              <button className="btn primary big" onClick={() => setScreen('builder')} disabled={!canPlay}>
                 Inizia la sfida
               </button>
               {!canPlay && <p className="muted">Ti servono almeno {DECK_SIZE} card: apri un pacchetto.</p>}
@@ -164,9 +158,16 @@ export default function App() {
             <section className="rules">
               <h3>Come funziona</h3>
               <ul>
-                <li>Ogni partita si gioca con {DECK_SIZE} card: scegli il tuo mazzo dalla Collezione.</li>
+                <li>
+                  Prima di ogni partita crei un mazzo di {DECK_SIZE} card, una per metrica (massimo{' '}
+                  {MAX_PER_RARITY.leggendaria} Leggendaria e {MAX_PER_RARITY.oro} Oro).
+                </li>
+                <li>
+                  La partita dura {ROUNDS} round. A ogni round esce una tua card a caso: scegli la metrica, ma non
+                  quella usata nel round precedente.
+                </li>
+                <li>Vince la metrica il valore più alto (↓ = vince il più basso). Chi fa più punti vince la partita.</li>
                 <li>La CPU gioca con un mazzo della stessa rarità del tuo.</li>
-                <li>Pareggio: le due card vanno nel piatto e le prende chi vince la mano dopo.</li>
                 <li>Ogni {WINS_PER_PACK} vittorie ricevi un pacchetto da 5 card.</li>
                 <li>I doppioni diventano crediti, con cui compri card a scelta o altri pacchetti.</li>
                 <li>Completa tutte le card scuderia di un pilota per sbloccare la sua card Carriera ★.</li>
@@ -184,11 +185,15 @@ export default function App() {
           </div>
         )}
 
+        {screen === 'builder' && (
+          <DeckBuilderScreen progress={progress} onStart={startMatch} onBack={() => setScreen('home')} />
+        )}
+
         {screen === 'match' && matchCards && (
           <MatchScreen deck={matchCards} onFinish={finishMatch} onQuit={() => setScreen('home')} />
         )}
 
-        {screen === 'collection' && <CollectionScreen progress={progress} onToggleDeck={toggleDeck} onBuy={buy} />}
+        {screen === 'collection' && <CollectionScreen progress={progress} onBuy={buy} />}
 
         {screen === 'packs' && (
           <PacksScreen

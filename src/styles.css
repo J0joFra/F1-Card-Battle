@@ -152,8 +152,13 @@ nav button.on { color: var(--text); background: var(--surface-2); }
 /* --- collezione --- */
 .section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .deck-bar { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 10px; margin-bottom: 14px; }
-.deck-slots { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; }
-.slot { height: 34px; border-radius: 7px; border: 1px dashed var(--line); display: grid; place-items: center; font-size: 12px; font-weight: 800; }
+.deck-slots { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.slot {
+  min-height: 46px; border-radius: 8px; border: 1px dashed var(--line); background: transparent; color: var(--muted);
+  display: grid; place-content: center; justify-items: center; font-size: 12px; font-weight: 700; padding: 4px 2px; min-width: 0;
+}
+.slot b { color: var(--text); font-size: 14px; font-style: italic; }
+.slot small { font-size: 10px; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slot.filled { border-style: solid; border-color: var(--rar, var(--line)); background: var(--surface-2); }
 .slot.rarity-bronzo { --rar: var(--bronzo); }
 .slot.rarity-argento { --rar: var(--argento); }
@@ -221,6 +226,49 @@ nav button.on { color: var(--text); background: var(--surface-2); }
   .card-md.card-back { min-height: 330px; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
   .card-sm { width: 140px; }
-  .deck-slots { grid-template-columns: repeat(5, 1fr); }
+  .deck-slots { gap: 4px; }
+  .slot small { display: none; }
   nav button { padding: 8px; font-size: 14px; }
 }
+
+/* --- palmarès e metriche --- */
+.card-palmares { font-size: 11px; color: var(--oro); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-stats .low { font-style: normal; color: var(--muted); margin-left: 4px; font-size: 12px; }
+.card-stats .lock { font-style: normal; font-size: 11px; }
+.card-stats li.locked > button { opacity: 0.35; text-decoration: line-through; }
+.round-dots { display: flex; gap: 4px; justify-content: center; margin-top: 6px; }
+.rd { width: 10px; height: 10px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--line); }
+.rd.rd-player { background: var(--win); border-color: var(--win); }
+.rd.rd-cpu { background: var(--lose); border-color: var(--lose); }
+.rd.rd-tie { background: var(--tie); border-color: var(--tie); }
+.recap { list-style: none; padding: 0; margin: 4px 0; width: min(420px, 100%); display: grid; gap: 4px; font-size: 13px; }
+.recap li { display: flex; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 8px; background: var(--surface); border-left: 4px solid var(--line); }
+.recap li.rd-player { border-left-color: var(--win); }
+.recap li.rd-cpu { border-left-color: var(--lose); }
+.recap li.rd-tie { border-left-color: var(--tie); }
+
+/* --- creazione mazzo --- */
+.builder .intro { margin: 0 0 14px; line-height: 1.5; max-width: 760px; }
+.deck-best { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.deck-best span { display: grid; justify-items: center; background: var(--surface-2); border-radius: 8px; padding: 4px 2px; }
+.deck-best small { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; }
+.deck-best b { font-size: 13px; font-variant-numeric: tabular-nums; }
+.problems { margin: 0; color: var(--tie); font-size: 13px; }
+.actions.start { justify-content: flex-end; flex-wrap: wrap; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.stats-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.stats-table th {
+  position: sticky; top: 0; background: var(--surface-2); color: var(--muted); font-weight: 700; font-size: 12px;
+  padding: 8px 6px; text-align: right; cursor: pointer; white-space: nowrap; user-select: none;
+}
+.stats-table th:first-child { text-align: left; padding-left: 12px; }
+.stats-table th.on { color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+.stats-table td { padding: 7px 6px; text-align: right; border-top: 1px solid var(--line); white-space: nowrap; }
+.stats-table td.on { color: var(--text); font-weight: 700; }
+.stats-table td.who { text-align: left; border-left: 4px solid transparent; padding-left: 8px; display: grid; grid-template-columns: auto 1fr; column-gap: 6px; align-items: center; }
+.stats-table td.who small { grid-column: 2; color: var(--muted); font-size: 11px; }
+.stats-table tbody tr { cursor: pointer; }
+.stats-table tbody tr:hover { background: rgba(255,255,255,0.04); }
+.stats-table tr.selected { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.stats-table tr.selected:hover { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+.stats-table tr.blocked { opacity: 0.4; cursor: not-allowed; }

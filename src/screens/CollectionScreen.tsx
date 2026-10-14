@@ -2,18 +2,16 @@ import { useMemo, useState } from 'react';
 import type { Card, Rarity } from '../types';
 import { ALL_CARDS, RARITIES, RARITY_LABEL, careerCardOf, teamCardsOfDriver } from '../game/cards';
 import { CARD_PRICE, TOTAL_CARDS, collectionSize, type Progress } from '../game/collection';
-import { DECK_SIZE } from '../game/engine';
 import { CardView } from '../components/CardView';
 
 interface Props {
   progress: Progress;
-  onToggleDeck: (card: Card) => void;
   onBuy: (card: Card) => void;
 }
 
 type OwnedFilter = 'tutte' | 'mie' | 'mancanti';
 
-export function CollectionScreen({ progress, onToggleDeck, onBuy }: Props) {
+export function CollectionScreen({ progress, onBuy }: Props) {
   const [query, setQuery] = useState('');
   const [rarity, setRarity] = useState<Rarity | 'tutte'>('tutte');
   const [ownedFilter, setOwnedFilter] = useState<OwnedFilter>('mie');
@@ -31,8 +29,6 @@ export function CollectionScreen({ progress, onToggleDeck, onBuy }: Props) {
     });
   }, [query, rarity, ownedFilter, progress.owned]);
 
-  const deck = progress.deck;
-  const inDeck = (c: Card) => deck.includes(c.id);
 
   return (
     <div className="collection">
@@ -41,27 +37,6 @@ export function CollectionScreen({ progress, onToggleDeck, onBuy }: Props) {
         <span className="muted">
           {collectionSize(progress)}/{TOTAL_CARDS} card · {progress.credits} crediti
         </span>
-      </div>
-
-      <div className="deck-bar">
-        <div>
-          <b>Il tuo mazzo</b>{' '}
-          <span className="muted">
-            {deck.length}/{DECK_SIZE} scelte
-            {deck.length < DECK_SIZE && ' · le altre vengono pescate a caso dalla collezione'}
-          </span>
-        </div>
-        <div className="deck-slots">
-          {Array.from({ length: DECK_SIZE }, (_, i) => {
-            const id = deck[i];
-            const c = id ? ALL_CARDS.find((x) => x.id === id) : undefined;
-            return (
-              <span key={i} className={`slot ${c ? `rarity-${c.rarity} filled` : ''}`} title={c?.driver.name}>
-                {c ? c.driver.abbreviation : ''}
-              </span>
-            );
-          })}
-        </div>
       </div>
 
       <div className="filters">
@@ -91,7 +66,7 @@ export function CollectionScreen({ progress, onToggleDeck, onBuy }: Props) {
       ) : (
         <div className="grid">
           {cards.map((c) => (
-            <div key={c.id} className={`grid-item ${inDeck(c) ? 'in-deck' : ''}`}>
+            <div key={c.id} className="grid-item">
               <CardView
                 card={c}
                 size="sm"
@@ -109,7 +84,6 @@ export function CollectionScreen({ progress, onToggleDeck, onBuy }: Props) {
           card={selected}
           progress={progress}
           onClose={() => setSelected(null)}
-          onToggleDeck={() => onToggleDeck(selected)}
           onBuy={() => onBuy(selected)}
         />
       )}
@@ -121,17 +95,14 @@ function CardModal({
   card,
   progress,
   onClose,
-  onToggleDeck,
   onBuy,
 }: {
   card: Card;
   progress: Progress;
   onClose: () => void;
-  onToggleDeck: () => void;
   onBuy: () => void;
 }) {
   const owned = !!progress.owned[card.id];
-  const inDeck = progress.deck.includes(card.id);
   const price = CARD_PRICE[card.rarity];
   const teamCards = teamCardsOfDriver(card.driver.id);
   const career = careerCardOf(card.driver.id);
@@ -150,11 +121,7 @@ function CardModal({
                 : ' Completale tutte per sbloccare la card Carriera.'}
             </p>
           )}
-          {owned ? (
-            <button className="btn primary" onClick={onToggleDeck} disabled={!inDeck && progress.deck.length >= DECK_SIZE}>
-              {inDeck ? 'Togli dal mazzo' : progress.deck.length >= DECK_SIZE ? 'Mazzo pieno' : 'Metti nel mazzo'}
-            </button>
-          ) : (
+          {!owned && (
             <button className="btn primary" onClick={onBuy} disabled={progress.credits < price}>
               Compra per {price} crediti
             </button>

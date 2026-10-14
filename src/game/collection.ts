@@ -1,6 +1,7 @@
 import type { Card, Rarity } from '../types';
 import { ALL_CARDS, CARD_BY_ID, careerCardOf, cardsOfRarity, teamCardsOfDriver } from './cards';
 import { DECK_SIZE, shuffle, type Rng } from './engine';
+import { canAdd } from './deckRules';
 
 export const WINS_PER_PACK = 5;
 export const PACK_SIZE = 5;
@@ -51,11 +52,18 @@ export function starterProgress(rng: Rng = Math.random): Progress {
 export const ownedCards = (p: Progress): Card[] =>
   Object.keys(p.owned).map((id) => CARD_BY_ID.get(id)).filter((c): c is Card => !!c);
 
-// Mazzo per la partita: le card scelte, completate a caso dalla collezione.
-export function matchDeck(p: Progress, rng: Rng = Math.random): Card[] {
-  const chosen = p.deck.map((id) => CARD_BY_ID.get(id)).filter((c): c is Card => !!c && !!p.owned[c.id]);
-  const rest = shuffle(ownedCards(p).filter((c) => !chosen.includes(c)), rng);
-  return [...chosen, ...rest].slice(0, DECK_SIZE);
+// Ultimo mazzo usato, limitato alle card ancora possedute.
+export const savedDeck = (p: Progress): Card[] =>
+  p.deck.map((id) => CARD_BY_ID.get(id)).filter((c): c is Card => !!c && !!p.owned[c.id]).slice(0, DECK_SIZE);
+
+// Completa il mazzo con card casuali della collezione, rispettando i limiti di rarità.
+export function autoFillDeck(p: Progress, deck: Card[], rng: Rng = Math.random): Card[] {
+  const result = [...deck];
+  for (const c of shuffle(ownedCards(p), rng)) {
+    if (result.length >= DECK_SIZE) break;
+    if (canAdd(result, c)) result.push(c);
+  }
+  return result;
 }
 
 function rollRarity(rng: Rng): Rarity {

@@ -40,7 +40,16 @@ for (const f of readDir(path.join(DATA, 'constructors'))) {
   constructors[c.id] = c;
 }
 
-// stints[driverId][constructorId] = { races, wins, podiums, poles, years:Set, titles }
+// Punteggio attuale (top 10) applicato a tutte le epoche, per confrontare piloti di anni diversi.
+const MODERN_POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
+
+const newStint = () => ({
+  races: 0, wins: 0, podiums: 0, poles: 0, titles: 0, best: NO_FINISH,
+  points: 0, top10: 0, finished: 0, gridSum: 0, gridCount: 0, mateWins: 0, mateDuels: 0,
+  years: new Set(), numbers: {},
+});
+
+// stints[driverId][constructorId] = statistiche accumulate (vedi newStint)
 const stints = {};
 // racesBySeason[year][driverId][constructorId] = numero di gare (per assegnare i titoli)
 const racesBySeason = {};
@@ -60,22 +69,45 @@ for (const year of seasons) {
     if (!fs.existsSync(file)) continue;
     withResults++;
     const seen = new Set();
+    const entries = [];
     for (const r of load(file) || []) {
       const key = `${r.driverId}|${r.constructorId}`;
       if (seen.has(key)) continue; // auto condivise negli anni '50
       seen.add(key);
       if (NOT_STARTED.has(String(r.position))) continue;
-      const s = ((stints[r.driverId] ??= {})[r.constructorId] ??= {
-        races: 0, wins: 0, podiums: 0, poles: 0, best: NO_FINISH, years: new Set(), titles: 0, numbers: {},
-      });
+      entries.push(r);
+    }
+    for (const r of entries) {
+      const s = ((stints[r.driverId] ??= {})[r.constructorId] ??= newStint());
       s.races++;
       s.years.add(year);
-      const pos = Number(r.position);
+      const pos = Number(r.position); // NaN se non classificato (DNF, DSQ, NC…)
       if (pos === 1) s.wins++;
       if (pos >= 1 && pos <= 3) s.podiums++;
+      if (pos >= 1 && pos <= 10) {
+        s.top10++;
+        s.points += MODERN_POINTS[pos - 1];
+      }
+      if (pos >= 1) {
+        s.finished++;
+        if (pos < s.best) s.best = pos;
+      }
       if (r.gridPosition === 1) s.poles++;
-      if (pos >= 1 && pos < s.best) s.best = pos;
+      if (r.gridPosition >= 1) {
+        s.gridSum += r.gridPosition;
+        s.gridCount++;
+      }
       s.numbers[r.driverNumber] = (s.numbers[r.driverNumber] || 0) + 1;
+      // sfida col compagno di squadra: conta chi arriva davanti (un ritiro perde contro un arrivo)
+      for (const mate of entries) {
+        if (mate === r || mate.constructorId !== r.constructorId) continue;
+        const mp = Number(mate.position);
+        const mine = pos >= 1 ? pos : Infinity;
+        const theirs = mp >= 1 ? mp : Infinity;
+        if (mine === theirs) continue; // entrambi ritirati
+        s.mateDuels++;
+        if (mine < theirs) s.mateWins++;
+      }
       const bySeason = (racesBySeason[year][r.driverId] ??= {});
       bySeason[r.constructorId] = (bySeason[r.constructorId] || 0) + 1;
       if (year === latestSeason) latestGrid.add(r.driverId);
@@ -119,15 +151,21 @@ const rarityOf = (st, kind) => {
   return 'bronzo';
 };
 
+const round1 = (v) => Math.round(v * 10) / 10;
+
+// Metriche di gioco: scelte perché quasi nessun pilota abbia 0.
 const toStats = (st) => ({
   gare: st.races,
-  vittorie: st.wins,
-  podi: st.podiums,
-  pole: st.poles,
-  percVittorie: Math.round((st.wins / st.races) * 1000) / 10,
+  top10: st.top10,
+  puntiGara: round1(st.points / st.races),
   migliorArrivo: st.best,
-  mondiali: st.titles,
+  grigliaMedia: st.gridCount ? round1(st.gridSum / st.gridCount) : 30,
+  percArrivi: Math.round((st.finished / st.races) * 100),
+  percCompagno: st.mateDuels ? Math.round((st.mateWins / st.mateDuels) * 100) : 50,
 });
+
+// Palmarès mostrato sulla card (non si gioca).
+const toPalmares = (st) => ({ vittorie: st.wins, podi: st.podiums, pole: st.poles, mondiali: st.titles });
 
 const cards = [];
 for (const [driverId, byTeam] of Object.entries(stints)) {
@@ -161,14 +199,16 @@ for (const [driverId, byTeam] of Object.entries(stints)) {
       firstYear: Math.min(...s.years),
       rarity: rarityOf(s, 'team'),
       stats: toStats(s),
+      palmares: toPalmares(s),
     });
   }
 
   if (teamStints.length >= 2) {
-    const total = { races: 0, wins: 0, podiums: 0, poles: 0, titles: 0, best: NO_FINISH, years: new Set(), numbers: {} };
+    const total = newStint();
     for (const s of all) {
-      total.races += s.races; total.wins += s.wins; total.podiums += s.podiums;
-      total.poles += s.poles; total.titles += s.titles; total.best = Math.min(total.best, s.best);
+      for (const k of ['races', 'wins', 'podiums', 'poles', 'titles', 'points', 'top10', 'finished',
+        'gridSum', 'gridCount', 'mateWins', 'mateDuels']) total[k] += s[k];
+      total.best = Math.min(total.best, s.best);
       s.years.forEach((y) => total.years.add(y));
       for (const [n, k] of Object.entries(s.numbers)) total.numbers[n] = (total.numbers[n] || 0) + k;
     }
@@ -184,6 +224,7 @@ for (const [driverId, byTeam] of Object.entries(stints)) {
       firstYear: Math.min(...ys),
       rarity: 'leggendaria',
       stats: toStats(total),
+      palmares: toPalmares(total),
     });
   }
 }

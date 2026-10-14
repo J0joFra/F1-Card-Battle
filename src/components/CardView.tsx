@@ -1,12 +1,13 @@
 import type { CSSProperties } from 'react';
 import type { Card, StatKey } from '../types';
-import { NO_FINISH, RARITY_LABEL, STATS, flagEmoji } from '../game/cards';
+import { RARITY_LABEL, STATS, flagEmoji, formatStat } from '../game/cards';
 import { teamColor } from '../game/teamColors';
 
 interface Props {
   card: Card;
   size?: 'sm' | 'md';
   onPickStat?: (stat: StatKey) => void;
+  lockedStat?: StatKey | null; // metrica non selezionabile (usata nel round precedente)
   highlight?: StatKey;
   result?: 'win' | 'lose' | 'tie';
   dimmed?: boolean;
@@ -14,14 +15,19 @@ interface Props {
   onClick?: () => void;
 }
 
-function fmt(v: number, suffix?: string, isPosition?: boolean) {
-  if (isPosition) return v >= NO_FINISH ? '—' : `${v}°`;
-  return `${Number.isInteger(v) ? v : v.toFixed(1).replace('.', ',')}${suffix ?? ''}`;
+function palmaresLine(card: Card) {
+  const { vittorie, podi, mondiali } = card.palmares;
+  const parts = [];
+  if (mondiali) parts.push(`🏆 ${mondiali} ${mondiali === 1 ? 'mondiale' : 'mondiali'}`);
+  if (vittorie) parts.push(`${vittorie} ${vittorie === 1 ? 'vittoria' : 'vittorie'}`);
+  else if (podi) parts.push(`${podi} ${podi === 1 ? 'podio' : 'podi'}`);
+  return parts.join(' · ');
 }
 
-export function CardView({ card, size = 'md', onPickStat, highlight, result, dimmed, count, onClick }: Props) {
+export function CardView({ card, size = 'md', onPickStat, lockedStat, highlight, result, dimmed, count, onClick }: Props) {
   const color = card.kind === 'career' ? '#c9a227' : teamColor(card.team.id);
   const style = { '--team': color } as CSSProperties;
+  const palmares = palmaresLine(card);
   return (
     <div
       className={`card card-${size} rarity-${card.rarity} ${result ? `result-${result}` : ''} ${dimmed ? 'dimmed' : ''} ${onClick ? 'clickable' : ''}`}
@@ -41,24 +47,30 @@ export function CardView({ card, size = 'md', onPickStat, highlight, result, dim
         <div className="card-team">
           {card.kind === 'career' ? '★ Carriera' : card.team.name} · {card.period}
         </div>
+        {size === 'md' && palmares && <div className="card-palmares">{palmares}</div>}
       </div>
       {size === 'md' && (
         <ul className="card-stats">
           {STATS.map((s) => {
+            const locked = lockedStat === s.key;
             const content = (
               <>
-                <span>{s.label}</span>
-                <b>{fmt(card.stats[s.key], s.suffix, s.lowerWins)}</b>
+                <span>
+                  {s.label}
+                  {s.lowerWins && <i className="low" title="Vince il più basso">↓</i>}
+                  {locked && <i className="lock"> 🔒</i>}
+                </span>
+                <b>{formatStat(s, card.stats[s.key])}</b>
               </>
             );
             return (
-              <li key={s.key} className={highlight === s.key ? 'hl' : ''}>
+              <li key={s.key} className={`${highlight === s.key ? 'hl' : ''} ${locked ? 'locked' : ''}`}>
                 {onPickStat ? (
-                  <button type="button" onClick={() => onPickStat(s.key)}>
+                  <button type="button" onClick={() => onPickStat(s.key)} disabled={locked} title={locked ? 'Usata nel round precedente' : s.hint}>
                     {content}
                   </button>
                 ) : (
-                  <div className="stat-row">{content}</div>
+                  <div className="stat-row" title={s.hint}>{content}</div>
                 )}
               </li>
             );
