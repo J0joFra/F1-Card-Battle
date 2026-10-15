@@ -7,17 +7,23 @@ import type { Account } from '../hooks/useAccount';
 import { CardView } from '../components/CardView';
 import { GoogleIcon } from '../components/GoogleIcon';
 import { TutorialSection } from '../components/TutorialSection';
+import { DailyCard, MissionsPanel } from '../components/Daily';
+import type { DailyChallenge, MissionsState } from '../game/daily';
 
 const RARITY_RANK = { leggendaria: 3, oro: 2, argento: 1, bronzo: 0 } as const;
 
 interface Props {
   progress: Progress;
   account: Account;
+  challenge: DailyChallenge;
+  missions: MissionsState;
   onPlay: () => void;
+  onDaily: () => void;
+  onClaim: (i: number) => void;
   onPacks: () => void;
 }
 
-export function HomeScreen({ progress, account, onPlay, onPacks }: Props) {
+export function HomeScreen({ progress, account, challenge, missions, onPlay, onDaily, onClaim, onPacks }: Props) {
   const { t } = useI18n();
   const owned = collectionSize(progress);
   const canPlay = owned >= DECK_SIZE;
@@ -49,6 +55,9 @@ export function HomeScreen({ progress, account, onPlay, onPacks }: Props) {
         </button>
         {!canPlay && <p className="muted">{t('home_needCards', { n: DECK_SIZE })}</p>}
       </section>
+
+      <DailyCard challenge={challenge} state={progress.daily} canPlay={canPlay} onPlay={onDaily} />
+      <MissionsPanel missions={missions} onClaim={onClaim} />
 
       <section className="panel pack-progress">
         <div className="row">
@@ -97,7 +106,7 @@ export function HomeScreen({ progress, account, onPlay, onPacks }: Props) {
         </section>
       )}
 
-      <TutorialSection items={['tut_home_1', 'tut_home_2', 'tut_home_3', 'tut_home_4']} params={{ n: DECK_SIZE, w: WINS_PER_PACK }} />
+      <TutorialSection items={['tut_home_1', 'tut_home_2', 'tut_home_3', 'tut_home_4', 'tut_home_5']} params={{ n: DECK_SIZE, w: WINS_PER_PACK }} />
     </div>
   );
 }

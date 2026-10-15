@@ -24,13 +24,15 @@ const REVEAL_MS = 650;
 
 interface Props {
   deck: Card[];
-  onFinish: (outcome: Exclude<MatchOutcome, null>) => void;
+  cpuDeck?: Card[]; // mazzo CPU già deciso (sfida del giorno); altrimenti viene costruito
+  title?: string;
+  onFinish: (outcome: Exclude<MatchOutcome, null>, state: MatchState) => void;
   onQuit: () => void;
 }
 
-export function MatchScreen({ deck, onFinish, onQuit }: Props) {
+export function MatchScreen({ deck, cpuDeck, title, onFinish, onQuit }: Props) {
   const { t } = useI18n();
-  const initial = useMemo(() => newMatch(deck, buildCpuDeck(deck)), [deck]);
+  const initial = useMemo(() => newMatch(deck, cpuDeck ?? buildCpuDeck(deck)), [deck, cpuDeck]);
   const [state, setState] = useState<MatchState>(initial);
   const [showResult, setShowResult] = useState(false); // round appena giocato, in attesa di "avanti"
   const [cpuPick, setCpuPick] = useState<StatKey | null>(null);
@@ -125,6 +127,7 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
           <X size={22} />
         </button>
       )}
+      {title && <div className="match-title">{title}</div>}
       <div className="scoreboard">
         <div className="side you">
           <small>{t('m_you')}</small>
@@ -187,7 +190,7 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
               );
             })}
           </ol>
-          <button className="btn primary big block" onClick={() => onFinish(outcome)}>
+          <button className="btn primary big block" onClick={() => onFinish(outcome, state)}>
             {t('continue')}
           </button>
         </div>

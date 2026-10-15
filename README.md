@@ -27,6 +27,12 @@ Sono scelte perché quasi nessun pilota abbia 0: un mix di totali, che premiano 
 
 Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per la rarità.
 
+## Sfida del giorno e missioni
+
+- **Sfida del giorno**: una sola partita al giorno contro un mazzo CPU a tema (una scuderia o un decennio, 1 Oro + 2 Argento + 4 Bronzo). Vincendo si ottengono 1 pacchetto e 25 crediti; vincerla più giorni di fila fa crescere la serie 🔥. Conta come giocata appena parte, quindi abbandonarla non dà un secondo tentativo.
+- **Missioni del giorno**: tre obiettivi (vinci partite, vinci round con una metrica, vinci con una card di una scuderia o di un decennio, apri un pacchetto, vinci con almeno 5 punti…) che danno crediti da ritirare nella home. Quelle su scuderie e decenni usano solo card che possiedi.
+- Sfida e missioni dipendono dalla data: lo stesso giorno tutti trovano la stessa sfida. Logica e test in `src/game/daily.ts`.
+
 ## Collezione
 
 - Si parte con 15 card e un pacchetto di benvenuto.

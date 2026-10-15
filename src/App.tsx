@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App as NativeApp } from '@capacitor/app';
 import { Gift, Layers, Play, Settings } from 'lucide-react';
@@ -21,6 +21,20 @@ import { useTheme } from './lib/theme';
 import { useAccount } from './hooks/useAccount';
 import { haptic, setMusicMode, sfx } from './lib/feedback';
 import { HomeScreen } from './screens/HomeScreen';
+import {
+  DAILY_REWARD_CREDITS,
+  claimMission,
+  dailyChallenge,
+  finishDaily,
+  missionDone,
+  missionsAfterMatch,
+  missionsAfterPack,
+  missionsFor,
+  startDaily,
+  todayKey,
+} from './game/daily';
+import type { MatchState } from './game/engine';
+import { themeLabel } from './components/Daily';
 import { MatchScreen } from './screens/MatchScreen';
 import { DeckBuilderScreen } from './screens/DeckBuilderScreen';
 import { CollectionScreen } from './screens/CollectionScreen';
@@ -43,6 +57,15 @@ export default function App() {
   );
   const [screen, setScreen] = useState<Screen>('home');
   const [matchCards, setMatchCards] = useState<Card[] | null>(null);
+  const [dailyMode, setDailyMode] = useState(false); // la partita in corso è la sfida del giorno
+  // sfida e missioni di oggi (si rigenerano da sole quando cambia il giorno)
+  const today = todayKey();
+  const challenge = useMemo(() => dailyChallenge(today), [today]);
+  const missions = missionsFor(progress.missions, progress.owned, today);
+  // salva subito le missioni del giorno, così non cambiano se nel frattempo la collezione cambia
+  useEffect(() => {
+    if (progress.missions?.date !== today) setProgress((p) => ({ ...p, missions: missionsFor(p.missions, p.owned, today) }));
+  }, [today, progress.missions?.date, setProgress]);
   const [toast, setToast] = useState<string | null>(null);
   const [settings, setSettings] = useState(false);
   const [intro, setIntro] = useState(() => !onboardingDone());
@@ -74,19 +97,43 @@ export default function App() {
   }, []);
 
   function startMatch(deck: Card[]) {
-    setProgress((p) => ({ ...p, deck: deck.map((c) => c.id) })); // ricorda il mazzo per la prossima volta
+    setProgress((p) => ({
+      ...p,
+      deck: deck.map((c) => c.id), // ricorda il mazzo per la prossima volta
+      // la sfida del giorno si considera giocata appena parte: abbandonarla non dà un secondo tentativo
+      daily: dailyMode ? startDaily(p.daily, today) : p.daily,
+    }));
     setMatchCards(deck);
     setScreen('match');
   }
 
-  function finishMatch(outcome: 'player' | 'cpu' | 'draw') {
-    const { progress: next, packEarned } = recordMatch(progress, outcome);
+  function finishMatch(outcome: 'player' | 'cpu' | 'draw', state: MatchState) {
+    let { progress: next, packEarned } = recordMatch(progress, outcome);
+    const before = missions.list.filter(missionDone).length;
+    const nextMissions = missionsAfterMatch(missions, state, matchCards ?? []);
+    next = { ...next, missions: nextMissions };
+    let dailyWon = false;
+    if (dailyMode) {
+      dailyWon = outcome === 'player';
+      next = { ...next, daily: finishDaily(next.daily, dailyWon, today) };
+      if (dailyWon) next = { ...next, packs: next.packs + 1, credits: next.credits + DAILY_REWARD_CREDITS };
+    }
     setProgress(next);
     setMatchCards(null);
-    if (packEarned) {
-      setToast(t('toast_packEarned', { n: WINS_PER_PACK }));
-      setScreen('packs');
-    } else setScreen('home');
+    setDailyMode(false);
+    if (dailyWon) setToast(t('toast_dailyWon', { c: DAILY_REWARD_CREDITS }));
+    else if (nextMissions.list.filter(missionDone).length > before) setToast(t('mis_completed'));
+    else if (packEarned) setToast(t('toast_packEarned', { n: WINS_PER_PACK }));
+    setScreen(packEarned || dailyWon ? 'packs' : 'home');
+  }
+
+  function claim(i: number) {
+    const { missions: m, credits } = claimMission(missions, i);
+    if (!credits) return;
+    sfx('roundWin');
+    haptic('success');
+    setProgress((p) => ({ ...p, missions: m, credits: p.credits + credits }));
+    setToast(t('toast_claimed', { n: credits }));
   }
 
   function buy(card: Card) {
@@ -107,7 +154,7 @@ export default function App() {
 
   function open() {
     const res = openPack(progress);
-    if (res) setProgress(res.progress);
+    if (res) setProgress({ ...res.progress, missions: missionsAfterPack(missionsFor(res.progress.missions, res.progress.owned, today)) });
     return res;
   }
 
@@ -163,11 +210,42 @@ export default function App() {
 
       <main className="content">
         {screen === 'home' && (
-          <HomeScreen progress={progress} account={account} onPlay={() => go('builder')} onPacks={() => go('packs')} />
+          <HomeScreen
+            progress={progress}
+            account={account}
+            challenge={challenge}
+            missions={missions}
+            onPlay={() => {
+              setDailyMode(false);
+              go('builder');
+            }}
+            onDaily={() => {
+              setDailyMode(true);
+              go('builder');
+            }}
+            onClaim={claim}
+            onPacks={() => go('packs')}
+          />
         )}
-        {screen === 'builder' && <DeckBuilderScreen progress={progress} onStart={startMatch} onBack={() => setScreen('home')} />}
+        {screen === 'builder' && (
+          <DeckBuilderScreen
+            progress={progress}
+            onStart={startMatch}
+            onBack={() => setScreen('home')}
+            banner={dailyMode ? `${t('daily_vs', { theme: themeLabel(challenge.theme, t) })} — ${t('daily_cpuDeck')}` : undefined}
+          />
+        )}
         {screen === 'match' && matchCards && (
-          <MatchScreen deck={matchCards} onFinish={finishMatch} onQuit={() => setScreen('home')} />
+          <MatchScreen
+            deck={matchCards}
+            cpuDeck={dailyMode ? challenge.cpuDeck : undefined}
+            title={dailyMode ? t('daily_vs', { theme: themeLabel(challenge.theme, t) }) : undefined}
+            onFinish={finishMatch}
+            onQuit={() => {
+              setDailyMode(false);
+              setScreen('home');
+            }}
+          />
         )}
         {screen === 'collection' && <CollectionScreen progress={progress} onBuy={buy} />}
         {screen === 'packs' && (

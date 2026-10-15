@@ -14,11 +14,12 @@ interface Props {
   progress: Progress;
   onStart: (deck: Card[]) => void;
   onBack: () => void;
+  banner?: string; // es. sfida del giorno
 }
 
 type SortKey = StatKey | 'nome';
 
-export function DeckBuilderScreen({ progress, onStart, onBack }: Props) {
+export function DeckBuilderScreen({ progress, onStart, onBack, banner }: Props) {
   const { t } = useI18n();
   // se non c'è un mazzo salvato (o è incompleto) lo prepariamo noi: si può giocare subito
   const [prefilled] = useState(() => savedDeck(progress).length < DECK_SIZE);
@@ -60,6 +61,7 @@ export function DeckBuilderScreen({ progress, onStart, onBack }: Props) {
         {t('deck_intro', { n: DECK_SIZE })} {t('deck_limits', { limits })}
       </p>
 
+      {banner && <p className="daily-banner">{banner}</p>}
       {prefilled && <p className="prefilled">{t('deck_prefilled')}</p>}
 
       <div className="deck-bar">

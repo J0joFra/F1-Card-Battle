@@ -2,6 +2,7 @@ import type { Card, Rarity } from '../types';
 import { ALL_CARDS, CARD_BY_ID, careerCardOf, cardsOfRarity, teamCardsOfDriver } from './cards';
 import { DECK_SIZE, shuffle, type Rng } from './engine';
 import { canAdd } from './deckRules';
+import { emptyDaily, type DailyState, type MissionsState } from './daily';
 
 export const WINS_PER_PACK = 5;
 export const PACK_SIZE = 5;
@@ -32,6 +33,8 @@ export interface Progress {
   packs: number; // pacchetti da aprire
   winsTowardPack: number;
   jolly: number; // Jolly da usare
+  daily: DailyState; // sfida del giorno
+  missions?: MissionsState; // missioni del giorno (generate al primo uso)
   updatedAt: number; // ultima modifica (ms), per capire quale copia è più recente tra dispositivo e cloud
 }
 
@@ -52,6 +55,7 @@ export function starterProgress(rng: Rng = Math.random): Progress {
     packs: 1, // un pacchetto di benvenuto
     winsTowardPack: 0,
     jolly: 0,
+    daily: emptyDaily(),
     updatedAt: 0,
   };
 }
@@ -218,6 +222,7 @@ export function normalizeProgress(raw: Partial<Progress>): Progress {
   p.owned = Object.fromEntries(Object.entries(p.owned).filter(([id]) => CARD_BY_ID.has(id)));
   p.deck = p.deck.filter((id) => CARD_BY_ID.has(id));
   p.jolly ??= 0;
+  p.daily ??= emptyDaily();
   p.updatedAt ??= 0;
   return p;
 }
@@ -241,6 +246,9 @@ export function mergeProgress(account: Progress, device: Progress): Progress {
     packs: Math.max(account.packs, device.packs),
     winsTowardPack: Math.max(account.winsTowardPack, device.winsTowardPack),
     jolly: Math.max(account.jolly, device.jolly),
+    // sfida e missioni: vale la copia del giorno più recente (a parità, quella dell'account)
+    daily: device.daily.date > account.daily.date ? device.daily : account.daily,
+    missions: (device.missions?.date ?? '') > (account.missions?.date ?? '') ? device.missions : account.missions,
     updatedAt: Date.now(),
   };
 }
