@@ -578,3 +578,38 @@ p { line-height: 1.45; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* ============ Sfida del giorno e missioni ============ */
+.daily { --daily: var(--gold); border: 2px solid color-mix(in srgb, var(--daily) 70%, var(--line)); background: linear-gradient(150deg, color-mix(in srgb, var(--daily) 16%, var(--surface)), var(--surface) 60%); }
+.daily-head { display: flex; align-items: center; gap: 10px; }
+.daily-head > div { flex: 1; display: grid; }
+.daily-head small { font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted); font-weight: 700; }
+.daily-head b { font-size: 20px; font-weight: 900; font-style: italic; }
+.daily-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; color: #fff; background: var(--daily); }
+.streak { font-weight: 900; font-size: 14px; padding: 4px 10px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
+.daily-deck { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.daily-deck .mini {
+  --team: #555; --rar: var(--bronzo);
+  height: 44px; border-radius: 8px; display: grid; place-items: center; font-weight: 900; font-style: italic; font-size: 13px; color: #fff;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--team) 70%, #0d0e12), #15171d); border: 2px solid var(--rar);
+}
+.daily-deck .mini.rarity-argento { --rar: var(--argento); }
+.daily-deck .mini.rarity-oro { --rar: var(--oro); }
+.daily p { margin: 0; font-size: 14px; }
+.daily-result { font-weight: 700; text-align: center; }
+.daily-result.won { color: var(--win); }
+.daily-result.lost { color: var(--muted); }
+.daily-banner { margin: 0; padding: 10px 14px; border-radius: 12px; font-size: 14px; font-weight: 600; background: color-mix(in srgb, var(--gold) 16%, var(--surface)); border: 1px solid color-mix(in srgb, var(--gold) 50%, var(--line)); }
+.match-title { font-weight: 900; font-style: italic; color: var(--gold); text-align: center; margin-left: 52px; }
+
+.missions h3 { display: flex; align-items: center; gap: 8px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 900; }
+.missions h3 svg { color: var(--accent); }
+.missions ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.missions li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); }
+.missions li.done:not(.claimed) { box-shadow: inset 0 0 0 2px var(--gold); }
+.missions li.claimed { opacity: 0.6; }
+.mis-text { flex: 1; display: grid; gap: 5px; font-size: 14px; font-weight: 600; min-width: 0; }
+.mis-text small { font-size: 12px; font-weight: 600; }
+.bar.small { height: 6px; }
+.missions li.done .bar > div { background: linear-gradient(90deg, var(--win), #5fe39a); }
+.mis-claimed { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: var(--win); white-space: nowrap; }
