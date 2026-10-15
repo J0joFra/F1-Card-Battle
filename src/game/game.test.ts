@@ -19,7 +19,10 @@ import {
   addCards,
   autoFillDeck,
   drawPack,
+  isUntouched,
   jollyTargets,
+  mergeProgress,
+  normalizeProgress,
   openPack,
   recordMatch,
   spendJolly,
@@ -249,3 +252,31 @@ describe('collezione', () => {
     expect(jolly).toBeLessThan(140);
   });
 });
+
+describe('salvataggio online', () => {
+  it('la collezione iniziale non toccata si riconosce', () => {
+    const p = starterProgress(seeded());
+    expect(isUntouched(p)).toBe(true);
+    expect(isUntouched(recordMatch(p, 'player').progress)).toBe(false);
+  });
+
+  it("unire dispositivo e account non perde card e non duplica i progressi", () => {
+    const account = { ...starterProgress(seeded(1)), wins: 10, credits: 30, deck: ['x'] };
+    const device = { ...starterProgress(seeded(2)), wins: 3, credits: 50, jolly: 1 };
+    const merged = mergeProgress(account, device);
+    for (const id of [...Object.keys(account.owned), ...Object.keys(device.owned)]) expect(merged.owned[id]).toBeGreaterThan(0);
+    expect(merged.wins).toBe(10);
+    expect(merged.credits).toBe(50);
+    expect(merged.jolly).toBe(1);
+    expect(merged.deck).toEqual(['x']);
+  });
+
+  it('i salvataggi vecchi o incompleti vengono resi validi', () => {
+    const p = normalizeProgress({ owned: { 'lewis-hamilton__mercedes': 1, 'card-inesistente': 1 }, wins: 2 });
+    expect(p.owned).toEqual({ 'lewis-hamilton__mercedes': 1 });
+    expect(p.wins).toBe(2);
+    expect(p.jolly).toBe(0);
+    expect(p.updatedAt).toBe(0);
+  });
+});
+

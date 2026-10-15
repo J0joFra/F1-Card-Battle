@@ -38,6 +38,26 @@ Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per 
 
 La collezione per ora si salva nel browser (localStorage).
 
+## Account e salvataggio online
+
+Il login con Google e il salvataggio della collezione usano [Supabase](https://supabase.com) (progetto `f1-card-battle`, piano gratuito).
+
+- Senza login si gioca come prima: tutto resta salvato nel browser.
+- Al primo login la collezione del dispositivo viene copiata sull'account. Se l'account ha già dei dati, le due collezioni vengono unite (per ogni card e ogni contatore si tiene il valore più alto, quindi non si perde niente).
+- Da lì ogni modifica viene salvata online in automatico. Uscendo, il dispositivo torna "ospite" e la collezione resta sull'account.
+- Tabella `profiles`, una riga per utente. Le regole RLS permettono a ognuno di leggere e modificare solo la propria riga. Lo schema è in `supabase/migrations/`.
+- URL e chiave *publishable* sono in `src/lib/supabase.ts`: sono pubblici per definizione (la protezione dei dati la fanno le regole RLS). Si possono sostituire con `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`.
+
+### Configurare il login con Google (una volta sola)
+
+1. **Google Cloud Console** → *API e servizi* → *Credenziali* → *Crea credenziali* → *ID client OAuth* → tipo *Applicazione web*.
+   - *URI di reindirizzamento autorizzati*: `https://fheiutmpkglkpymkrrqt.supabase.co/auth/v1/callback`
+   - Se richiesto, configura prima la *schermata di consenso OAuth* (tipo *Esterno*, nome app e la tua email).
+2. **Supabase** → progetto `f1-card-battle` → *Authentication* → *Sign In / Providers* → *Google*: attivalo e incolla *Client ID* e *Client Secret*.
+3. **Supabase** → *Authentication* → *URL Configuration*:
+   - *Site URL*: `https://j0jofra.github.io/F1-Card-Battle/`
+   - *Redirect URLs*: aggiungi `https://j0jofra.github.io/F1-Card-Battle/**` e `http://localhost:5173/**`
+
 ## Sviluppo
 
 ```bash
