@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import type { Card } from '../types';
-import { RARITY_LABEL, CARD_BY_ID } from '../game/cards';
+import { CARD_BY_ID, rarityLabel } from '../game/cards';
+import { useI18n } from '../lib/i18n';
+import { TutorialSection } from '../components/TutorialSection';
+import { WINS_PER_PACK } from '../game/collection';
 import { JOLLY_CHANCE, PACK_ODDS, PACK_PRICE, PACK_SIZE, jollyTargets, type Progress, type UnlockResult } from '../game/collection';
 import { CardBack, CardView } from '../components/CardView';
 
@@ -12,6 +15,7 @@ interface Props {
 }
 
 export function PacksScreen({ progress, onOpen, onBuyPack, onUseJolly }: Props) {
+  const { t } = useI18n();
   const [opened, setOpened] = useState<UnlockResult | null>(null);
   const [revealed, setRevealed] = useState<boolean[]>([]);
 
@@ -27,18 +31,18 @@ export function PacksScreen({ progress, onOpen, onBuyPack, onUseJolly }: Props) 
 
   if (opened) {
     return (
-      <div className="packs">
-        <div className="section-head">
-          <h2>Pacchetto</h2>
-          <span className="muted">Tocca le card per girarle</span>
-        </div>
+      <div className="screen packs">
+        <header className="screen-head">
+          <h2>{t('p_opened')}</h2>
+          <span className="muted">{t('p_tapToFlip')}</span>
+        </header>
         <div className="pack-cards">
           {opened.added.map((a, i) =>
             revealed[i] ? (
               <div key={i} className="pack-slot flip-in">
                 <CardView card={a.card} size="sm" />
                 <span className={`tag ${a.duplicate ? 'dup' : 'new'}`}>
-                  {a.duplicate ? `Doppione +${a.credits} crediti` : 'Nuova!'}
+                  {a.duplicate ? t('p_dup', { n: a.credits }) : t('p_new')}
                 </span>
               </div>
             ) : (
@@ -51,31 +55,28 @@ export function PacksScreen({ progress, onOpen, onBuyPack, onUseJolly }: Props) 
             <div className="pack-slot flip-in">
               <div className="card card-sm jolly-card">
                 <span>🃏</span>
-                <b>Jolly</b>
-                <small>Una card scuderia a scelta</small>
+                <b>{t('p_jolly')}</b>
+                <small>{t('p_jollyDesc')}</small>
               </div>
-              <span className="tag new">Bonus!</span>
+              <span className="tag new">{t('p_bonus')}</span>
             </div>
           )}
         </div>
         {allRevealed ? (
           <>
             {opened.jolly && (
-              <p className="center jolly-note">
-                🃏 Hai trovato un Jolly: usalo qui sotto per prendere una card scuderia mancante di un pilota che stai
-                completando.
-              </p>
+              <p className="center jolly-note">{t('p_jollyFound')}</p>
             )}
-            {gained > 0 && <p className="muted center">Hai guadagnato {gained} crediti dai doppioni.</p>}
+            {gained > 0 && <p className="muted center">{t('p_gained', { n: gained })}</p>}
             {opened.unlockedCareers.map((c) => (
               <div key={c.id} className="unlock">
-                <p>★ Hai completato tutte le scuderie di {c.driver.name}: card Carriera sbloccata!</p>
+                <p>{t('p_careerUnlocked', { name: c.driver.name })}</p>
                 <CardView card={c} />
               </div>
             ))}
             <div className="actions">
-              <button className="btn primary" onClick={() => setOpened(null)}>
-                Fatto
+              <button className="btn primary big" onClick={() => setOpened(null)}>
+                {t('done')}
               </button>
             </div>
             {progress.jolly > 0 && <JollyPicker progress={progress} onPick={onUseJolly} />}
@@ -83,7 +84,7 @@ export function PacksScreen({ progress, onOpen, onBuyPack, onUseJolly }: Props) 
         ) : (
           <div className="actions">
             <button className="btn ghost" onClick={() => setRevealed((r) => r.map(() => true))}>
-              Gira tutte
+              {t('p_flipAll')}
             </button>
           </div>
         )}
@@ -92,71 +93,65 @@ export function PacksScreen({ progress, onOpen, onBuyPack, onUseJolly }: Props) 
   }
 
   return (
-    <div className="packs">
-      <div className="section-head">
-        <h2>Pacchetti</h2>
-        <span className="muted">{progress.credits} crediti</span>
-      </div>
+    <div className="screen packs">
+      <header className="screen-head">
+        <h2>{t('p_title')}</h2>
+        <span className="muted">🪙 {progress.credits}</span>
+      </header>
       <div className="pack-hero">
-        <div className={`pack ${progress.packs > 0 ? 'ready' : ''}`}>
+        <button className={`pack ${progress.packs > 0 ? 'ready' : ''}`} onClick={open} disabled={progress.packs === 0}>
           <span>F1</span>
-          <small>{PACK_SIZE} card</small>
+          <small>{t('p_cards', { n: PACK_SIZE })}</small>
           {progress.packs > 0 && <span className="badge">{progress.packs}</span>}
-        </div>
-        <div className="pack-info">
-          {progress.packs > 0 ? (
-            <button className="btn primary big" onClick={open}>
-              Apri pacchetto
-            </button>
-          ) : (
-            <p>Nessun pacchetto da aprire. Vinci 5 sfide per guadagnarne uno.</p>
-          )}
-          <button className="btn ghost" onClick={onBuyPack} disabled={progress.credits < PACK_PRICE}>
-            Compra un pacchetto ({PACK_PRICE} crediti)
+        </button>
+        {progress.packs > 0 ? (
+          <button className="btn primary big block" onClick={open}>
+            {t('p_open')}
           </button>
-          <ul className="odds">
-            {PACK_ODDS.map(([r, p]) => (
-              <li key={r}>
-                <span className={`dot rarity-${r}`} /> {RARITY_LABEL[r]} {Math.round(p * 100)}%
-              </li>
-            ))}
-            <li className="muted">L'ultima card è sempre almeno Argento.</li>
-            <li className="muted">🃏 Jolly bonus nel {Math.round(JOLLY_CHANCE * 100)}% dei pacchetti.</li>
-          </ul>
-        </div>
+        ) : (
+          <p className="muted center">{t('p_none', { n: WINS_PER_PACK })}</p>
+        )}
+        <button className="btn ghost block" onClick={onBuyPack} disabled={progress.credits < PACK_PRICE}>
+          🪙 {t('p_buy', { n: PACK_PRICE })}
+        </button>
       </div>
       {progress.jolly > 0 && <JollyPicker progress={progress} onPick={onUseJolly} />}
+      <section className="panel">
+        <ul className="odds">
+          {PACK_ODDS.map(([r, p]) => (
+            <li key={r}>
+              <span className={`dot rarity-${r}`} /> {rarityLabel(r)} <b>{Math.round(p * 100)}%</b>
+            </li>
+          ))}
+          <li className="muted">{t('p_lastSilver')}</li>
+          <li className="muted">{t('p_jollyOdds', { n: Math.round(JOLLY_CHANCE * 100) })}</li>
+        </ul>
+      </section>
+      <TutorialSection items={['tut_packs_1', 'tut_packs_2', 'tut_packs_3']} params={{ n: PACK_SIZE }} />
     </div>
   );
 }
 
 function JollyPicker({ progress, onPick }: { progress: Progress; onPick: (card: Card) => void }) {
-  const targets = jollyTargets(progress);
+  const { t } = useI18n();
+  const targets = jollyTargets(progress).slice(0, 6); // i piloti più vicini al completamento
   return (
     <div className="jolly-picker">
-      <h3>
-        🃏 Hai {progress.jolly} Jolly da usare
-      </h3>
-      <p className="muted">
-        Scegli una card scuderia mancante di un pilota che stai completando. Completate tutte, si sblocca la sua
-        Carriera ★.
-      </p>
+      <h3>{t('j_title', { n: progress.jolly })}</h3>
+      <p className="muted">{t('j_desc')}</p>
       {targets.length === 0 ? (
-        <p className="muted">Nessun pilota da completare per ora: tienilo per dopo.</p>
+        <p className="muted">{t('j_none')}</p>
       ) : (
         <ul>
-          {targets.map((t) => {
-            const driver = CARD_BY_ID.get(`${t.driverId}__career`)!.driver;
+          {targets.map((tg) => {
+            const driver = CARD_BY_ID.get(`${tg.driverId}__career`)!.driver;
             return (
-              <li key={t.driverId}>
+              <li key={tg.driverId}>
                 <div>
-                  <b>{driver.name}</b>{' '}
-                  <span className="muted">
-                    {t.owned}/{t.total} scuderie
-                  </span>
+                  <b>{driver.name}</b> <span className="muted">{t('j_teams', { a: tg.owned, b: tg.total })}</span>
                 </div>
                 <div className="jolly-options">
-                  {t.missing.map((c) => (
+                  {tg.missing.map((c) => (
                     <button key={c.id} className="chip" onClick={() => onPick(c)}>
                       {c.team.name} · {c.period}
                     </button>

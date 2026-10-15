@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Card, StatKey } from '../types';
-import { STATS, STAT_BY_KEY, formatStat } from '../game/cards';
+import { X } from 'lucide-react';
+import { STATS, STAT_BY_KEY, formatStat, statLabel, statShort } from '../game/cards';
+import { useI18n } from '../lib/i18n';
+import { WINS_PER_PACK } from '../game/collection';
 import {
   ROUNDS,
   availableStats,
@@ -22,6 +25,7 @@ interface Props {
 }
 
 export function MatchScreen({ deck, onFinish, onQuit }: Props) {
+  const { t } = useI18n();
   const initial = useMemo(() => newMatch(deck, buildCpuDeck(deck)), [deck]);
   const [state, setState] = useState<MatchState>(initial);
   const [showResult, setShowResult] = useState(false); // round appena giocato, in attesa di "avanti"
@@ -51,37 +55,45 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
     setShowResult(true);
   }
 
-  const chooserLabel = (side: 'player' | 'cpu') => (side === 'player' ? 'hai scelto tu' : 'ha scelto la CPU');
+  const chooserLabel = (side: 'player' | 'cpu') => (side === 'player' ? t('m_choseYou') : t('m_choseCpu'));
+  const quit = () => {
+    if (confirm(t('m_quitConfirm'))) onQuit();
+  };
 
   return (
-    <div className="match">
+    <div className="screen match">
+      {!finished && (
+        <button className="icon-btn match-quit" onClick={quit} aria-label={t('m_quit')}>
+          <X size={22} />
+        </button>
+      )}
       <div className="scoreboard">
-        <div>
-          <small>Tu</small>
+        <div className="side you">
+          <small>{t('m_you')}</small>
           <b>{state.score.player}</b>
         </div>
         <div className="round">
-          {finished ? 'Fine gara' : `Round ${Math.min(state.round + (showResult ? 0 : 1), ROUNDS)}/${ROUNDS}`}
+          {finished ? t('m_end') : t('m_round', { a: Math.min(state.round + (showResult ? 0 : 1), ROUNDS), b: ROUNDS })}
           <div className="round-dots">
             {Array.from({ length: ROUNDS }, (_, i) => {
               const h = state.history[i];
-              return <span key={i} className={`rd ${h ? `rd-${h.winner}` : ''}`} title={h ? STAT_BY_KEY[h.stat].label : ''} />;
+              return <span key={i} className={`rd ${h ? `rd-${h.winner}` : ''}`} title={h ? statLabel(h.stat) : ''} />;
             })}
           </div>
         </div>
-        <div>
-          <small>CPU</small>
+        <div className="side cpu">
+          <small>{t('m_cpu')}</small>
           <b>{state.score.cpu}</b>
         </div>
       </div>
 
       {!finished && (
-        <div className="stat-chips" aria-label="Metriche">
+        <div className="stat-chips">
           {STATS.map((s) => {
             const h = state.history.find((x) => x.stat === s.key);
             return (
-              <span key={s.key} className={`stat-chip ${h ? `used rd-${h.winner}` : ''}`} title={s.label}>
-                {s.short}
+              <span key={s.key} className={`stat-chip ${h ? `used rd-${h.winner}` : ''}`} title={statLabel(s.key)}>
+                {statShort(s.key)}
               </span>
             );
           })}
@@ -90,12 +102,10 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
 
       {finished ? (
         <div className="match-over">
-          <h2>{outcome === 'player' ? '🏆 Hai vinto!' : outcome === 'cpu' ? 'Ha vinto la CPU' : 'Pareggio'}</h2>
+          <h2 className={`over-${outcome}`}>{outcome === 'player' ? t('m_win') : outcome === 'cpu' ? t('m_lose') : t('m_draw')}</h2>
           <p>
-            {state.score.player} a {state.score.cpu}.{' '}
-            {outcome === 'player'
-              ? 'Ogni 5 vittorie ricevi un pacchetto di card.'
-              : 'Prova un mazzo più equilibrato tra le metriche.'}
+            {t('m_score', { a: state.score.player, b: state.score.cpu })}{' '}
+            {outcome === 'player' ? t('m_winHint', { n: WINS_PER_PACK }) : t('m_loseHint')}
           </p>
           <ol className="recap">
             {state.history.map((h, i) => {
@@ -103,8 +113,8 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
               return (
                 <li key={i} className={`rd-${h.winner}`}>
                   <span>
-                    {def.label}
-                    <small className="muted"> · {h.chooser === 'player' ? 'tu' : 'CPU'}</small>
+                    {statLabel(h.stat)}
+                    <small className="muted"> · {h.chooser === 'player' ? t('m_byYou') : t('m_byCpu')}</small>
                   </span>
                   <span>
                     {h.playerCard.driver.abbreviation} {formatStat(def, h.playerCard.stats[h.stat])} –{' '}
@@ -114,19 +124,15 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
               );
             })}
           </ol>
-          <button className="btn primary" onClick={() => onFinish(outcome)}>
-            Continua
+          <button className="btn primary big block" onClick={() => onFinish(outcome)}>
+            {t('continue')}
           </button>
         </div>
       ) : showResult && last ? (
         <>
           <div className={`banner banner-${last.winner}`}>
-            {STAT_BY_KEY[last.stat].label} ({chooserLabel(last.chooser)}):{' '}
-            {last.winner === 'player'
-              ? 'punto tuo, il prossimo lo scegli tu!'
-              : last.winner === 'cpu'
-                ? 'punto alla CPU, sceglie lei'
-                : 'pareggio, nessun punto'}
+            {statLabel(last.stat)} ({chooserLabel(last.chooser)}):{' '}
+            {last.winner === 'player' ? t('m_pointYou') : last.winner === 'cpu' ? t('m_pointCpu') : t('m_tie')}
           </div>
           <div className="duel">
             <CardView
@@ -141,8 +147,8 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
               result={last.winner === 'cpu' ? 'win' : last.winner === 'player' ? 'lose' : 'tie'}
             />
           </div>
-          <button className="btn primary" onClick={() => setShowResult(false)}>
-            {outcome ? 'Risultato finale' : 'Prossimo round'}
+          <button className="btn primary big next-btn" onClick={() => setShowResult(false)}>
+            {outcome ? t('m_final') : t('m_next')}
           </button>
         </>
       ) : (
@@ -150,13 +156,13 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
           <div className={`banner ${state.chooser === 'cpu' ? 'banner-cpu-turn' : ''}`}>
             {state.chooser === 'player'
               ? free.length === 1
-                ? `Ultimo round: resta solo ${STAT_BY_KEY[free[0]].label}`
+                ? t('m_last', { stat: statLabel(free[0]) })
                 : state.round === 0
-                  ? 'Inizi tu: scegli la metrica'
-                  : 'Tocca a te: scegli la metrica'
+                  ? t('m_first')
+                  : t('m_yourTurn')
               : cpuPick
-                ? `La CPU sceglie: ${STAT_BY_KEY[cpuPick].label}`
-                : 'La CPU sta scegliendo…'}
+                ? t('m_cpuPicks', { stat: statLabel(cpuPick) })
+                : t('m_cpuThinking')}
           </div>
           <div className="duel">
             <CardView
@@ -166,16 +172,11 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
               highlight={cpuPick ?? undefined}
             />
             <span className="vs">VS</span>
-            <CardBack label={`Carta CPU ${state.round + 1}/${ROUNDS}`} />
+            <CardBack label={t('m_cpuCard', { a: state.round + 1, b: ROUNDS })} />
           </div>
         </>
       )}
 
-      {!finished && (
-        <button className="btn ghost quit" onClick={onQuit}>
-          Abbandona
-        </button>
-      )}
     </div>
   );
 }

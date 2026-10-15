@@ -1,5 +1,6 @@
 import type { Card, Rarity } from '../types';
-import { RARITY_LABEL } from './cards';
+import { rarityLabel } from './cards';
+import { translate } from '../lib/i18n';
 import { DECK_SIZE } from './engine';
 
 // Regole provvisorie per comporre il mazzo: impediscono un mazzo di sole leggende.
@@ -11,10 +12,10 @@ export const MAX_PER_RARITY: Partial<Record<Rarity, number>> = {
 
 export function deckProblems(deck: Card[]): string[] {
   const problems: string[] = [];
-  if (deck.length !== DECK_SIZE) problems.push(`Servono ${DECK_SIZE} card (ora ${deck.length}).`);
+  if (deck.length !== DECK_SIZE) problems.push(translate('deck_need', { n: DECK_SIZE, m: deck.length }));
   for (const [rarity, max] of Object.entries(MAX_PER_RARITY) as [Rarity, number][]) {
     const n = deck.filter((c) => c.rarity === rarity).length;
-    if (n > max) problems.push(`Massimo ${max} ${RARITY_LABEL[rarity]} (ora ${n}).`);
+    if (n > max) problems.push(translate('deck_tooMany', { n: max, r: rarityLabel(rarity), m: n }));
   }
   return problems;
 }

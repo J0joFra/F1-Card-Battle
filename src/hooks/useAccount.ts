@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { translate } from '../lib/i18n';
 import { isNativeApp, nativeGoogleSignIn, nativeGoogleSignOut } from '../lib/nativeGoogle';
 import { isUntouched, mergeProgress, normalizeProgress, starterProgress, type Progress } from '../game/collection';
 
@@ -85,14 +86,14 @@ export function useAccount(
       if (cancelled) return;
       if (error) {
         setStatus('error');
-        notify('Non riesco a leggere i dati online: continuo a salvare sul dispositivo.');
+        notify(translate('acc_readError'));
         return;
       }
       const local = progress;
       let next = local;
       if (!data) {
         // primo accesso: la collezione del dispositivo diventa quella dell'account
-        if (!isUntouched(local)) notify('☁️ La tua collezione ora è salvata sul tuo account.');
+        if (!isUntouched(local)) notify(translate('acc_migrated'));
       } else {
         const cloud = normalizeProgress(data.progress as Partial<Progress>);
         if (readLinked() === userId) {
@@ -101,7 +102,7 @@ export function useAccount(
           next = cloud;
         } else {
           next = mergeProgress(cloud, local);
-          notify('☁️ Ho unito le card di questo dispositivo a quelle del tuo account.');
+          notify(translate('acc_merged'));
         }
       }
       writeLinked(userId);
@@ -128,13 +129,13 @@ export function useAccount(
         await nativeGoogleSignIn();
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        if (!/cancel/i.test(msg)) notify(`Accesso non riuscito: ${msg}`);
+        if (!/cancel/i.test(msg)) notify(translate('acc_signinFail', { msg }));
       }
       return;
     }
     const redirectTo = window.location.origin + window.location.pathname;
     const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
-    if (error) notify(`Accesso non riuscito: ${error.message}`);
+    if (error) notify(translate('acc_signinFail', { msg: error.message }));
   }, [notify]);
 
   const signOut = useCallback(async () => {
@@ -144,7 +145,7 @@ export function useAccount(
     writeLinked(null);
     // il dispositivo torna "ospite": la collezione resta al sicuro sull'account
     replaceProgress(starterProgress());
-    notify('Sei uscito. La tua collezione è salvata sul tuo account.');
+    notify(translate('acc_signedOut'));
   }, [userId, progress, session, save, replaceProgress, notify]);
 
   const name =
