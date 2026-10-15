@@ -19,7 +19,7 @@ import {
 import { useI18n } from './lib/i18n';
 import { useTheme } from './lib/theme';
 import { useAccount } from './hooks/useAccount';
-import { haptic, sfx } from './lib/feedback';
+import { haptic, setMusicMode, sfx } from './lib/feedback';
 import { HomeScreen } from './screens/HomeScreen';
 import { MatchScreen } from './screens/MatchScreen';
 import { DeckBuilderScreen } from './screens/DeckBuilderScreen';
@@ -129,6 +129,8 @@ export default function App() {
   };
 
   const inMatch = screen === 'match';
+  // musica: brano "partita" durante la partita, i due jazz alternati nel resto del gioco
+  useEffect(() => setMusicMode(inMatch ? 'match' : 'menu'), [inMatch]);
   const tab: Tab | null = screen === 'home' || screen === 'collection' || screen === 'packs' ? screen : null;
 
   return (

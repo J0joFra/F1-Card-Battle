@@ -7,8 +7,9 @@ import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
  *
  * Suoni: di base sono generati dal codice (Web Audio), quindi non servono file né licenze.
  * Per sostituirne uno basta mettere un file in src/assets/sounds/ con lo stesso nome dell'effetto
- * (es. victory.mp3): viene usato al posto di quello generato. La musica di sottofondo si attiva solo se
- * esiste src/assets/sounds/music.mp3 (o .ogg). Istruzioni in src/assets/sounds/LEGGIMI.md.
+ * (es. victory.mp3): viene usato al posto di quello generato.
+ * Musica: music-menu-1 e music-menu-2 si alternano fuori dalla partita, music-match suona in loop durante
+ * la partita. Istruzioni in src/assets/sounds/LEGGIMI.md.
  */
 
 export type Sfx = 'tap' | 'select' | 'flip' | 'roundWin' | 'roundLose' | 'roundTie' | 'victory' | 'defeat' | 'pack' | 'reveal' | 'rare';
@@ -61,7 +62,9 @@ const files = import.meta.glob('../assets/sounds/*.{mp3,ogg,wav}', {
 const CUSTOM = new Map(
   Object.entries(files).map(([path, url]) => [path.split('/').pop()!.replace(/\.(mp3|ogg|wav)$/, ''), url]),
 );
-export const hasMusic = CUSTOM.has('music');
+const MENU_TRACKS = ['music-menu-1', 'music-menu-2'].filter((n) => CUSTOM.has(n));
+const MATCH_TRACK = CUSTOM.has('music-match') ? 'music-match' : null;
+export const hasMusic = MENU_TRACKS.length > 0 || !!MATCH_TRACK;
 
 // ---------- suoni generati ----------
 
@@ -164,20 +167,102 @@ export function sfx(name: Sfx) {
   }
 }
 
-// ---------- musica di sottofondo (solo se c'è un file music.*) ----------
+// ---------- musica di sottofondo ----------
+//
+// Fuori dalla partita i brani "menu" si alternano: finito uno parte l'altro, all'infinito.
+// Durante la partita suona il brano "match" in loop. Finita la partita riparte il brano menu
+// successivo a quello che suonava prima (jazz 1 → partita → jazz 2 → jazz 1 → …).
 
-let musicEl: HTMLAudioElement | null = null;
+export type MusicMode = 'menu' | 'match';
+
+const MUSIC_VOLUME = 0.35;
+const FADE_MS = 700;
+
+let mode: MusicMode = 'menu';
+let menuIndex = 0; // brano menu corrente
+let current: HTMLAudioElement | null = null; // brano che sta suonando (o in pausa)
+let currentName: string | null = null;
 let unlocked = false;
+const tracks = new Map<string, HTMLAudioElement>();
+
+function track(name: string) {
+  let el = tracks.get(name);
+  if (!el) {
+    el = new Audio(CUSTOM.get(name));
+    el.preload = 'auto';
+    el.loop = name === MATCH_TRACK;
+    // finito un brano menu, parte l'altro
+    if (name !== MATCH_TRACK)
+      el.addEventListener('ended', () => {
+        if (mode !== 'menu' || currentName !== name) return;
+        menuIndex = (menuIndex + 1) % MENU_TRACKS.length;
+        switchTo(MENU_TRACKS[menuIndex], true);
+      });
+    tracks.set(name, el);
+  }
+  return el;
+}
+
+function fade(el: HTMLAudioElement, to: number, done?: () => void) {
+  const from = el.volume;
+  const start = performance.now();
+  const step = (now: number) => {
+    const k = Math.min(1, (now - start) / FADE_MS);
+    el.volume = from + (to - from) * k;
+    if (k < 1) requestAnimationFrame(step);
+    else done?.();
+  };
+  requestAnimationFrame(step);
+}
+
+const canPlay = () => settings.music && unlocked && !document.hidden;
+
+// passa a un altro brano con dissolvenza; `restart` lo fa ripartire dall'inizio
+function switchTo(name: string | null, restart: boolean) {
+  const prev = current;
+  if (name === currentName && prev) {
+    if (canPlay()) void prev.play().catch(() => {});
+    return;
+  }
+  currentName = name;
+  current = name ? track(name) : null;
+  if (prev) fade(prev, 0, () => prev !== current && prev.pause()); // se nel frattempo è tornato attuale, non fermarlo
+  if (!current) return;
+  if (restart) current.currentTime = 0;
+  current.volume = 0;
+  if (canPlay())
+    void current
+      .play()
+      .then(() => fade(current!, MUSIC_VOLUME))
+      .catch(() => {});
+}
 
 function syncMusic() {
+  if (!hasMusic || !current) return;
+  if (canPlay()) {
+    if (current.paused) {
+      current.volume = 0;
+      void current
+        .play()
+        .then(() => fade(current!, MUSIC_VOLUME))
+        .catch(() => {});
+    }
+  } else current.pause();
+}
+
+// Cambia la musica in base a dove si trova il giocatore (chiamata dall'app).
+export function setMusicMode(next: MusicMode) {
   if (!hasMusic) return;
-  if (!musicEl) {
-    musicEl = new Audio(CUSTOM.get('music'));
-    musicEl.loop = true;
-    musicEl.volume = 0.35;
+  const first = current === null;
+  if (next === mode && !first) return;
+  const leavingMatch = mode === 'match' && next === 'menu';
+  mode = next;
+  if (next === 'match') switchTo(MATCH_TRACK, true);
+  else {
+    if (!MENU_TRACKS.length) return switchTo(null, false);
+    if (leavingMatch) menuIndex = (menuIndex + 1) % MENU_TRACKS.length; // dopo la partita: l'altro jazz
+    switchTo(MENU_TRACKS[menuIndex], leavingMatch);
   }
-  if (settings.music && unlocked && !document.hidden) void musicEl.play().catch(() => {});
-  else musicEl.pause();
 }
 
 // i browser e le webview fanno partire l'audio solo dopo un tocco dell'utente
@@ -185,6 +270,7 @@ if (typeof window !== 'undefined') {
   const unlock = () => {
     unlocked = true;
     audio();
+    if (!current) setMusicMode(mode);
     syncMusic();
     window.removeEventListener('pointerdown', unlock);
   };
