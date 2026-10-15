@@ -68,37 +68,90 @@ export const hasMusic = MENU_TRACKS.length > 0 || !!MATCH_TRACK;
 
 // ---------- suoni generati ----------
 
+// Suoni "morbidi" pensati per stare bene sopra il jazz: timbri tipo piano elettrico e vibrafono,
+// registro medio-basso, attacco dolce, filtro che toglie gli acuti e una piccola eco da locale jazz.
 let ctx: AudioContext | null = null;
+let out: AudioNode | null = null; // ingresso della catena di uscita (filtro + eco)
+
 const audio = () => {
   if (!ctx) {
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AC) return null;
     ctx = new AC();
+    // uscita: filtro passa-basso (niente suoni stridenti) + eco breve e scura
+    const master = ctx.createGain();
+    master.gain.value = 0.9;
+    const tone = ctx.createBiquadFilter();
+    tone.type = 'lowpass';
+    tone.frequency.value = 2600;
+    tone.Q.value = 0.4;
+    const delay = ctx.createDelay();
+    delay.delayTime.value = 0.19;
+    const feedback = ctx.createGain();
+    feedback.gain.value = 0.22;
+    const wet = ctx.createGain();
+    wet.gain.value = 0.18;
+    const damp = ctx.createBiquadFilter();
+    damp.type = 'lowpass';
+    damp.frequency.value = 1600;
+    master.connect(tone).connect(ctx.destination);
+    tone.connect(delay).connect(damp).connect(feedback).connect(delay);
+    damp.connect(wet).connect(ctx.destination);
+    out = master;
   }
   if (ctx.state === 'suspended') void ctx.resume();
   return ctx;
 };
 
-function tone(freq: number, start: number, dur: number, type: OscillatorType = 'triangle', vol = 0.18, slideTo?: number) {
+// nota "piano elettrico/vibrafono": fondamentale sinusoidale + armonica leggera, attacco morbido, coda naturale
+function keys(freq: number, start: number, dur = 0.5, vol = 0.12) {
   const a = audio();
-  if (!a) return;
+  if (!a || !out) return;
   const t = a.currentTime + start;
-  const osc = a.createOscillator();
-  const gain = a.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, t);
-  if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
-  gain.gain.setValueAtTime(0.0001, t);
-  gain.gain.exponentialRampToValueAtTime(vol, t + 0.01);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  osc.connect(gain).connect(a.destination);
-  osc.start(t);
-  osc.stop(t + dur + 0.02);
+  const env = a.createGain();
+  env.gain.setValueAtTime(0.0001, t);
+  env.gain.exponentialRampToValueAtTime(vol, t + 0.012);
+  env.gain.exponentialRampToValueAtTime(vol * 0.35, t + 0.12);
+  env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  env.connect(out);
+  for (const [mult, gain, type] of [
+    [1, 1, 'sine'],
+    [2, 0.18, 'sine'],
+    [3.01, 0.05, 'triangle'],
+  ] as const) {
+    const osc = a.createOscillator();
+    const g = a.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq * mult, t);
+    g.gain.value = gain;
+    osc.connect(g).connect(env);
+    osc.start(t);
+    osc.stop(t + dur + 0.05);
+  }
 }
 
-function noise(start: number, dur: number, from: number, to: number, vol = 0.15) {
+// "tock" di legno: tocco breve e smorzato, per i pulsanti
+function tock(freq: number, start = 0, vol = 0.09) {
   const a = audio();
-  if (!a) return;
+  if (!a || !out) return;
+  const t = a.currentTime + start;
+  const osc = a.createOscillator();
+  const env = a.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freq, t);
+  osc.frequency.exponentialRampToValueAtTime(freq * 0.72, t + 0.08);
+  env.gain.setValueAtTime(0.0001, t);
+  env.gain.exponentialRampToValueAtTime(vol, t + 0.004);
+  env.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
+  osc.connect(env).connect(out);
+  osc.start(t);
+  osc.stop(t + 0.14);
+}
+
+// "spazzola" sul rullante: fruscio filtrato e scuro, per carte che si girano e pacchetti
+function brush(start: number, dur: number, from: number, to: number, vol = 0.07) {
+  const a = audio();
+  if (!a || !out) return;
   const t = a.currentTime + start;
   const buf = a.createBuffer(1, Math.ceil(a.sampleRate * dur), a.sampleRate);
   const data = buf.getChannelData(0);
@@ -107,46 +160,56 @@ function noise(start: number, dur: number, from: number, to: number, vol = 0.15)
   src.buffer = buf;
   const filter = a.createBiquadFilter();
   filter.type = 'bandpass';
-  filter.Q.value = 1.2;
+  filter.Q.value = 0.7;
   filter.frequency.setValueAtTime(from, t);
   filter.frequency.exponentialRampToValueAtTime(to, t + dur);
-  const gain = a.createGain();
-  gain.gain.setValueAtTime(0.0001, t);
-  gain.gain.exponentialRampToValueAtTime(vol, t + dur * 0.3);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  src.connect(filter).connect(gain).connect(a.destination);
+  const env = a.createGain();
+  env.gain.setValueAtTime(0.0001, t);
+  env.gain.exponentialRampToValueAtTime(vol, t + dur * 0.4);
+  env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(filter).connect(env).connect(out);
   src.start(t);
 }
 
-// note: C5=523, E5=659, G5=784, C6=1047
+// note (Hz): accordi "jazz" con settima e nona
+const N = { C3: 131, D3: 147, F3: 175, G3: 196, A3: 220, Bb3: 233, C4: 262, D4: 294, E4: 330, F4: 349, G4: 392, A4: 440, B4: 494, D5: 587, E5: 659 };
+
 const SYNTH: Record<Sfx, () => void> = {
-  tap: () => tone(1400, 0, 0.04, 'square', 0.05),
+  tap: () => tock(420),
   select: () => {
-    tone(880, 0, 0.07, 'square', 0.06);
-    tone(1320, 0.05, 0.08, 'square', 0.05);
+    keys(N.G4, 0, 0.35, 0.07);
+    keys(N.B4, 0.06, 0.4, 0.06);
   },
-  flip: () => noise(0, 0.16, 600, 3200, 0.18),
-  roundWin: () => [523, 659, 784].forEach((f, i) => tone(f, i * 0.07, 0.18)),
+  flip: () => brush(0, 0.22, 500, 1400, 0.16),
+  // round vinto: Cmaj7 che sale
+  roundWin: () => [N.C4, N.E4, N.G4, N.B4].forEach((f, i) => keys(f, i * 0.07, 0.7, 0.09)),
+  // round perso: due note che scendono piano (Dm)
   roundLose: () => {
-    tone(392, 0, 0.16, 'sawtooth', 0.08);
-    tone(294, 0.12, 0.28, 'sawtooth', 0.08);
+    keys(N.F4, 0, 0.5, 0.08);
+    keys(N.D4, 0.16, 0.7, 0.08);
   },
   roundTie: () => {
-    tone(587, 0, 0.12);
-    tone(587, 0.14, 0.12);
+    keys(N.A4, 0, 0.35, 0.07);
+    keys(N.A4, 0.18, 0.45, 0.06);
   },
+  // vittoria: arpeggio Cmaj9 e accordo tenuto
   victory: () => {
-    [523, 659, 784].forEach((f, i) => tone(f, i * 0.11, 0.2, 'square', 0.09));
-    tone(1047, 0.36, 0.6, 'square', 0.1);
-    tone(784, 0.36, 0.6, 'triangle', 0.08);
+    [N.C4, N.E4, N.G4, N.B4, N.D5].forEach((f, i) => keys(f, i * 0.09, 1.2, 0.08));
+    [N.C4, N.E4, N.B4, N.D5].forEach((f) => keys(f, 0.55, 1.8, 0.06));
+    keys(N.C3, 0.55, 1.8, 0.07); // basso
   },
-  defeat: () => [440, 392, 349, 294].forEach((f, i) => tone(f, i * 0.16, 0.28, 'triangle', 0.14)),
+  // sconfitta: Dm7 che scende lento, senza drammi
+  defeat: () => [N.A4, N.F4, N.D4, N.A3].forEach((f, i) => keys(f, i * 0.18, 0.9, 0.07)),
   pack: () => {
-    noise(0, 0.45, 300, 4000, 0.16);
-    tone(300, 0.05, 0.4, 'sine', 0.08, 900);
+    brush(0, 0.6, 300, 1600, 0.08);
+    [N.D4, N.F4, N.A4, N.E5].forEach((f, i) => keys(f, 0.25 + i * 0.06, 0.8, 0.05));
   },
-  reveal: () => noise(0, 0.12, 1200, 4000, 0.1),
-  rare: () => [1047, 1319, 1568, 2093].forEach((f, i) => tone(f, i * 0.06, 0.35, 'sine', 0.09)),
+  reveal: () => {
+    brush(0, 0.14, 700, 1500, 0.1);
+    keys(N.G4, 0.04, 0.3, 0.04);
+  },
+  // card rara: luccichio di vibrafono (Fmaj9)
+  rare: () => [N.F4, N.A4, N.E5, N.G4 * 2].forEach((f, i) => keys(f, i * 0.08, 1.2, 0.07)),
 };
 
 const players = new Map<string, HTMLAudioElement>();
@@ -182,7 +245,6 @@ let mode: MusicMode = 'menu';
 let menuIndex = 0; // brano menu corrente
 let current: HTMLAudioElement | null = null; // brano che sta suonando (o in pausa)
 let currentName: string | null = null;
-let unlocked = false;
 const tracks = new Map<string, HTMLAudioElement>();
 
 function track(name: string) {
@@ -208,14 +270,16 @@ function fade(el: HTMLAudioElement, to: number, done?: () => void) {
   const start = performance.now();
   const step = (now: number) => {
     const k = Math.min(1, (now - start) / FADE_MS);
-    el.volume = from + (to - from) * k;
+    el.volume = Math.min(1, Math.max(0, from + (to - from) * k)); // evita valori fuori da 0–1 per arrotondamento
     if (k < 1) requestAnimationFrame(step);
     else done?.();
   };
   requestAnimationFrame(step);
 }
 
-const canPlay = () => settings.music && unlocked && !document.hidden;
+// prova a suonare subito: nell'app Android (Capacitor) l'audio automatico è permesso; nei browser che lo
+// bloccano, play() fallisce e si riprova al primo tocco (vedi sotto)
+const canPlay = () => settings.music && !document.hidden;
 
 // passa a un altro brano con dissolvenza; `restart` lo fa ripartire dall'inizio
 function switchTo(name: string | null, restart: boolean) {
@@ -265,16 +329,15 @@ export function setMusicMode(next: MusicMode) {
   }
 }
 
-// i browser e le webview fanno partire l'audio solo dopo un tocco dell'utente
+// Nei browser che bloccano l'audio finché l'utente non tocca la pagina: al primo tocco si riprova.
 if (typeof window !== 'undefined') {
   const unlock = () => {
-    unlocked = true;
     audio();
     if (!current) setMusicMode(mode);
     syncMusic();
-    window.removeEventListener('pointerdown', unlock);
+    for (const ev of ['pointerdown', 'keydown', 'touchstart']) window.removeEventListener(ev, unlock);
   };
-  window.addEventListener('pointerdown', unlock);
+  for (const ev of ['pointerdown', 'keydown', 'touchstart']) window.addEventListener(ev, unlock, { passive: true });
   document.addEventListener('visibilitychange', syncMusic); // musica in pausa quando l'app va in background
 }
 
