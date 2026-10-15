@@ -58,6 +58,33 @@ Il login con Google e il salvataggio della collezione usano [Supabase](https://s
    - *Site URL*: `https://j0jofra.github.io/F1-Card-Battle/`
    - *Redirect URLs*: aggiungi `https://j0jofra.github.io/F1-Card-Battle/**` e `http://localhost:5173/**`
 
+## App Android
+
+L'app Android è fatta con [Capacitor](https://capacitorjs.com): è lo stesso gioco del sito, dentro un'app (cartella `android/`).
+
+- **Login**: nell'app si usa il selettore account di Android (plugin `@capgo/capacitor-social-login`), senza aprire il browser. Il token di Google viene passato a Supabase (`signInWithIdToken`), quindi l'account e la collezione sono gli stessi del sito.
+- **APK di prova**: a ogni push sui branch `claude/**` e `main`, la GitHub Action *App Android* compila un APK di debug. Lo trovi in *Actions* → ultima esecuzione → *Artifacts* → `f1-card-battle-debug-apk`.
+- La chiave di firma di debug (`android/app/debug.keystore`) è fissa e versionata, così l'impronta SHA-1 non cambia:
+  `SHA-1 06:36:44:09:26:59:CE:0A:2E:6C:39:EB:73:D1:2B:FF:43:BD:24:7E`
+  Per la pubblicazione sul Play Store servirà una chiave di rilascio separata (mai nel repository).
+
+### Configurare il login nell'app (una volta sola)
+
+1. **Google Cloud Console** → *Credenziali* → *Crea credenziali* → *ID client OAuth* → tipo **Android**:
+   - Nome pacchetto: `com.j0jofra.f1cardbattle`
+   - Impronta SHA-1: quella qui sopra
+2. **GitHub** → repository → *Settings* → *Secrets and variables* → *Actions* → scheda *Variables* → *New repository variable*:
+   - Nome `GOOGLE_WEB_CLIENT_ID`, valore: l'ID client di tipo **Applicazione web** (quello già usato in Supabase, finisce con `.apps.googleusercontent.com`). Non è un segreto.
+3. Rilancia la Action *App Android* (o fai un push) e installa il nuovo APK.
+
+### Sviluppo locale dell'app
+
+```bash
+npm run build && npx cap sync android
+npx cap open android   # apre Android Studio
+```
+Per il login in locale crea un file `.env.local` con `VITE_GOOGLE_WEB_CLIENT_ID=...`.
+
 ## Sviluppo
 
 ```bash

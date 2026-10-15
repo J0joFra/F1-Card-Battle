@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { isNativeApp, nativeGoogleSignIn, nativeGoogleSignOut } from '../lib/nativeGoogle';
 import { isUntouched, mergeProgress, normalizeProgress, starterProgress, type Progress } from '../game/collection';
 
 export type SyncStatus = 'offline' | 'loading' | 'saving' | 'saved' | 'error';
@@ -121,6 +122,16 @@ export function useAccount(
   }, [progress, userId, session, save]);
 
   const signIn = useCallback(async () => {
+    if (isNativeApp()) {
+      // nell'app Android: selettore account di sistema, niente browser
+      try {
+        await nativeGoogleSignIn();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (!/cancel/i.test(msg)) notify(`Accesso non riuscito: ${msg}`);
+      }
+      return;
+    }
     const redirectTo = window.location.origin + window.location.pathname;
     const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
     if (error) notify(`Accesso non riuscito: ${error.message}`);
@@ -129,6 +140,7 @@ export function useAccount(
   const signOut = useCallback(async () => {
     if (userId && ready.current) await save(userId, progress, session); // ultimo salvataggio
     await supabase.auth.signOut();
+    if (isNativeApp()) await nativeGoogleSignOut();
     writeLinked(null);
     // il dispositivo torna "ospite": la collezione resta al sicuro sull'account
     replaceProgress(starterProgress());

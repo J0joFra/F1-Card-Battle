@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">F1 Card Battle</string>
+    <string name="title_activity_main">F1 Card Battle</string>
+    <string name="package_name">com.j0jofra.f1cardbattle</string>
+    <string name="custom_url_scheme">com.j0jofra.f1cardbattle</string>
+</resources>
