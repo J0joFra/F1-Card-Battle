@@ -1,6 +1,6 @@
 # Suoni e musica
 
-Di base il gioco usa suoni generati dal codice. Per sostituirne uno, metti qui un file con il **nome dell'effetto**
+Di base il gioco usa suoni generati dal codice, in stile "jazz club" (piano elettrico, vibrafono, spazzole) per stare bene sopra la musica. Per sostituirne uno, metti qui un file con il **nome dell'effetto**
 (mp3, ogg o wav): viene usato al posto di quello generato, senza toccare il codice.
 
 | File | Quando suona |

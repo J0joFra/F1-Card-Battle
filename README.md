@@ -55,9 +55,9 @@ Formato consigliato: WebP 600 × 600 px con sfondo trasparente. Senza immagine l
 
 ## Suoni, vibrazione e animazioni
 
-- Effetti sonori generati dal codice (nessun file, nessuna licenza): tocchi, scelta della metrica, carta che si gira, esito del round, vittoria/sconfitta, apertura pacchetto, card rara.
+- Effetti sonori generati dal codice (nessun file, nessuna licenza), morbidi e in stile jazz (piano elettrico, vibrafono, spazzole): tocchi, scelta della metrica, carta che si gira, esito del round, vittoria/sconfitta, apertura pacchetto, card rara.
 - Per usare suoni tuoi o aggiungere una musica di sottofondo basta mettere i file in `src/assets/sounds/` con il nome dell'effetto (elenco in `src/assets/sounds/LEGGIMI.md`).
-- Musica: due brani jazz (`music-menu-1`, `music-menu-2`) che si alternano fuori dalla partita e un brano racing (`music-match`) in loop durante la partita; finita la partita riparte il jazz successivo. Brani da Pixabay Music, fonti in `src/assets/sounds/LEGGIMI.md`.
+- Musica: due brani jazz (`music-menu-1`, `music-menu-2`) che si alternano fuori dalla partita e un brano racing (`music-match`) in loop durante la partita; finita la partita riparte il jazz successivo. Nell'app la musica parte appena si apre; nel browser, che blocca l'audio automatico, parte al primo tocco. Brani da Pixabay Music, fonti in `src/assets/sounds/LEGGIMI.md`.
 - Vibrazione con il plugin Haptics di Capacitor (sul web `navigator.vibrate`).
 - Suoni, musica e vibrazione si disattivano dalle impostazioni; con "riduci animazioni" attivo sul telefono le animazioni si spengono.
 
