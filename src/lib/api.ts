@@ -37,6 +37,8 @@ const MESSAGES: Record<string, TKey> = {
   daily_played: 'err_daily_played',
   not_enough_credits: 'err_not_enough_credits',
   no_packs: 'err_no_packs',
+  bad_code: 'err_bad_code',
+  own_match: 'err_own_match',
 };
 
 export const errorMessage = (e: unknown) =>

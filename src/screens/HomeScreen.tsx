@@ -1,4 +1,4 @@
-import { Gift, Play } from 'lucide-react';
+import { Gift, Play, Users } from 'lucide-react';
 import { useMemo } from 'react';
 import { useI18n } from '../lib/i18n';
 import { TOTAL_CARDS, WINS_PER_PACK, collectionSize, ownedCards, type Progress } from '../game/collection';
@@ -19,11 +19,12 @@ interface Props {
   missions: MissionsState;
   onPlay: () => void;
   onDaily: () => void;
+  onFriend: () => void;
   onClaim: (i: number) => void;
   onPacks: () => void;
 }
 
-export function HomeScreen({ progress, account, challenge, missions, onPlay, onDaily, onClaim, onPacks }: Props) {
+export function HomeScreen({ progress, account, challenge, missions, onPlay, onDaily, onFriend, onClaim, onPacks }: Props) {
   const { t } = useI18n();
   const owned = collectionSize(progress);
   const canPlay = owned >= DECK_SIZE;
@@ -52,6 +53,9 @@ export function HomeScreen({ progress, account, challenge, missions, onPlay, onD
         <button className="play-btn" onClick={onPlay} disabled={!canPlay}>
           <Play size={28} fill="currentColor" />
           {t('home_play')}
+        </button>
+        <button className="btn ghost block friend-btn" onClick={onFriend}>
+          <Users size={18} /> {t('home_friend')}
         </button>
         {!canPlay && <p className="muted">{t('home_needCards', { n: DECK_SIZE })}</p>}
       </section>

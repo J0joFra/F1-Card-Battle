@@ -145,6 +145,14 @@ export function matchOutcome(state: MatchState): MatchOutcome {
 export function cpuChooseStat(state: MatchState, rng: Rng = Math.random, mistakeRate = 0): StatKey {
   const free = availableStats(state);
   if (rng() < mistakeRate) return free[Math.floor(rng() * free.length)];
-  const card = currentCards(state).cpu;
+  return bestStat(currentCards(state).cpu, free);
+}
+
+// La metrica più forte di una card (per percentile) tra quelle ancora libere.
+// La usa la CPU, e anche chi lascia scadere il tempo: il gioco sceglie per lui.
+export function bestStat(card: Card, free: StatKey[]): StatKey {
   return free.reduce((best, k) => (percentile(k, card.stats[k]) > percentile(best, card.stats[best]) ? k : best));
 }
+
+// Tempo per scegliere la metrica; allo scadere si gioca la migliore della propria card.
+export const TURN_SECONDS = 30;
