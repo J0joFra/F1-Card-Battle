@@ -53,6 +53,13 @@ Le card mostrano l'immagine del pilota se trovano un file in `src/assets/drivers
 
 Formato consigliato: WebP 600 × 600 px con sfondo trasparente. Senza immagine la card mostra un casco disegnato con i colori della scuderia e il numero di gara.
 
+## Suoni, vibrazione e animazioni
+
+- Effetti sonori generati dal codice (nessun file, nessuna licenza): tocchi, scelta della metrica, carta che si gira, esito del round, vittoria/sconfitta, apertura pacchetto, card rara.
+- Per usare suoni tuoi o aggiungere una musica di sottofondo basta mettere i file in `src/assets/sounds/` con il nome dell'effetto (elenco in `src/assets/sounds/LEGGIMI.md`).
+- Vibrazione con il plugin Haptics di Capacitor (sul web `navigator.vibrate`).
+- Suoni, musica e vibrazione si disattivano dalle impostazioni; con "riduci animazioni" attivo sul telefono le animazioni si spengono.
+
 ## Account e salvataggio online
 
 Il login con Google e il salvataggio della collezione usano [Supabase](https://supabase.com) (progetto `f1-card-battle`, piano gratuito).

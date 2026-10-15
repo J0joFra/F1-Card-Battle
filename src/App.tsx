@@ -19,6 +19,7 @@ import {
 import { useI18n } from './lib/i18n';
 import { useTheme } from './lib/theme';
 import { useAccount } from './hooks/useAccount';
+import { haptic, sfx } from './lib/feedback';
 import { HomeScreen } from './screens/HomeScreen';
 import { MatchScreen } from './screens/MatchScreen';
 import { DeckBuilderScreen } from './screens/DeckBuilderScreen';
@@ -118,6 +119,15 @@ export default function App() {
     setScreen('home');
   }
 
+  // cambio schermata dai pulsanti di navigazione, con tocco sonoro e vibrazione leggera
+  const go = (s: Screen) => {
+    if (s !== screen) {
+      sfx('tap');
+      haptic('light');
+    }
+    setScreen(s);
+  };
+
   const inMatch = screen === 'match';
   const tab: Tab | null = screen === 'home' || screen === 'collection' || screen === 'packs' ? screen : null;
 
@@ -151,7 +161,7 @@ export default function App() {
 
       <main className="content">
         {screen === 'home' && (
-          <HomeScreen progress={progress} account={account} onPlay={() => setScreen('builder')} onPacks={() => setScreen('packs')} />
+          <HomeScreen progress={progress} account={account} onPlay={() => go('builder')} onPacks={() => go('packs')} />
         )}
         {screen === 'builder' && <DeckBuilderScreen progress={progress} onStart={startMatch} onBack={() => setScreen('home')} />}
         {screen === 'match' && matchCards && (
@@ -173,17 +183,17 @@ export default function App() {
 
       {!inMatch && (
         <nav className="tabbar">
-          <button className={tab === 'collection' ? 'on' : ''} onClick={() => setScreen('collection')}>
+          <button className={tab === 'collection' ? 'on' : ''} onClick={() => go('collection')}>
             <Layers size={22} />
             <span>{t('nav_collection')}</span>
           </button>
-          <button className={`tab-play ${tab === 'home' || screen === 'builder' ? 'on' : ''}`} onClick={() => setScreen('home')}>
+          <button className={`tab-play ${tab === 'home' || screen === 'builder' ? 'on' : ''}`} onClick={() => go('home')}>
             <span className="tab-play-icon">
               <Play size={26} fill="currentColor" />
             </span>
             <span>{t('nav_play')}</span>
           </button>
-          <button className={tab === 'packs' ? 'on' : ''} onClick={() => setScreen('packs')}>
+          <button className={tab === 'packs' ? 'on' : ''} onClick={() => go('packs')}>
             <span className="tab-icon">
               <Gift size={22} />
               {progress.packs > 0 && <span className="badge">{progress.packs}</span>}

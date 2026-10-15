@@ -17,6 +17,10 @@ import {
   type MatchState,
 } from '../game/engine';
 import { CardBack, CardView } from '../components/CardView';
+import { haptic, reducedMotion, sfx } from '../lib/feedback';
+
+// tempo della carta CPU che si gira prima di mostrare il risultato del round
+const REVEAL_MS = 650;
 
 interface Props {
   deck: Card[];
@@ -30,6 +34,7 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
   const [state, setState] = useState<MatchState>(initial);
   const [showResult, setShowResult] = useState(false); // round appena giocato, in attesa di "avanti"
   const [cpuPick, setCpuPick] = useState<StatKey | null>(null);
+  const [settled, setSettled] = useState(true); // false mentre la carta CPU si sta girando
   const last = state.history[state.history.length - 1];
   const outcome = matchOutcome(state);
   const finished = outcome && !showResult;
@@ -39,7 +44,11 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
   // Turno della CPU: "pensa", annuncia la metrica, poi la gioca.
   useEffect(() => {
     if (!choosing || state.chooser !== 'cpu' || cpuPick) return;
-    const t = setTimeout(() => setCpuPick(cpuChooseStat(state)), 900);
+    const t = setTimeout(() => {
+      setCpuPick(cpuChooseStat(state));
+      sfx('tap');
+      haptic('light');
+    }, 900);
     return () => clearTimeout(t);
   }, [choosing, state, cpuPick]);
 
@@ -50,11 +59,60 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
   }, [cpuPick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function pick(stat: StatKey) {
+    if (state.chooser === 'player') {
+      sfx('select');
+      haptic('light');
+    }
     setState(playRound(state, stat));
     setCpuPick(null);
     setShowResult(true);
+    setSettled(false);
+    sfx('flip');
   }
 
+  // Dopo che la carta CPU si è girata: esito del round con suono e vibrazione.
+  useEffect(() => {
+    if (settled || !last) return;
+    const t = setTimeout(() => {
+      setSettled(true);
+      if (last.winner === 'player') {
+        sfx('roundWin');
+        haptic('success');
+      } else if (last.winner === 'cpu') {
+        sfx('roundLose');
+        haptic('error');
+      } else {
+        sfx('roundTie');
+        haptic('warning');
+      }
+    }, REVEAL_MS);
+    return () => clearTimeout(t);
+  }, [settled, last]);
+
+  // Fine partita: fanfara (e coriandoli se hai vinto) o musichetta della sconfitta.
+  useEffect(() => {
+    if (!finished) return;
+    if (outcome === 'player') {
+      sfx('victory');
+      haptic('heavy');
+      if (!reducedMotion())
+        void import('canvas-confetti').then(({ default: confetti }) => {
+          const colors = ['#e10600', '#ffffff', '#e8b931', '#2fbf71'];
+          confetti({ particleCount: 120, spread: 80, origin: { y: 0.35 }, colors, disableForReducedMotion: true });
+          setTimeout(() => confetti({ particleCount: 60, angle: 60, spread: 60, origin: { x: 0, y: 0.6 }, colors }), 250);
+          setTimeout(() => confetti({ particleCount: 60, angle: 120, spread: 60, origin: { x: 1, y: 0.6 }, colors }), 400);
+        });
+    } else if (outcome === 'cpu') {
+      sfx('defeat');
+      haptic('error');
+    } else sfx('roundTie');
+  }, [finished, outcome]);
+
+  // mentre la carta CPU si gira il punteggio non è ancora aggiornato, per non rovinare la sorpresa
+  const shown = {
+    player: state.score.player - (!settled && last?.winner === 'player' ? 1 : 0),
+    cpu: state.score.cpu - (!settled && last?.winner === 'cpu' ? 1 : 0),
+  };
   const chooserLabel = (side: 'player' | 'cpu') => (side === 'player' ? t('m_choseYou') : t('m_choseCpu'));
   const quit = () => {
     if (confirm(t('m_quitConfirm'))) onQuit();
@@ -70,20 +128,25 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
       <div className="scoreboard">
         <div className="side you">
           <small>{t('m_you')}</small>
-          <b>{state.score.player}</b>
+          <b key={`p${shown.player}`} className={shown.player ? 'bump' : ''}>
+            {shown.player}
+          </b>
         </div>
         <div className="round">
           {finished ? t('m_end') : t('m_round', { a: Math.min(state.round + (showResult ? 0 : 1), ROUNDS), b: ROUNDS })}
           <div className="round-dots">
             {Array.from({ length: ROUNDS }, (_, i) => {
               const h = state.history[i];
-              return <span key={i} className={`rd ${h ? `rd-${h.winner}` : ''}`} title={h ? statLabel(h.stat) : ''} />;
+              const shown = h && (settled || i < state.history.length - 1);
+              return <span key={i} className={`rd ${shown ? `rd-${h.winner}` : ''}`} title={h ? statLabel(h.stat) : ''} />;
             })}
           </div>
         </div>
         <div className="side cpu">
           <small>{t('m_cpu')}</small>
-          <b>{state.score.cpu}</b>
+          <b key={`c${shown.cpu}`} className={shown.cpu ? 'bump' : ''}>
+            {shown.cpu}
+          </b>
         </div>
       </div>
 
@@ -130,24 +193,37 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
         </div>
       ) : showResult && last ? (
         <>
-          <div className={`banner banner-${last.winner}`}>
-            {statLabel(last.stat)} ({chooserLabel(last.chooser)}):{' '}
-            {last.winner === 'player' ? t('m_pointYou') : last.winner === 'cpu' ? t('m_pointCpu') : t('m_tie')}
-          </div>
-          <div className="duel">
+          {settled ? (
+            <div className={`banner banner-${last.winner} pop`}>
+              {statLabel(last.stat)} ({chooserLabel(last.chooser)}):{' '}
+              {last.winner === 'player' ? t('m_pointYou') : last.winner === 'cpu' ? t('m_pointCpu') : t('m_tie')}
+            </div>
+          ) : (
+            <div className="banner">{statLabel(last.stat)}…</div>
+          )}
+          <div className={`duel ${settled ? `clash clash-${last.winner}` : ''}`}>
             <CardView
               card={last.playerCard}
               highlight={last.stat}
-              result={last.winner === 'player' ? 'win' : last.winner === 'cpu' ? 'lose' : 'tie'}
+              result={settled ? (last.winner === 'player' ? 'win' : last.winner === 'cpu' ? 'lose' : 'tie') : undefined}
             />
             <span className="vs">VS</span>
-            <CardView
-              card={last.cpuCard}
-              highlight={last.stat}
-              result={last.winner === 'cpu' ? 'win' : last.winner === 'player' ? 'lose' : 'tie'}
-            />
+            <div className="flip-reveal" key={`cpu-${state.round}`}>
+              <CardView
+                card={last.cpuCard}
+                highlight={last.stat}
+                result={settled ? (last.winner === 'cpu' ? 'win' : last.winner === 'player' ? 'lose' : 'tie') : undefined}
+              />
+            </div>
           </div>
-          <button className="btn primary big next-btn" onClick={() => setShowResult(false)}>
+          <button
+            className="btn primary big next-btn"
+            disabled={!settled}
+            onClick={() => {
+              sfx('tap');
+              setShowResult(false);
+            }}
+          >
             {outcome ? t('m_final') : t('m_next')}
           </button>
         </>
@@ -165,14 +241,18 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
                 : t('m_cpuThinking')}
           </div>
           <div className="duel">
-            <CardView
-              card={currentCards(state).player}
-              onPickStat={state.chooser === 'player' ? pick : undefined}
-              lockedStats={state.usedStats}
-              highlight={cpuPick ?? undefined}
-            />
+            <div className="deal-in" key={`me-${state.round}`}>
+              <CardView
+                card={currentCards(state).player}
+                onPickStat={state.chooser === 'player' ? pick : undefined}
+                lockedStats={state.usedStats}
+                highlight={cpuPick ?? undefined}
+              />
+            </div>
             <span className="vs">VS</span>
-            <CardBack label={t('m_cpuCard', { a: state.round + 1, b: ROUNDS })} />
+            <div className="deal-in cpu" key={`back-${state.round}`}>
+              <CardBack label={t('m_cpuCard', { a: state.round + 1, b: ROUNDS })} />
+            </div>
           </div>
         </>
       )}

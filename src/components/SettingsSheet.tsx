@@ -1,4 +1,5 @@
-import { LogOut, Monitor, Moon, RotateCcw, Sun, X } from 'lucide-react';
+import { LogOut, Monitor, Moon, Music, RotateCcw, Smartphone, Sun, Volume2, X } from 'lucide-react';
+import { hasMusic, setFeedback, useFeedbackSettings, type FeedbackSettings } from '../lib/feedback';
 import { useI18n, type TKey } from '../lib/i18n';
 import type { ThemePref } from '../lib/theme';
 import type { Account } from '../hooks/useAccount';
@@ -24,6 +25,12 @@ const THEMES: { id: ThemePref; icon: typeof Sun; label: TKey }[] = [
 // Pannello impostazioni che sale dal basso: tema, lingua, account, introduzione.
 export function SettingsSheet({ theme, onTheme, account, onIntro, onReset, onClose }: Props) {
   const { t } = useI18n();
+  const fb = useFeedbackSettings();
+  const toggles: { key: keyof FeedbackSettings; icon: typeof Sun; label: TKey }[] = [
+    { key: 'sound', icon: Volume2, label: 'fb_sound' },
+    ...(hasMusic ? [{ key: 'music' as const, icon: Music, label: 'fb_music' as TKey }] : []),
+    { key: 'haptics', icon: Smartphone, label: 'fb_haptics' },
+  ];
   return (
     <div className="overlay sheet-backdrop" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
@@ -67,6 +74,17 @@ export function SettingsSheet({ theme, onTheme, account, onIntro, onReset, onClo
               </button>
             ))}
           </div>
+        </section>
+
+        <section className="set-group">
+          <h3>{t('set_feedback')}</h3>
+          {toggles.map(({ key, icon: Icon, label }) => (
+            <label key={key} className="toggle-row">
+              <Icon size={18} />
+              <span>{t(label)}</span>
+              <input type="checkbox" role="switch" checked={fb[key]} onChange={(e) => setFeedback({ [key]: e.target.checked })} />
+            </label>
+          ))}
         </section>
 
         <section className="set-group">
