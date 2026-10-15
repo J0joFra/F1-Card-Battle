@@ -38,6 +38,21 @@ Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per 
 
 La collezione per ora si salva nel browser (localStorage).
 
+## Lingue, tema e tutorial
+
+- **Lingue**: italiano, inglese, francese, spagnolo e tedesco. Al primo avvio si usa la lingua del telefono (se non è tra queste, l'inglese); si cambia dalle impostazioni ⚙️ o dalla prima schermata. I testi sono in `src/lib/i18n.tsx`.
+- **Tema** chiaro/scuro: di default segue il telefono, si può forzare dalle impostazioni.
+- **Introduzione** a schede al primo avvio (riapribile dalle impostazioni) e **tutorial a tendina** in fondo a ogni schermata.
+
+## Illustrazioni dei piloti
+
+Le card mostrano l'immagine del pilota se trovano un file in `src/assets/drivers/` (istruzioni in `src/assets/drivers/LEGGIMI.md`):
+
+- `lewis-hamilton.webp` → usata per tutte le card di Hamilton;
+- `lewis-hamilton__ferrari.webp` → solo per la card Hamilton · Ferrari (ha la precedenza).
+
+Formato consigliato: WebP 600 × 600 px con sfondo trasparente. Senza immagine la card mostra un casco disegnato con i colori della scuderia e il numero di gara.
+
 ## Account e salvataggio online
 
 Il login con Google e il salvataggio della collezione usano [Supabase](https://supabase.com) (progetto `f1-card-battle`, piano gratuito).

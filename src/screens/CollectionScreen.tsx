@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
 import type { Card, Rarity } from '../types';
-import { ALL_CARDS, RARITIES, RARITY_LABEL, careerCardOf, teamCardsOfDriver } from '../game/cards';
+import { Search, X } from 'lucide-react';
+import { ALL_CARDS, RARITIES, careerCardOf, rarityLabel, teamCardsOfDriver } from '../game/cards';
+import { useI18n } from '../lib/i18n';
+import { TutorialSection } from '../components/TutorialSection';
 import { CARD_PRICE, TOTAL_CARDS, collectionSize, type Progress } from '../game/collection';
 import { CardView } from '../components/CardView';
 
@@ -12,6 +15,7 @@ interface Props {
 type OwnedFilter = 'tutte' | 'mie' | 'mancanti';
 
 export function CollectionScreen({ progress, onBuy }: Props) {
+  const { t } = useI18n();
   const [query, setQuery] = useState('');
   const [rarity, setRarity] = useState<Rarity | 'tutte'>('tutte');
   const [ownedFilter, setOwnedFilter] = useState<OwnedFilter>('mie');
@@ -31,38 +35,37 @@ export function CollectionScreen({ progress, onBuy }: Props) {
 
 
   return (
-    <div className="collection">
-      <div className="section-head">
-        <h2>Collezione</h2>
-        <span className="muted">
-          {collectionSize(progress)}/{TOTAL_CARDS} card · {progress.credits} crediti
-        </span>
+    <div className="screen collection">
+      <header className="screen-head">
+        <h2>{t('col_title')}</h2>
+        <span className="muted">{t('col_count', { a: collectionSize(progress), b: TOTAL_CARDS })}</span>
+      </header>
+      <div className="col-progress bar">
+        <div style={{ width: `${(collectionSize(progress) / TOTAL_CARDS) * 100}%` }} />
       </div>
 
       <div className="filters">
-        <input
-          type="search"
-          placeholder="Cerca pilota o scuderia"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <label className="search">
+          <Search size={16} />
+          <input type="search" placeholder={t('col_search')} value={query} onChange={(e) => setQuery(e.target.value)} />
+        </label>
         <div className="chips">
           {(['mie', 'mancanti', 'tutte'] as OwnedFilter[]).map((f) => (
             <button key={f} className={`chip ${ownedFilter === f ? 'on' : ''}`} onClick={() => setOwnedFilter(f)}>
-              {f === 'mie' ? 'Le mie' : f === 'mancanti' ? 'Mancanti' : 'Tutte'}
+              {f === 'mie' ? t('f_mine') : f === 'mancanti' ? t('f_missing') : t('f_all')}
             </button>
           ))}
           <span className="sep" />
           {(['tutte', ...RARITIES] as const).map((r) => (
             <button key={r} className={`chip ${rarity === r ? 'on' : ''}`} onClick={() => setRarity(r)}>
-              {r === 'tutte' ? 'Ogni rarità' : RARITY_LABEL[r]}
+              {r === 'tutte' ? t('f_anyRarity') : rarityLabel(r)}
             </button>
           ))}
         </div>
       </div>
 
       {cards.length === 0 ? (
-        <p className="muted empty">Nessuna card con questi filtri.</p>
+        <p className="muted empty">{t('col_empty')}</p>
       ) : (
         <div className="grid">
           {cards.map((c) => (
@@ -87,6 +90,8 @@ export function CollectionScreen({ progress, onBuy }: Props) {
           onBuy={() => onBuy(selected)}
         />
       )}
+
+      <TutorialSection items={['tut_coll_1', 'tut_coll_2', 'tut_coll_3']} />
     </div>
   );
 }
@@ -102,6 +107,7 @@ function CardModal({
   onClose: () => void;
   onBuy: () => void;
 }) {
+  const { t } = useI18n();
   const owned = !!progress.owned[card.id];
   const price = CARD_PRICE[card.rarity];
   const teamCards = teamCardsOfDriver(card.driver.id);
@@ -109,26 +115,24 @@ function CardModal({
   const ownedTeams = teamCards.filter((c) => progress.owned[c.id]).length;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="overlay modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <button className="icon-btn modal-close" onClick={onClose} aria-label={t('close')}>
+          <X size={20} />
+        </button>
         <CardView card={card} dimmed={!owned} />
         <div className="modal-side">
           {career && (
             <p className="muted">
-              Card scuderia di {card.driver.lastName}: {ownedTeams}/{teamCards.length}.
-              {progress.owned[career.id]
-                ? ' Carriera sbloccata ★'
-                : ' Completale tutte per sbloccare la card Carriera.'}
+              {t('col_teamProgress', { name: card.driver.lastName, a: ownedTeams, b: teamCards.length })}{' '}
+              {progress.owned[career.id] ? t('col_careerUnlocked') : t('col_careerHint')}
             </p>
           )}
           {!owned && (
-            <button className="btn primary" onClick={onBuy} disabled={progress.credits < price}>
-              Compra per {price} crediti
+            <button className="btn primary block" onClick={onBuy} disabled={progress.credits < price}>
+              🪙 {t('col_buy', { n: price })}
             </button>
           )}
-          <button className="btn ghost" onClick={onClose}>
-            Chiudi
-          </button>
         </div>
       </div>
     </div>

@@ -1,7 +1,9 @@
 import type { CSSProperties } from 'react';
 import type { Card, StatKey } from '../types';
-import { RARITY_LABEL, STATS, flagEmoji, formatStat } from '../game/cards';
+import { STATS, flagEmoji, formatStat, rarityLabel, statHint, statLabel } from '../game/cards';
 import { teamColor } from '../game/teamColors';
+import { useI18n, type TFn } from '../lib/i18n';
+import { DriverArt } from './DriverArt';
 
 interface Props {
   card: Card;
@@ -15,37 +17,40 @@ interface Props {
   onClick?: () => void;
 }
 
-function palmaresLine(card: Card) {
+function palmaresLine(card: Card, t: TFn) {
   const { vittorie, podi, mondiali } = card.palmares;
-  const parts = [];
-  if (mondiali) parts.push(`🏆 ${mondiali} ${mondiali === 1 ? 'mondiale' : 'mondiali'}`);
-  if (vittorie) parts.push(`${vittorie} ${vittorie === 1 ? 'vittoria' : 'vittorie'}`);
-  else if (podi) parts.push(`${podi} ${podi === 1 ? 'podio' : 'podi'}`);
+  const parts: string[] = [];
+  if (mondiali) parts.push(`🏆 ${t(mondiali === 1 ? 'pal_title_one' : 'pal_title_many', { n: mondiali })}`);
+  if (vittorie) parts.push(t(vittorie === 1 ? 'pal_win_one' : 'pal_win_many', { n: vittorie }));
+  else if (podi) parts.push(t(podi === 1 ? 'pal_podium_one' : 'pal_podium_many', { n: podi }));
   return parts.join(' · ');
 }
 
+export const teamLabel = (card: Card, t: TFn) => (card.kind === 'career' ? `★ ${t('card_career')}` : card.team.name);
+
 export function CardView({ card, size = 'md', onPickStat, lockedStats, highlight, result, dimmed, count, onClick }: Props) {
+  const { t } = useI18n();
   const color = card.kind === 'career' ? '#c9a227' : teamColor(card.team.id);
   const style = { '--team': color } as CSSProperties;
-  const palmares = palmaresLine(card);
+  const palmares = palmaresLine(card, t);
   return (
     <div
       className={`card card-${size} rarity-${card.rarity} ${result ? `result-${result}` : ''} ${dimmed ? 'dimmed' : ''} ${onClick ? 'clickable' : ''}`}
       style={style}
       onClick={onClick}
     >
-      <div className="card-head">
-        <span className="card-number">{card.kind === 'career' ? '★' : card.number ?? ''}</span>
-        <span className="card-rarity">{RARITY_LABEL[card.rarity]}</span>
-      </div>
-      <div className="card-hero">
+      <div className="card-art">
+        <DriverArt card={card} />
+        <span className="card-flag" aria-hidden>
+          {flagEmoji(card.driver.country)}
+        </span>
+        <span className="card-rarity">{rarityLabel(card.rarity)}</span>
         <span className="card-abbr">{card.driver.abbreviation}</span>
-        <span className="card-flag" aria-hidden>{flagEmoji(card.driver.country)}</span>
       </div>
       <div className="card-title">
         <div className="card-name">{card.driver.name}</div>
         <div className="card-team">
-          {card.kind === 'career' ? '★ Carriera' : card.team.name} · {card.period}
+          {teamLabel(card, t)} · {card.period}
         </div>
         {size === 'md' && palmares && <div className="card-palmares">{palmares}</div>}
       </div>
@@ -56,9 +61,12 @@ export function CardView({ card, size = 'md', onPickStat, lockedStats, highlight
             const content = (
               <>
                 <span>
-                  {s.label}
-                  {s.lowerWins && <i className="low" title="Vince il più basso">↓</i>}
-                  {locked && <i className="lock"> 🔒</i>}
+                  {statLabel(s.key)}
+                  {s.lowerWins && (
+                    <i className="low" title={t('lower_wins')}>
+                      ↓
+                    </i>
+                  )}
                 </span>
                 <b>{formatStat(s, card.stats[s.key])}</b>
               </>
@@ -66,11 +74,18 @@ export function CardView({ card, size = 'md', onPickStat, lockedStats, highlight
             return (
               <li key={s.key} className={`${highlight === s.key ? 'hl' : ''} ${locked ? 'locked' : ''}`}>
                 {onPickStat ? (
-                  <button type="button" onClick={() => onPickStat(s.key)} disabled={locked} title={locked ? 'Già usata in questa partita' : s.hint}>
+                  <button
+                    type="button"
+                    onClick={() => onPickStat(s.key)}
+                    disabled={locked}
+                    title={locked ? t('card_used') : statHint(s.key)}
+                  >
                     {content}
                   </button>
                 ) : (
-                  <div className="stat-row" title={s.hint}>{content}</div>
+                  <div className="stat-row" title={statHint(s.key)}>
+                    {content}
+                  </div>
                 )}
               </li>
             );

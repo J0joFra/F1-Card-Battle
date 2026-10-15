@@ -6,6 +6,14 @@
     <meta name="theme-color" content="#0e0f13" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <title>F1 Card Battle</title>
+    <script>
+      // tema prima del primo disegno, per evitare il lampo bianco/nero
+      try {
+        var p = localStorage.getItem('f1-card-battle:theme') || 'system';
+        var d = p === 'dark' || (p === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.theme = d ? 'dark' : 'light';
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

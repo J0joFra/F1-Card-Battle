@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react';
-import type { Card, StatKey } from '../types';
-import { RARITY_LABEL, STATS, formatStat } from '../game/cards';
+import type { Card, Rarity, StatKey } from '../types';
+import { ArrowLeft, Dices, Play, Trash2 } from 'lucide-react';
+import { STATS, formatStat, rarityLabel, statHint, statLabel, statShort } from '../game/cards';
+import { useI18n } from '../lib/i18n';
+import { TutorialSection } from '../components/TutorialSection';
+import { teamLabel } from '../components/CardView';
 import { autoFillDeck, ownedCards, savedDeck, type Progress } from '../game/collection';
 import { DECK_SIZE } from '../game/engine';
 import { MAX_PER_RARITY, canAdd, deckProblems } from '../game/deckRules';
@@ -15,6 +19,7 @@ interface Props {
 type SortKey = StatKey | 'nome';
 
 export function DeckBuilderScreen({ progress, onStart, onBack }: Props) {
+  const { t } = useI18n();
   // se non c'è un mazzo salvato (o è incompleto) lo prepariamo noi: si può giocare subito
   const [prefilled] = useState(() => savedDeck(progress).length < DECK_SIZE);
   const [deck, setDeck] = useState<Card[]>(() => autoFillDeck(progress, savedDeck(progress)));
@@ -40,28 +45,22 @@ export function DeckBuilderScreen({ progress, onStart, onBack }: Props) {
   };
 
   const limits = Object.entries(MAX_PER_RARITY)
-    .map(([r, n]) => `max ${n} ${RARITY_LABEL[r as keyof typeof RARITY_LABEL]}`)
+    .map(([r, n]) => t('deck_maxRarity', { n: n!, r: rarityLabel(r as Rarity) }))
     .join(', ');
 
   return (
-    <div className="builder">
-      <div className="section-head">
-        <h2>Crea il tuo mazzo</h2>
-        <button className="btn ghost" onClick={onBack}>
-          Indietro
+    <div className="screen builder">
+      <header className="screen-head">
+        <button className="icon-btn" onClick={onBack} aria-label={t('back')}>
+          <ArrowLeft size={22} />
         </button>
-      </div>
+        <h2>{t('deck_title')}</h2>
+      </header>
       <p className="muted intro">
-        Scegli {DECK_SIZE} card, una per round. A ogni round esce una tua card a caso; la metrica la sceglie chi ha
-        vinto il round prima, e ogni metrica si usa una sola volta per partita. Conviene un mazzo forte su metriche
-        diverse. Limiti: {limits}.
+        {t('deck_intro', { n: DECK_SIZE })} {t('deck_limits', { limits })}
       </p>
 
-      {prefilled && (
-        <p className="prefilled">
-          Ecco un mazzo pronto, scelto a caso dalla tua collezione: puoi giocare subito o cambiarlo toccando le card.
-        </p>
-      )}
+      {prefilled && <p className="prefilled">{t('deck_prefilled')}</p>}
 
       <div className="deck-bar">
         <div className="deck-slots">
@@ -72,7 +71,7 @@ export function DeckBuilderScreen({ progress, onStart, onBack }: Props) {
                 key={i}
                 className={`slot ${c ? `rarity-${c.rarity} filled` : ''}`}
                 onClick={() => c && toggle(c)}
-                title={c ? `Togli ${c.driver.name}` : 'Slot libero'}
+                title={c ? t('deck_remove', { name: c.driver.name }) : t('deck_emptySlot')}
               >
                 {c ? (
                   <>
@@ -86,12 +85,13 @@ export function DeckBuilderScreen({ progress, onStart, onBack }: Props) {
             );
           })}
         </div>
+        <div className="deck-best-label">{t('deck_bestLabel')}</div>
         <div className="deck-best">
           {STATS.map((s) => {
             const v = bestInDeck(s.key);
             return (
-              <span key={s.key} title={`Miglior valore del mazzo: ${s.label}`}>
-                <small>{s.short}</small>
+              <span key={s.key} title={statLabel(s.key)}>
+                <small>{statShort(s.key)}</small>
                 <b>{v === null ? '–' : formatStat(s, v)}</b>
               </span>
             );
@@ -100,13 +100,13 @@ export function DeckBuilderScreen({ progress, onStart, onBack }: Props) {
         {problems.length > 0 && deck.length > 0 && <p className="problems">{problems.join(' ')}</p>}
         <div className="actions start">
           <button className="btn ghost" onClick={() => setDeck(autoFillDeck(progress, deck))} disabled={deck.length >= DECK_SIZE}>
-            Completa a caso
+            <Dices size={16} /> {t('deck_fill')}
           </button>
           <button className="btn ghost" onClick={() => setDeck([])} disabled={!deck.length}>
-            Svuota
+            <Trash2 size={16} /> {t('deck_clear')}
           </button>
-          <button className="btn primary" onClick={() => onStart(deck)} disabled={problems.length > 0}>
-            Avvia partita
+          <button className="btn primary big grow" onClick={() => onStart(deck)} disabled={problems.length > 0}>
+            <Play size={18} fill="currentColor" /> {t('deck_start')}
           </button>
         </div>
       </div>
@@ -116,11 +116,11 @@ export function DeckBuilderScreen({ progress, onStart, onBack }: Props) {
           <thead>
             <tr>
               <th className={sort === 'nome' ? 'on' : ''} onClick={() => setSort('nome')}>
-                Card
+                {t('deck_colCard')}
               </th>
               {STATS.map((s) => (
-                <th key={s.key} className={sort === s.key ? 'on' : ''} onClick={() => setSort(s.key)} title={s.hint}>
-                  {s.short}
+                <th key={s.key} className={sort === s.key ? 'on' : ''} onClick={() => setSort(s.key)} title={statHint(s.key)}>
+                  {statShort(s.key)}
                   {s.lowerWins && ' ↓'}
                 </th>
               ))}
@@ -140,7 +140,7 @@ export function DeckBuilderScreen({ progress, onStart, onBack }: Props) {
                     <span className={`dot rarity-${c.rarity}`} />
                     <b>{c.driver.name}</b>
                     <small>
-                      {c.kind === 'career' ? '★ Carriera' : c.team.name} · {c.period}
+                      {teamLabel(c, t)} · {c.period}
                     </small>
                   </td>
                   {STATS.map((s) => (
@@ -154,6 +154,11 @@ export function DeckBuilderScreen({ progress, onStart, onBack }: Props) {
           </tbody>
         </table>
       </div>
+
+      <TutorialSection
+        items={['tut_deck_1', 'tut_deck_2', 'tut_deck_3']}
+        params={{ leg: MAX_PER_RARITY.leggendaria ?? 0, gold: MAX_PER_RARITY.oro ?? 0 }}
+      />
     </div>
   );
 }
