@@ -7,7 +7,7 @@ interface Props {
   card: Card;
   size?: 'sm' | 'md';
   onPickStat?: (stat: StatKey) => void;
-  lockedStat?: StatKey | null; // metrica non selezionabile (usata nel round precedente)
+  lockedStats?: StatKey[]; // metriche già usate in questa partita
   highlight?: StatKey;
   result?: 'win' | 'lose' | 'tie';
   dimmed?: boolean;
@@ -24,7 +24,7 @@ function palmaresLine(card: Card) {
   return parts.join(' · ');
 }
 
-export function CardView({ card, size = 'md', onPickStat, lockedStat, highlight, result, dimmed, count, onClick }: Props) {
+export function CardView({ card, size = 'md', onPickStat, lockedStats, highlight, result, dimmed, count, onClick }: Props) {
   const color = card.kind === 'career' ? '#c9a227' : teamColor(card.team.id);
   const style = { '--team': color } as CSSProperties;
   const palmares = palmaresLine(card);
@@ -52,7 +52,7 @@ export function CardView({ card, size = 'md', onPickStat, lockedStat, highlight,
       {size === 'md' && (
         <ul className="card-stats">
           {STATS.map((s) => {
-            const locked = lockedStat === s.key;
+            const locked = !!lockedStats?.includes(s.key);
             const content = (
               <>
                 <span>
@@ -66,7 +66,7 @@ export function CardView({ card, size = 'md', onPickStat, lockedStat, highlight,
             return (
               <li key={s.key} className={`${highlight === s.key ? 'hl' : ''} ${locked ? 'locked' : ''}`}>
                 {onPickStat ? (
-                  <button type="button" onClick={() => onPickStat(s.key)} disabled={locked} title={locked ? 'Usata nel round precedente' : s.hint}>
+                  <button type="button" onClick={() => onPickStat(s.key)} disabled={locked} title={locked ? 'Già usata in questa partita' : s.hint}>
                     {content}
                   </button>
                 ) : (

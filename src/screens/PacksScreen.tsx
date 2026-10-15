@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { RARITY_LABEL } from '../game/cards';
-import { PACK_ODDS, PACK_PRICE, PACK_SIZE, type Progress, type UnlockResult } from '../game/collection';
+import type { Card } from '../types';
+import { RARITY_LABEL, CARD_BY_ID } from '../game/cards';
+import { JOLLY_CHANCE, PACK_ODDS, PACK_PRICE, PACK_SIZE, jollyTargets, type Progress, type UnlockResult } from '../game/collection';
 import { CardBack, CardView } from '../components/CardView';
 
 interface Props {
   progress: Progress;
   onOpen: () => UnlockResult | null;
   onBuyPack: () => void;
+  onUseJolly: (card: Card) => void;
 }
 
-export function PacksScreen({ progress, onOpen, onBuyPack }: Props) {
+export function PacksScreen({ progress, onOpen, onBuyPack, onUseJolly }: Props) {
   const [opened, setOpened] = useState<UnlockResult | null>(null);
   const [revealed, setRevealed] = useState<boolean[]>([]);
 
@@ -45,9 +47,25 @@ export function PacksScreen({ progress, onOpen, onBuyPack }: Props) {
               </div>
             ),
           )}
+          {opened.jolly && allRevealed && (
+            <div className="pack-slot flip-in">
+              <div className="card card-sm jolly-card">
+                <span>🃏</span>
+                <b>Jolly</b>
+                <small>Una card scuderia a scelta</small>
+              </div>
+              <span className="tag new">Bonus!</span>
+            </div>
+          )}
         </div>
         {allRevealed ? (
           <>
+            {opened.jolly && (
+              <p className="center jolly-note">
+                🃏 Hai trovato un Jolly: usalo qui sotto per prendere una card scuderia mancante di un pilota che stai
+                completando.
+              </p>
+            )}
             {gained > 0 && <p className="muted center">Hai guadagnato {gained} crediti dai doppioni.</p>}
             {opened.unlockedCareers.map((c) => (
               <div key={c.id} className="unlock">
@@ -60,6 +78,7 @@ export function PacksScreen({ progress, onOpen, onBuyPack }: Props) {
                 Fatto
               </button>
             </div>
+            {progress.jolly > 0 && <JollyPicker progress={progress} onPick={onUseJolly} />}
           </>
         ) : (
           <div className="actions">
@@ -102,9 +121,52 @@ export function PacksScreen({ progress, onOpen, onBuyPack }: Props) {
               </li>
             ))}
             <li className="muted">L'ultima card è sempre almeno Argento.</li>
+            <li className="muted">🃏 Jolly bonus nel {Math.round(JOLLY_CHANCE * 100)}% dei pacchetti.</li>
           </ul>
         </div>
       </div>
+      {progress.jolly > 0 && <JollyPicker progress={progress} onPick={onUseJolly} />}
+    </div>
+  );
+}
+
+function JollyPicker({ progress, onPick }: { progress: Progress; onPick: (card: Card) => void }) {
+  const targets = jollyTargets(progress);
+  return (
+    <div className="jolly-picker">
+      <h3>
+        🃏 Hai {progress.jolly} Jolly da usare
+      </h3>
+      <p className="muted">
+        Scegli una card scuderia mancante di un pilota che stai completando. Completate tutte, si sblocca la sua
+        Carriera ★.
+      </p>
+      {targets.length === 0 ? (
+        <p className="muted">Nessun pilota da completare per ora: tienilo per dopo.</p>
+      ) : (
+        <ul>
+          {targets.map((t) => {
+            const driver = CARD_BY_ID.get(`${t.driverId}__career`)!.driver;
+            return (
+              <li key={t.driverId}>
+                <div>
+                  <b>{driver.name}</b>{' '}
+                  <span className="muted">
+                    {t.owned}/{t.total} scuderie
+                  </span>
+                </div>
+                <div className="jolly-options">
+                  {t.missing.map((c) => (
+                    <button key={c.id} className="chip" onClick={() => onPick(c)}>
+                      {c.team.name} · {c.period}
+                    </button>
+                  ))}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

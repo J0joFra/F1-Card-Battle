@@ -1,5 +1,5 @@
 import type { Card, Rarity, StatKey } from '../types';
-import { ALL_CARDS, STATS, compareStat } from './cards';
+import { ALL_CARDS, STATS, STAT_BY_KEY, compareStat } from './cards';
 
 export type Rng = () => number;
 export type Side = 'player' | 'cpu';
@@ -17,9 +17,39 @@ export function shuffle<T>(items: T[], rng: Rng = Math.random): T[] {
   return a;
 }
 
-// Mazzo CPU con la stessa composizione di rarità del mazzo del giocatore,
-// così la sfida resta equilibrata qualunque sia la collezione.
-export function buildCpuDeck(playerDeck: Card[], rng: Rng = Math.random, pool: Card[] = ALL_CARDS): Card[] {
+// Percentile di un valore rispetto a tutte le card (1 = il migliore), già girato per le metriche "↓".
+const sortedByStat = Object.fromEntries(
+  STATS.map((s) => [s.key, ALL_CARDS.map((c) => c.stats[s.key]).sort((a, b) => a - b)]),
+) as Record<StatKey, number[]>;
+
+export function percentile(stat: StatKey, value: number): number {
+  const arr = sortedByStat[stat];
+  let lo = 0;
+  let hi = arr.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (arr[mid] < value) lo = mid + 1;
+    else hi = mid;
+  }
+  // media tra "strettamente minori" e "minori o uguali" per gestire i pari merito
+  let hiEq = lo;
+  while (hiEq < arr.length && arr[hiEq] === value) hiEq++;
+  const p = (lo + hiEq) / 2 / arr.length;
+  return STAT_BY_KEY[stat].lowerWins ? 1 - p : p;
+}
+
+// Quanto un mazzo copre le metriche: somma, per ogni metrica, del miglior percentile presente.
+const coverage = (deck: Card[]) =>
+  STATS.reduce((sum, s) => sum + Math.max(0, ...deck.map((c) => percentile(s.key, c.stats[s.key]))), 0);
+
+// Mazzo CPU con la stessa composizione di rarità del mazzo del giocatore. Per ogni posto la CPU
+// valuta qualche card a caso e tiene quella che rende il mazzo più forte su metriche diverse.
+export function buildCpuDeck(
+  playerDeck: Card[],
+  rng: Rng = Math.random,
+  pool: Card[] = ALL_CARDS,
+  candidates = 3,
+): Card[] {
   const playerIds = new Set(playerDeck.map((c) => c.id));
   const byRarity = new Map<Rarity, Card[]>();
   for (const c of shuffle(pool.filter((c) => !playerIds.has(c.id)), rng)) {
@@ -27,11 +57,24 @@ export function buildCpuDeck(playerDeck: Card[], rng: Rng = Math.random, pool: C
     list.push(c);
     byRarity.set(c.rarity, list);
   }
-  return playerDeck.map((pc) => byRarity.get(pc.rarity)?.pop() ?? pc);
+  const deck: Card[] = [];
+  for (const pc of playerDeck) {
+    const list = byRarity.get(pc.rarity) ?? [];
+    const options = list.slice(-candidates);
+    if (!options.length) {
+      deck.push(pc);
+      continue;
+    }
+    const best = options.reduce((a, b) => (coverage([...deck, b]) > coverage([...deck, a]) ? b : a));
+    list.splice(list.indexOf(best), 1);
+    deck.push(best);
+  }
+  return deck;
 }
 
 export interface RoundResult {
   stat: StatKey;
+  chooser: Side;
   playerCard: Card;
   cpuCard: Card;
   winner: Side | 'tie';
@@ -42,7 +85,8 @@ export interface MatchState {
   player: Card[];
   cpu: Card[];
   round: number; // indice del round da giocare (0-based)
-  lastStat: StatKey | null; // non si può scegliere due volte di fila
+  chooser: Side; // chi sceglie la metrica: chi ha vinto il round precedente
+  usedStats: StatKey[]; // ogni metrica si usa una sola volta per partita
   score: Record<Side, number>;
   history: RoundResult[];
 }
@@ -52,7 +96,8 @@ export function newMatch(playerDeck: Card[], cpuDeck: Card[], rng: Rng = Math.ra
     player: shuffle(playerDeck, rng),
     cpu: shuffle(cpuDeck, rng),
     round: 0,
-    lastStat: null,
+    chooser: rng() < 0.5 ? 'player' : 'cpu', // il primo round si tira a sorte
+    usedStats: [],
     score: { player: 0, cpu: 0 },
     history: [],
   };
@@ -60,20 +105,23 @@ export function newMatch(playerDeck: Card[], cpuDeck: Card[], rng: Rng = Math.ra
 
 export const currentCards = (s: MatchState) => ({ player: s.player[s.round], cpu: s.cpu[s.round] });
 
-export const isAvailable = (s: MatchState, stat: StatKey) => stat !== s.lastStat;
+export const isAvailable = (s: MatchState, stat: StatKey) => !s.usedStats.includes(stat);
+
+export const availableStats = (s: MatchState) => STATS.map((x) => x.key).filter((k) => isAvailable(s, k));
 
 export function playRound(state: MatchState, stat: StatKey): MatchState {
   if (matchOutcome(state)) throw new Error('Partita già finita');
-  if (!isAvailable(state, stat)) throw new Error('Metrica usata nel round precedente');
+  if (!isAvailable(state, stat)) throw new Error('Metrica già usata in questa partita');
   const { player: playerCard, cpu: cpuCard } = currentCards(state);
   const cmp = compareStat(stat, playerCard.stats[stat], cpuCard.stats[stat]);
   const winner: Side | 'tie' = cmp > 0 ? 'player' : cmp < 0 ? 'cpu' : 'tie';
   return {
     ...state,
     round: state.round + 1,
-    lastStat: stat,
+    chooser: winner === 'tie' ? state.chooser : winner, // in caso di pareggio sceglie ancora lo stesso
+    usedStats: [...state.usedStats, stat],
     score: winner === 'tie' ? state.score : { ...state.score, [winner]: state.score[winner] + 1 },
-    history: [...state.history, { stat, playerCard, cpuCard, winner }],
+    history: [...state.history, { stat, chooser: state.chooser, playerCard, cpuCard, winner }],
   };
 }
 
@@ -83,4 +131,13 @@ export function matchOutcome(state: MatchState): MatchOutcome {
   if (state.round < Math.min(state.player.length, state.cpu.length)) return null;
   const { player, cpu } = state.score;
   return player > cpu ? 'player' : cpu > player ? 'cpu' : 'draw';
+}
+
+// La CPU conosce solo la propria carta: sceglie, tra le metriche ancora libere,
+// quella in cui la sua carta è più forte. Ogni tanto sbaglia, per non essere imbattibile.
+export function cpuChooseStat(state: MatchState, rng: Rng = Math.random, mistakeRate = 0.1): StatKey {
+  const free = availableStats(state);
+  if (rng() < mistakeRate) return free[Math.floor(rng() * free.length)];
+  const card = currentCards(state).cpu;
+  return free.reduce((best, k) => (percentile(k, card.stats[k]) > percentile(best, card.stats[best]) ? k : best));
 }

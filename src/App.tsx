@@ -6,6 +6,7 @@ import {
   WINS_PER_PACK,
   buyCard,
   buyPack,
+  spendJolly,
   collectionSize,
   loadProgress,
   openPack,
@@ -107,8 +108,8 @@ export default function App() {
             <section className="hero">
               <h1>Sfida la CPU</h1>
               <p>
-                Ogni card è un pilota con una scuderia. Crea un mazzo da {DECK_SIZE} card e gioca {ROUNDS} round: a
-                ogni round esce una tua card a caso e scegli su quale metrica sfidare la CPU.
+                Ogni card è un pilota con una scuderia. Crea un mazzo da {DECK_SIZE} card e gioca {ROUNDS} round contro
+                la CPU: chi vince il round sceglie la metrica del successivo, e ogni metrica si usa una volta sola.
               </p>
               <button className="btn primary big" onClick={() => setScreen('builder')} disabled={!canPlay}>
                 Inizia la sfida
@@ -163,14 +164,16 @@ export default function App() {
                   {MAX_PER_RARITY.leggendaria} Leggendaria e {MAX_PER_RARITY.oro} Oro).
                 </li>
                 <li>
-                  La partita dura {ROUNDS} round. A ogni round esce una tua card a caso: scegli la metrica, ma non
-                  quella usata nel round precedente.
+                  La partita dura {ROUNDS} round. A ogni round esce una card a caso dal mazzo di ognuno. Il primo
+                  round si tira a sorte, poi la metrica la sceglie chi ha vinto il round precedente.
                 </li>
+                <li>Ogni metrica si può usare una sola volta per partita: all'ultimo round resta quella rimasta.</li>
                 <li>Vince la metrica il valore più alto (↓ = vince il più basso). Chi fa più punti vince la partita.</li>
                 <li>La CPU gioca con un mazzo della stessa rarità del tuo.</li>
                 <li>Ogni {WINS_PER_PACK} vittorie ricevi un pacchetto da 5 card.</li>
                 <li>I doppioni diventano crediti, con cui compri card a scelta o altri pacchetti.</li>
                 <li>Completa tutte le card scuderia di un pilota per sbloccare la sua card Carriera ★.</li>
+                <li>🃏 Alcuni pacchetti contengono un Jolly: una card scuderia a scelta di un pilota che stai completando.</li>
               </ul>
             </section>
 
@@ -199,6 +202,16 @@ export default function App() {
           <PacksScreen
             progress={progress}
             onOpen={open}
+            onUseJolly={(card) => {
+              const res = spendJolly(progress, card);
+              if (!res) return;
+              setProgress(res.progress);
+              setToast(
+                res.unlockedCareers.length
+                  ? `🃏 ${card.driver.name} · ${card.team.name}. ★ Carriera sbloccata!`
+                  : `🃏 Jolly usato: ${card.driver.name} · ${card.team.name}`,
+              );
+            }}
             onBuyPack={() => {
               const next = buyPack(progress);
               if (next) setProgress(next);

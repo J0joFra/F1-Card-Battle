@@ -272,3 +272,32 @@ nav button.on { color: var(--text); background: var(--surface-2); }
 .stats-table tr.selected { background: color-mix(in srgb, var(--accent) 18%, transparent); }
 .stats-table tr.selected:hover { background: color-mix(in srgb, var(--accent) 24%, transparent); }
 .stats-table tr.blocked { opacity: 0.4; cursor: not-allowed; }
+
+/* --- turno e metriche usate --- */
+.card-stats li.locked > .stat-row { opacity: 0.35; text-decoration: line-through; }
+.banner-cpu-turn { background: color-mix(in srgb, var(--lose) 14%, var(--surface)); }
+.stat-chips { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; max-width: 600px; }
+.stat-chip { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--text); background: var(--surface); }
+.stat-chip.used { color: var(--muted); text-decoration: line-through; }
+.stat-chip.used.rd-player { border-color: var(--win); }
+.stat-chip.used.rd-cpu { border-color: var(--lose); }
+.stat-chip.used.rd-tie { border-color: var(--tie); }
+.recap small { font-size: 11px; }
+
+/* --- jolly e mazzo pronto --- */
+.jolly-card {
+  --rar: var(--leggendaria); min-height: 196px; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 10px;
+  background: linear-gradient(160deg, #3a1d5c, #15171d);
+}
+.jolly-card span { font-size: 44px; }
+.jolly-card b { font-size: 18px; }
+.jolly-card small { color: var(--muted); font-size: 11px; }
+.jolly-note { color: var(--leggendaria); font-weight: 600; }
+.jolly-picker { margin-top: 18px; background: var(--surface); border: 1px solid var(--leggendaria); border-radius: 16px; padding: 18px; display: grid; gap: 10px; }
+.jolly-picker p { margin: 0; }
+.jolly-picker ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.jolly-picker li { display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+.jolly-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.jolly-options .chip { color: var(--text); }
+.jolly-options .chip:hover { border-color: var(--leggendaria); }
+.prefilled { margin: 0 0 12px; padding: 10px 14px; border-radius: 10px; background: color-mix(in srgb, var(--win) 14%, var(--surface)); border: 1px solid color-mix(in srgb, var(--win) 40%, var(--line)); font-size: 14px; }

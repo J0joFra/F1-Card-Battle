@@ -15,7 +15,9 @@ interface Props {
 type SortKey = StatKey | 'nome';
 
 export function DeckBuilderScreen({ progress, onStart, onBack }: Props) {
-  const [deck, setDeck] = useState<Card[]>(() => savedDeck(progress));
+  // se non c'è un mazzo salvato (o è incompleto) lo prepariamo noi: si può giocare subito
+  const [prefilled] = useState(() => savedDeck(progress).length < DECK_SIZE);
+  const [deck, setDeck] = useState<Card[]>(() => autoFillDeck(progress, savedDeck(progress)));
   const [sort, setSort] = useState<SortKey>('nome');
   const problems = deckProblems(deck);
 
@@ -50,9 +52,16 @@ export function DeckBuilderScreen({ progress, onStart, onBack }: Props) {
         </button>
       </div>
       <p className="muted intro">
-        Scegli {DECK_SIZE} card, una per round. A ogni round esce una tua card a caso e scegli tu la metrica, ma non
-        puoi ripetere quella del round precedente. Conviene un mazzo forte su metriche diverse. Limiti: {limits}.
+        Scegli {DECK_SIZE} card, una per round. A ogni round esce una tua card a caso; la metrica la sceglie chi ha
+        vinto il round prima, e ogni metrica si usa una sola volta per partita. Conviene un mazzo forte su metriche
+        diverse. Limiti: {limits}.
       </p>
+
+      {prefilled && (
+        <p className="prefilled">
+          Ecco un mazzo pronto, scelto a caso dalla tua collezione: puoi giocare subito o cambiarlo toccando le card.
+        </p>
+      )}
 
       <div className="deck-bar">
         <div className="deck-slots">

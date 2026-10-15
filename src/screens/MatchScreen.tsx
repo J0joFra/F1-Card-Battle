@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Card, StatKey } from '../types';
-import { STAT_BY_KEY, formatStat } from '../game/cards';
+import { STATS, STAT_BY_KEY, formatStat } from '../game/cards';
 import {
   ROUNDS,
+  availableStats,
   buildCpuDeck,
+  cpuChooseStat,
   currentCards,
   matchOutcome,
   newMatch,
@@ -23,14 +25,33 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
   const initial = useMemo(() => newMatch(deck, buildCpuDeck(deck)), [deck]);
   const [state, setState] = useState<MatchState>(initial);
   const [showResult, setShowResult] = useState(false); // round appena giocato, in attesa di "avanti"
+  const [cpuPick, setCpuPick] = useState<StatKey | null>(null);
   const last = state.history[state.history.length - 1];
   const outcome = matchOutcome(state);
   const finished = outcome && !showResult;
+  const choosing = !outcome && !showResult;
+  const free = availableStats(state);
+
+  // Turno della CPU: "pensa", annuncia la metrica, poi la gioca.
+  useEffect(() => {
+    if (!choosing || state.chooser !== 'cpu' || cpuPick) return;
+    const t = setTimeout(() => setCpuPick(cpuChooseStat(state)), 900);
+    return () => clearTimeout(t);
+  }, [choosing, state, cpuPick]);
+
+  useEffect(() => {
+    if (!cpuPick) return;
+    const t = setTimeout(() => pick(cpuPick), 1300);
+    return () => clearTimeout(t);
+  }, [cpuPick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function pick(stat: StatKey) {
     setState(playRound(state, stat));
+    setCpuPick(null);
     setShowResult(true);
   }
+
+  const chooserLabel = (side: 'player' | 'cpu') => (side === 'player' ? 'hai scelto tu' : 'ha scelto la CPU');
 
   return (
     <div className="match">
@@ -54,6 +75,19 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
         </div>
       </div>
 
+      {!finished && (
+        <div className="stat-chips" aria-label="Metriche">
+          {STATS.map((s) => {
+            const h = state.history.find((x) => x.stat === s.key);
+            return (
+              <span key={s.key} className={`stat-chip ${h ? `used rd-${h.winner}` : ''}`} title={s.label}>
+                {s.short}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
       {finished ? (
         <div className="match-over">
           <h2>{outcome === 'player' ? '🏆 Hai vinto!' : outcome === 'cpu' ? 'Ha vinto la CPU' : 'Pareggio'}</h2>
@@ -68,11 +102,13 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
               const def = STAT_BY_KEY[h.stat];
               return (
                 <li key={i} className={`rd-${h.winner}`}>
-                  <span>{def.label}</span>
+                  <span>
+                    {def.label}
+                    <small className="muted"> · {h.chooser === 'player' ? 'tu' : 'CPU'}</small>
+                  </span>
                   <span>
                     {h.playerCard.driver.abbreviation} {formatStat(def, h.playerCard.stats[h.stat])} –{' '}
-                    {formatStat(def, h.cpuCard.stats[h.stat])}{' '}
-                    {h.cpuCard.driver.abbreviation}
+                    {formatStat(def, h.cpuCard.stats[h.stat])} {h.cpuCard.driver.abbreviation}
                   </span>
                 </li>
               );
@@ -85,8 +121,12 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
       ) : showResult && last ? (
         <>
           <div className={`banner banner-${last.winner}`}>
-            {STAT_BY_KEY[last.stat].label}:{' '}
-            {last.winner === 'player' ? 'punto tuo!' : last.winner === 'cpu' ? 'punto alla CPU' : 'pareggio, nessun punto'}
+            {STAT_BY_KEY[last.stat].label} ({chooserLabel(last.chooser)}):{' '}
+            {last.winner === 'player'
+              ? 'punto tuo, il prossimo lo scegli tu!'
+              : last.winner === 'cpu'
+                ? 'punto alla CPU, sceglie lei'
+                : 'pareggio, nessun punto'}
           </div>
           <div className="duel">
             <CardView
@@ -107,12 +147,26 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
         </>
       ) : (
         <>
-          <div className="banner">
-            Scegli la metrica
-            {state.lastStat && <span className="muted"> · bloccata: {STAT_BY_KEY[state.lastStat].label}</span>}
+          <div className={`banner ${state.chooser === 'cpu' ? 'banner-cpu-turn' : ''}`}>
+            {state.chooser === 'player'
+              ? free.length === 1
+                ? `Ultimo round: resta solo ${STAT_BY_KEY[free[0]].label}`
+                : state.round === 0
+                  ? 'Sorteggio: inizi tu! Scegli la metrica'
+                  : 'Tocca a te: scegli la metrica'
+              : cpuPick
+                ? `La CPU sceglie: ${STAT_BY_KEY[cpuPick].label}`
+                : state.round === 0
+                  ? 'Sorteggio: inizia la CPU…'
+                  : 'La CPU sta scegliendo…'}
           </div>
           <div className="duel">
-            <CardView card={currentCards(state).player} onPickStat={pick} lockedStat={state.lastStat} />
+            <CardView
+              card={currentCards(state).player}
+              onPickStat={state.chooser === 'player' ? pick : undefined}
+              lockedStats={state.usedStats}
+              highlight={cpuPick ?? undefined}
+            />
             <span className="vs">VS</span>
             <CardBack label={`Carta CPU ${state.round + 1}/${ROUNDS}`} />
           </div>

@@ -4,10 +4,12 @@ Gioco di carte F1 in stile **Top Quartetto**: ogni card è un pilota con una scu
 
 ## Regole
 
-- Prima di ogni partita crei un **mazzo di 7 card**, una per metrica (massimo 1 Leggendaria e 2 Oro: regole provvisorie in `src/game/deckRules.ts`).
-- La partita dura **7 round**, uno per metrica. A ogni round esce una tua card a caso dal mazzo e **scegli tu la metrica**, ma non puoi ripetere quella del round precedente.
+- Prima di ogni partita crei un **mazzo di 7 card**, una per metrica (massimo 1 Leggendaria e 2 Oro: regole provvisorie in `src/game/deckRules.ts`). Se non hai un mazzo salvato, il gioco te ne prepara uno a caso.
+- La partita dura **7 round**. A ogni round esce una card a caso dal mazzo di ognuno.
+- Il primo round si tira a sorte; poi **la metrica la sceglie chi ha vinto il round precedente** (in caso di pareggio sceglie di nuovo lo stesso).
+- **Ogni metrica si usa una sola volta per partita**: all'ultimo round resta quella rimasta.
 - Vince il round il valore più alto (↓ = vince il più basso) e prende un punto. Chi fa più punti vince la partita.
-- La CPU gioca con un mazzo che ha la stessa composizione di rarità del tuo.
+- La CPU gioca con la stessa composizione di rarità del tuo mazzo, ma sceglie le sue card per coprire più metriche possibile; quando tocca a lei sceglie la metrica in cui la sua card è più forte.
 
 ### Metriche
 
@@ -30,6 +32,7 @@ Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per 
 - Si parte con 15 card e un pacchetto di benvenuto.
 - **Ogni 5 vittorie** si riceve un pacchetto da 5 card (70% Bronzo, 22% Argento, 7% Oro, 1% Leggendaria; l'ultima card è sempre almeno Argento).
 - I doppioni diventano **crediti**, che servono a comprare una card a scelta o un pacchetto.
+- Nel 20% dei pacchetti c'è anche un **Jolly** 🃏: una card scuderia a scelta di un pilota che stai completando (ne devi già avere almeno una).
 - Un pilota ha una card per ogni scuderia (es. Hamilton: McLaren, Mercedes, Ferrari) più una card **Carriera** leggendaria. Completando tutte le card scuderia di un pilota si sblocca la sua Carriera.
 - Rarità: *Leggendaria* = Carriera; *Oro* = mondiale vinto con quella scuderia o almeno 10 vittorie con il 25% di successi; *Argento* = almeno una vittoria o 5 podi; *Bronzo* = tutte le altre.
 

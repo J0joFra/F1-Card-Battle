@@ -6,6 +6,9 @@ import { canAdd } from './deckRules';
 export const WINS_PER_PACK = 5;
 export const PACK_SIZE = 5;
 export const PACK_PRICE = 40;
+// Probabilità che un pacchetto contenga anche un Jolly: una card scuderia a scelta
+// di un pilota che stai completando.
+export const JOLLY_CHANCE = 0.2;
 
 // Probabilità di rarità per ogni card del pacchetto.
 export const PACK_ODDS: [Rarity, number][] = [
@@ -28,6 +31,7 @@ export interface Progress {
   draws: number;
   packs: number; // pacchetti da aprire
   winsTowardPack: number;
+  jolly: number; // Jolly da usare
 }
 
 export function starterProgress(rng: Rng = Math.random): Progress {
@@ -46,6 +50,7 @@ export function starterProgress(rng: Rng = Math.random): Progress {
     draws: 0,
     packs: 1, // un pacchetto di benvenuto
     winsTowardPack: 0,
+    jolly: 0,
   };
 }
 
@@ -97,6 +102,7 @@ export interface UnlockResult {
   progress: Progress;
   added: AddResult[];
   unlockedCareers: Card[];
+  jolly?: boolean; // il pacchetto conteneva un Jolly
 }
 
 // Aggiunge card alla collezione: i doppioni diventano crediti,
@@ -126,7 +132,34 @@ export function addCards(p: Progress, cards: Card[]): UnlockResult {
 
 export function openPack(p: Progress, rng: Rng = Math.random): UnlockResult | null {
   if (p.packs <= 0) return null;
-  return addCards({ ...p, packs: p.packs - 1 }, drawPack(rng));
+  const res = addCards({ ...p, packs: p.packs - 1 }, drawPack(rng));
+  const jolly = rng() < JOLLY_CHANCE;
+  return jolly ? { ...res, jolly, progress: { ...res.progress, jolly: res.progress.jolly + 1 } } : res;
+}
+
+// Card che un Jolly può prendere: le card scuderia mancanti dei piloti di cui hai già
+// almeno una card scuderia (cioè quelli che stai completando).
+export function jollyTargets(p: Progress): { driverId: string; owned: number; total: number; missing: Card[] }[] {
+  const started = new Set(
+    Object.keys(p.owned)
+      .map((id) => CARD_BY_ID.get(id))
+      .filter((c): c is Card => !!c && c.kind === 'team')
+      .map((c) => c.driver.id),
+  );
+  return [...started]
+    .map((driverId) => {
+      const teams = teamCardsOfDriver(driverId);
+      const missing = teams.filter((c) => !p.owned[c.id]);
+      return { driverId, owned: teams.length - missing.length, total: teams.length, missing };
+    })
+    .filter((t) => t.missing.length > 0 && careerCardOf(t.driverId))
+    .sort((a, b) => a.missing.length - b.missing.length || b.total - a.total);
+}
+
+export function spendJolly(p: Progress, card: Card): UnlockResult | null {
+  if (p.jolly <= 0 || p.owned[card.id] || card.kind !== 'team') return null;
+  if (!jollyTargets(p).some((t) => t.missing.includes(card))) return null;
+  return addCards({ ...p, jolly: p.jolly - 1 }, [card]);
 }
 
 export function buyPack(p: Progress): Progress | null {
@@ -173,6 +206,7 @@ export function loadProgress(): Progress | null {
     // scarta card non più presenti dopo un aggiornamento dei dati
     p.owned = Object.fromEntries(Object.entries(p.owned).filter(([id]) => CARD_BY_ID.has(id)));
     p.deck = p.deck.filter((id) => CARD_BY_ID.has(id));
+    p.jolly ??= 0; // salvataggi precedenti al Jolly
     return p;
   } catch {
     return null;

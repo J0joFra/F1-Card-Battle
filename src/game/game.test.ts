@@ -1,9 +1,31 @@
 import { describe, expect, it } from 'vitest';
 import type { Card } from '../types';
 import { ALL_CARDS, CARD_BY_ID, STATS, careerCardOf, teamCardsOfDriver } from './cards';
-import { DECK_SIZE, ROUNDS, buildCpuDeck, currentCards, isAvailable, matchOutcome, newMatch, playRound } from './engine';
+import {
+  DECK_SIZE,
+  ROUNDS,
+  availableStats,
+  buildCpuDeck,
+  cpuChooseStat,
+  currentCards,
+  isAvailable,
+  matchOutcome,
+  newMatch,
+  percentile,
+  playRound,
+} from './engine';
 import { canAdd, deckProblems } from './deckRules';
-import { addCards, autoFillDeck, drawPack, recordMatch, starterProgress, WINS_PER_PACK } from './collection';
+import {
+  addCards,
+  autoFillDeck,
+  drawPack,
+  jollyTargets,
+  openPack,
+  recordMatch,
+  spendJolly,
+  starterProgress,
+  WINS_PER_PACK,
+} from './collection';
 
 // rng deterministico per test ripetibili
 const seeded = (seed = 42) => () => {
@@ -77,26 +99,46 @@ describe('motore di gioco', () => {
     expect(matchOutcome(next)).toBe('draw');
   });
 
-  it('non si può ripetere la metrica del round precedente', () => {
+  it('ogni metrica si usa una sola volta per partita', () => {
     const state = playRound(newMatch(deck, buildCpuDeck(deck, seeded()), seeded()), 'gare');
     expect(isAvailable(state, 'gare')).toBe(false);
     expect(() => playRound(state, 'gare')).toThrow();
     const after = playRound(state, 'top10');
-    expect(isAvailable(after, 'gare')).toBe(true);
+    expect(isAvailable(after, 'gare')).toBe(false);
+    expect(availableStats(after)).toHaveLength(ROUNDS - 2);
   });
 
-  it('ogni card del mazzo viene giocata una volta, in ordine casuale', () => {
+  it('sceglie chi vince il round; in caso di pareggio sceglie ancora lo stesso', () => {
+    const won = playRound({ ...newMatch([hamMerc], [hamFerr], seeded()), chooser: 'cpu' }, 'top10');
+    expect(won.history[0].chooser).toBe('cpu');
+    expect(won.chooser).toBe('player');
+    const tie = playRound({ ...newMatch([hamMerc], [{ ...hamMerc, id: 'copia' }], seeded()), chooser: 'cpu' }, 'gare');
+    expect(tie.chooser).toBe('cpu');
+  });
+
+  it('il primo a scegliere è sorteggiato', () => {
+    const firsts = new Set(Array.from({ length: 20 }, (_, i) => newMatch(deck, deck, seeded(i + 1)).chooser));
+    expect(firsts).toEqual(new Set(['player', 'cpu']));
+  });
+
+  it('la CPU sceglie una metrica libera in cui la sua carta è forte', () => {
+    const state = { ...newMatch([hamFerr], [hamMerc], seeded()), chooser: 'cpu' as const };
+    const stat = cpuChooseStat(state, seeded(), 0);
+    expect(percentile(stat, hamMerc.stats[stat])).toBeGreaterThan(0.85);
+    const used = { ...state, usedStats: [stat] };
+    expect(cpuChooseStat(used, seeded(), 0)).not.toBe(stat);
+  });
+
+  it('partita completa: 7 round, ogni metrica e ogni card usate una volta', () => {
     const rng = seeded(3);
     let state = newMatch(deck, buildCpuDeck(deck, rng), rng);
     const used: string[] = [];
-    let i = 0;
     while (!matchOutcome(state)) {
       used.push(currentCards(state).player.id);
-      const stat = STATS.map((s) => s.key).find((k) => isAvailable(state, k) && k !== STATS[i % 2].key)!;
-      state = playRound(state, stat);
-      i++;
+      state = playRound(state, cpuChooseStat(state, rng));
     }
     expect(state.history).toHaveLength(ROUNDS);
+    expect([...state.usedStats].sort()).toEqual(STATS.map((x) => x.key).sort());
     expect([...used].sort()).toEqual(deck.map((c) => c.id).sort());
     expect(state.score.player + state.score.cpu).toBeLessThanOrEqual(ROUNDS);
   });
@@ -179,5 +221,31 @@ describe('collezione', () => {
     expect(r.progress.packs).toBe(1);
     expect(r.progress.winsTowardPack).toBe(0);
     expect(recordMatch(r.progress, 'cpu').progress.losses).toBe(1);
+  });
+
+  it('Jolly: prende una card scuderia mancante di un pilota iniziato', () => {
+    const [mclaren, mercedes, ferrari] = teamCardsOfDriver('lewis-hamilton');
+    const p = { ...starterProgress(seeded()), owned: { [mclaren.id]: 1 }, jolly: 1 };
+    const target = jollyTargets(p).find((t) => t.driverId === 'lewis-hamilton')!;
+    expect(target.missing.map((c) => c.id)).toEqual([mercedes.id, ferrari.id]);
+    // non si può usare su piloti mai iniziati
+    expect(spendJolly(p, teamCardsOfDriver('fernando-alonso')[0])).toBeNull();
+    const res = spendJolly(p, mercedes)!;
+    expect(res.progress.jolly).toBe(0);
+    expect(res.progress.owned[mercedes.id]).toBe(1);
+    expect(spendJolly(res.progress, ferrari)).toBeNull(); // Jolly finiti
+  });
+
+  it('Jolly: completare le scuderie col Jolly sblocca la Carriera', () => {
+    const [mclaren, mercedes, ferrari] = teamCardsOfDriver('lewis-hamilton');
+    const p = { ...starterProgress(seeded()), owned: { [mclaren.id]: 1, [mercedes.id]: 1 }, jolly: 1 };
+    expect(spendJolly(p, ferrari)!.unlockedCareers.map((c) => c.id)).toEqual(['lewis-hamilton__career']);
+  });
+
+  it('Jolly: esce in circa un pacchetto su 5', () => {
+    let jolly = 0;
+    for (let i = 1; i <= 400; i++) if (openPack({ ...starterProgress(seeded(i)), packs: 1 }, seeded(i * 7))!.jolly) jolly++;
+    expect(jolly).toBeGreaterThan(40);
+    expect(jolly).toBeLessThan(140);
   });
 });
