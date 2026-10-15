@@ -8,10 +8,9 @@ const config: CapacitorConfig = {
     backgroundColor: '#0e0f13',
   },
   plugins: {
-    // Login nativo con Google. Apple resta incluso solo perché il plugin ne ha bisogno per risolvere
-    // la libreria androidx.browser (non aggiunge SDK esterni); Facebook e Twitter sono esclusi.
+    // Login nativo: solo Google (gli altri provider non vengono inclusi nell'app)
     SocialLogin: {
-      providers: { google: true, facebook: false, apple: true, twitter: false },
+      providers: { google: true, facebook: false, apple: false, twitter: false },
     },
   },
 };
