@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Card, StatKey } from '../types';
 import { X } from 'lucide-react';
 import { CARD_BY_ID, STATS, STAT_BY_KEY, formatStat, statLabel, statShort } from '../game/cards';
-import { useI18n } from '../lib/i18n';
+import { useI18n, type TKey } from '../lib/i18n';
 import { errorMessage } from '../lib/api';
 import { WINS_PER_PACK } from '../game/collection';
-import { ROUNDS, type Side } from '../game/engine';
+import { ROUNDS, TURN_SECONDS, bestStat, type Side } from '../game/engine';
 import type { MatchDriver, MatchView } from '../game/match';
 import { CardBack, CardView } from '../components/CardView';
 import { haptic, reducedMotion, sfx } from '../lib/feedback';
@@ -18,6 +18,8 @@ const CPU_ANNOUNCE_MS = 1300;
 interface Props {
   driver: MatchDriver; // chi arbitra: il telefono (ospite) o il server
   title?: string;
+  opponent?: string; // sfida tra amici: nome dell'avversario al posto di "CPU"
+  autoNextMs?: number; // passa da solo al round successivo (sfida tra amici: il tempo corre per tutti)
   onFinish: () => void;
   onQuit: () => void;
 }
@@ -32,8 +34,23 @@ interface Round {
 
 const cardOf = (id: string) => CARD_BY_ID.get(id)!;
 
-export function MatchScreen({ driver, title, onFinish, onQuit }: Props) {
-  const { t } = useI18n();
+export function MatchScreen({ driver, title, opponent, autoNextMs, onFinish, onQuit }: Props) {
+  const { t: tr } = useI18n();
+  // contro un amico i testi "CPU" diventano il suo nome
+  const VS_FRIEND: Partial<Record<TKey, TKey>> = {
+    m_lose: 'pv_lose',
+    m_choseCpu: 'pv_chose',
+    m_pointCpu: 'pv_point',
+    m_cpuPicks: 'pv_picks',
+    m_cpuThinking: 'pv_thinking',
+    m_cpuCard: 'pv_card',
+    m_quitConfirm: 'pv_quitConfirm',
+  };
+  const t = (key: TKey, params: Record<string, string | number> = {}) => {
+    if (!opponent) return tr(key, params);
+    if (key === 'm_cpu' || key === 'm_byCpu') return opponent;
+    return tr(VS_FRIEND[key] ?? key, { ...params, name: opponent });
+  };
   const [view, setView] = useState<MatchView>(driver.start);
   const [showResult, setShowResult] = useState(false); // round appena giocato, in attesa di "avanti"
   const [cpuPick, setCpuPick] = useState<StatKey | null>(null);
@@ -61,6 +78,11 @@ export function MatchScreen({ driver, title, onFinish, onQuit }: Props) {
   const current = view.current ? cardOf(view.current) : null;
 
   function show(next: MatchView) {
+    // nessun round nuovo (es. l'avversario ha abbandonato): si aggiorna e basta
+    if (next.history.length <= view.history.length) {
+      setView(next);
+      return;
+    }
     setView(next);
     setCpuPick(null);
     setShowResult(true);
@@ -83,6 +105,11 @@ export function MatchScreen({ driver, title, onFinish, onQuit }: Props) {
     const started = Date.now();
     driver.play().then((next) => {
       if (!alive.current) return;
+      if (next.history.length <= view.history.length) {
+        setBusy(false);
+        show(next);
+        return;
+      }
       setTimeout(() => {
         if (!alive.current) return;
         pending.current = next;
@@ -104,6 +131,33 @@ export function MatchScreen({ driver, title, onFinish, onQuit }: Props) {
     return () => clearTimeout(tm);
   }, [cpuPick]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 30 secondi per scegliere: allo scadere si gioca la metrica migliore della tua card
+  const myTurn = choosing && view.chooser === 'player' && !busy && !!current;
+  const [left, setLeft] = useState(TURN_SECONDS);
+  const pickRef = useRef<(s: StatKey) => void>(() => {});
+  useEffect(() => {
+    if (!myTurn) return;
+    const start = Date.now();
+    setLeft(TURN_SECONDS);
+    const id = setInterval(() => {
+      const l = TURN_SECONDS - Math.floor((Date.now() - start) / 1000);
+      setLeft(Math.max(0, l));
+      if (l <= 0) {
+        clearInterval(id);
+        pickRef.current(bestStat(current!, free));
+      }
+    }, 250);
+    return () => clearInterval(id);
+  }, [myTurn, view.round]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // contro un amico il risultato del round resta a schermo per un po', poi si va avanti da soli
+  useEffect(() => {
+    if (!autoNextMs || !showResult || !settled) return;
+    const tm = setTimeout(() => setShowResult(false), autoNextMs);
+    return () => clearTimeout(tm);
+  }, [autoNextMs, showResult, settled]);
+
+  pickRef.current = pick;
   function pick(stat: StatKey) {
     if (busy || view.chooser !== 'player') return;
     sfx('select');
@@ -216,6 +270,7 @@ export function MatchScreen({ driver, title, onFinish, onQuit }: Props) {
       {finished ? (
         <div className="match-over">
           <h2 className={`over-${outcome}`}>{outcome === 'player' ? t('m_win') : outcome === 'cpu' ? t('m_lose') : t('m_draw')}</h2>
+          {view.opponentLeft && <p className="muted">{t('pv_left')}</p>}
           <p>
             {t('m_score', { a: view.score.player, b: view.score.cpu })}{' '}
             {outcome === 'player' ? t('m_winHint', { n: WINS_PER_PACK }) : t('m_loseHint')}
@@ -279,6 +334,12 @@ export function MatchScreen({ driver, title, onFinish, onQuit }: Props) {
         </>
       ) : (
         <>
+          {myTurn && (
+            <div className={`turn-timer ${left <= 10 ? 'hurry' : ''}`} aria-label={tr('m_timeLeft', { n: left })}>
+              <span style={{ width: `${(left / TURN_SECONDS) * 100}%` }} />
+              <b>⏱ {left}s</b>
+            </div>
+          )}
           <div className={`banner ${view.chooser === 'cpu' ? 'banner-cpu-turn' : ''}`}>
             {view.chooser === 'player'
               ? free.length === 1

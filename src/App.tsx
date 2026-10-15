@@ -7,6 +7,7 @@ import {
   WINS_PER_PACK,
   buyCard,
   buyPack,
+  collectionSize,
   loadProgress,
   openPack,
   resetProgress,
@@ -29,20 +30,21 @@ import {
   startDaily,
   todayKey,
 } from './game/daily';
-import { buildCpuDeck, newMatch } from './game/engine';
-import { applyMatchEnd, localDriver, type MatchDriver, type MatchRewards } from './game/match';
+import { DECK_SIZE, buildCpuDeck, newMatch } from './game/engine';
+import { applyMatchEnd, localDriver, type MatchDriver, type MatchRewards, type MatchView } from './game/match';
 import { CARD_BY_ID } from './game/cards';
 import { ApiError, callGame, errorMessage } from './lib/api';
-import type { GameRequest, GameResponse } from './server/actions';
+import type { GameRequest, GameResponse, PvpInfo } from './server/actions';
 import { themeLabel } from './components/Daily';
 import { MatchScreen } from './screens/MatchScreen';
 import { DeckBuilderScreen } from './screens/DeckBuilderScreen';
 import { CollectionScreen } from './screens/CollectionScreen';
 import { PacksScreen, type OpenedPack } from './screens/PacksScreen';
+import { FriendScreen } from './screens/FriendScreen';
 import { SettingsSheet } from './components/SettingsSheet';
 import { Onboarding, onboardingDone } from './components/Onboarding';
 
-type Screen = 'home' | 'builder' | 'match' | 'collection' | 'packs';
+type Screen = 'home' | 'builder' | 'match' | 'collection' | 'packs' | 'friend';
 type Tab = 'home' | 'collection' | 'packs';
 
 export default function App() {
@@ -58,6 +60,10 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('home');
   const [driver, setDriver] = useState<MatchDriver | null>(null); // partita in corso
   const [dailyMode, setDailyMode] = useState(false); // la partita in corso è la sfida del giorno
+  // sfida tra amici: mazzo per creare la sfida o per entrare con un codice
+  const [pvpMode, setPvpMode] = useState<{ kind: 'host' } | { kind: 'join'; code: string } | null>(null);
+  const [lobby, setLobby] = useState<PvpInfo | null>(null); // sfida creata, in attesa dell'amico
+  const [opponent, setOpponent] = useState<string | null>(null); // nome dell'amico durante la partita
   // sfida e missioni di oggi (si rigenerano da sole quando cambia il giorno)
   const today = todayKey();
   const challenge = useMemo(() => dailyChallenge(today), [today]);
@@ -84,8 +90,9 @@ export default function App() {
     if (intro) return;
     if (settings) setSettings(false);
     else if (screen === 'match') {
-      if (confirm(t('m_quitConfirm'))) quitMatch();
-    } else if (screen !== 'home') setScreen('home');
+      if (confirm(t(opponent ? 'pv_quitConfirm' : 'm_quitConfirm', { name: opponent ?? '' }))) quitMatch();
+    } else if (screen === 'friend' && lobby) cancelLobby();
+    else if (screen !== 'home') setScreen('home');
     else NativeApp.minimizeApp();
   };
   useEffect(() => {
@@ -147,7 +154,7 @@ export default function App() {
       const state = newMatch(deck, daily ? challenge.cpuDeck : buildCpuDeck(deck));
       setDriver(
         localDriver(state, (final) => {
-          const end = applyMatchEnd(progressRef.current, final, daily, today);
+          const end = applyMatchEnd(progressRef.current, final, today, { daily });
           setProgress(end.progress);
           rewardsRef.current = end.rewards;
         }),
@@ -156,12 +163,92 @@ export default function App() {
     setScreen('match');
   }
 
+  // Sfida tra amici: la partita la arbitra il server, l'avversario gioca dal suo telefono.
+  function pvpDriver(id: string, first: GameResponse): MatchDriver {
+    let last = first.view!;
+    let stopped = false;
+    const adopt = (r: GameResponse): MatchView => {
+      if (r.progress) setProgressRaw(r.progress);
+      if (r.rewards) rewardsRef.current = r.rewards;
+      last = { ...r.view!, opponentLeft: r.pvp?.opponentLeft };
+      return last;
+    };
+    const state = () => account.track(callGame({ action: 'pvp_state', match: id }));
+    return {
+      start: adopt(first),
+      async play(stat) {
+        if (stat) {
+          try {
+            return adopt(await account.track(callGame({ action: 'pvp_play', match: id, stat })));
+          } catch (e) {
+            // il tempo era scaduto e il server ha già scelto per te: si riparte dallo stato vero
+            if (e instanceof ApiError && ['not_your_turn', 'bad_stat', 'match_finished', 'busy'].includes(e.code)) return adopt(await state());
+            throw e;
+          }
+        }
+        // turno dell'amico: si aspetta la sua mossa (o la scelta automatica allo scadere del tempo)
+        let failures = 0;
+        for (;;) {
+          await new Promise((r) => setTimeout(r, 2000));
+          if (stopped) return last;
+          try {
+            const r = await state();
+            failures = 0;
+            if (r.view && (r.view.round !== last.round || r.view.outcome)) return adopt(r);
+          } catch (e) {
+            if (++failures >= 3) throw e;
+          }
+        }
+      },
+      quit() {
+        stopped = true;
+        void callGame({ action: 'pvp_quit', match: id }).catch(() => {});
+      },
+    };
+  }
+
+  function startPvp(res: GameResponse) {
+    if (!res.pvp || !res.view) return;
+    rewardsRef.current = null;
+    setLobby(null);
+    setPvpMode(null);
+    setOpponent(res.pvp.opponent ?? t('fr_opponent'));
+    setDriver(pvpDriver(res.pvp.id, res));
+    setScreen('match');
+  }
+
+  // "Gioca" nel costruttore del mazzo: partita contro la CPU, oppure sfida tra amici
+  async function startFromBuilder(deck: Card[]) {
+    if (!pvpMode) return startMatch(deck);
+    if (starting) return;
+    setStarting(true);
+    const ids = deck.map((c) => c.id);
+    const res =
+      pvpMode.kind === 'host'
+        ? await server({ action: 'pvp_create', deck: ids, date: today })
+        : await server({ action: 'pvp_join', code: pvpMode.code, deck: ids, date: today });
+    setStarting(false);
+    if (!res?.pvp) return;
+    if (pvpMode.kind === 'host') {
+      setLobby(res.pvp);
+      setPvpMode(null);
+      setScreen('friend');
+    } else startPvp(res);
+  }
+
+  function cancelLobby() {
+    if (lobby) void callGame({ action: 'pvp_quit', match: lobby.id }).catch(() => {});
+    setLobby(null);
+  }
+
   // "Continua" a fine partita: i premi sono già stati assegnati all'ultimo round
   function finishMatch() {
     const r = rewardsRef.current;
     setDriver(null);
     setDailyMode(false);
-    if (r?.dailyWon) setToast(t('toast_dailyWon', { c: DAILY_REWARD_CREDITS }));
+    setOpponent(null);
+    if (r?.credits) setToast(t('toast_friendCredits', { n: r.credits }));
+    else if (r?.dailyWon) setToast(t('toast_dailyWon', { c: DAILY_REWARD_CREDITS }));
     else if (r?.missionsCompleted) setToast(t('mis_completed'));
     else if (r?.packEarned) setToast(t('toast_packEarned', { n: WINS_PER_PACK }));
     setScreen(r?.packEarned || r?.dailyWon ? 'packs' : 'home');
@@ -171,6 +258,7 @@ export default function App() {
     driver?.quit();
     setDriver(null);
     setDailyMode(false);
+    setOpponent(null);
     setScreen('home');
   }
 
@@ -302,12 +390,15 @@ export default function App() {
             missions={missions}
             onPlay={() => {
               setDailyMode(false);
+              setPvpMode(null);
               go('builder');
             }}
             onDaily={() => {
               setDailyMode(true);
+              setPvpMode(null);
               go('builder');
             }}
+            onFriend={() => go('friend')}
             onClaim={claim}
             onPacks={() => go('packs')}
           />
@@ -315,20 +406,51 @@ export default function App() {
         {screen === 'builder' && (
           <DeckBuilderScreen
             progress={progress}
-            onStart={startMatch}
-            onBack={() => setScreen('home')}
-            banner={dailyMode ? `${t('daily_vs', { theme: themeLabel(challenge.theme, t) })} — ${t('daily_cpuDeck')}` : undefined}
+            onStart={startFromBuilder}
+            onBack={() => setScreen(pvpMode ? 'friend' : 'home')}
+            banner={
+              pvpMode
+                ? pvpMode.kind === 'host'
+                  ? t('fr_builderHost')
+                  : t('fr_builderJoin', { code: pvpMode.code })
+                : dailyMode
+                  ? `${t('daily_vs', { theme: themeLabel(challenge.theme, t) })} — ${t('daily_cpuDeck')}`
+                  : undefined
+            }
           />
         )}
         {screen === 'match' && driver && (
           <MatchScreen
             driver={driver}
-            title={dailyMode ? t('daily_vs', { theme: themeLabel(challenge.theme, t) }) : undefined}
+            title={
+              opponent ? t('fr_vs', { name: opponent }) : dailyMode ? t('daily_vs', { theme: themeLabel(challenge.theme, t) }) : undefined
+            }
+            opponent={opponent ?? undefined}
+            autoNextMs={opponent ? 8000 : undefined}
             onFinish={finishMatch}
             onQuit={quitMatch}
           />
         )}
         {screen === 'collection' && <CollectionScreen progress={progress} onBuy={buy} />}
+        {screen === 'friend' && (
+          <FriendScreen
+            account={account}
+            canPlay={collectionSize(progress) >= DECK_SIZE}
+            lobby={lobby}
+            onCreate={() => {
+              setDailyMode(false);
+              setPvpMode({ kind: 'host' });
+              go('builder');
+            }}
+            onJoin={(code) => {
+              setDailyMode(false);
+              setPvpMode({ kind: 'join', code });
+              go('builder');
+            }}
+            onStart={startPvp}
+            onCancel={cancelLobby}
+          />
+        )}
         {screen === 'packs' && (
           <PacksScreen
             progress={progress}

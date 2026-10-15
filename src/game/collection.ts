@@ -4,7 +4,10 @@ import { DECK_SIZE, shuffle, type Rng } from './engine';
 import { canAdd } from './deckRules';
 import { emptyDaily, type DailyState, type MissionsState } from './daily';
 
-export const WINS_PER_PACK = 5;
+export const WINS_PER_PACK = 10;
+// sfida contro un amico: crediti extra per vittoria e pareggio (oltre alla vittoria che conta per il pacchetto)
+export const FRIEND_WIN_CREDITS = 10;
+export const FRIEND_DRAW_CREDITS = 5;
 export const PACK_SIZE = 5;
 export const PACK_PRICE = 40;
 // Probabilità che un pacchetto contenga anche un Jolly: una card scuderia a scelta

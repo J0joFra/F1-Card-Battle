@@ -9,6 +9,7 @@ Gioco di carte F1 in stile **Top Quartetto**: ogni card è un pilota con una scu
 - Il primo round sceglie sempre il giocatore; poi **la metrica la sceglie chi ha vinto il round precedente** (in caso di pareggio sceglie di nuovo lo stesso).
 - **Ogni metrica si usa una sola volta per partita**: all'ultimo round resta quella rimasta.
 - Vince il round il valore più alto (↓ = vince il più basso) e prende un punto. Chi fa più punti vince la partita.
+- Per scegliere la metrica hai **30 secondi**: allo scadere il gioco gioca per te la metrica migliore della tua card.
 - La CPU gioca con la stessa composizione di rarità del tuo mazzo, ma sceglie le sue card per coprire più metriche possibile; quando tocca a lei sceglie, tra le metriche rimaste, la migliore della sua card (non vede la tua).
 
 ### Metriche
@@ -27,6 +28,14 @@ Sono scelte perché quasi nessun pilota abbia 0: un mix di totali, che premiano 
 
 Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per la rarità.
 
+## Sfida un amico
+
+- Serve l'accesso con Google: la partita la arbitra il server, così nessuno può barare né vedere le card dell'altro.
+- Uno crea la sfida con il suo mazzo e riceve un **codice di 6 caratteri** da mandare all'amico (pulsante *Condividi*); l'altro lo inserisce, sceglie il suo mazzo e si parte. Il codice scade dopo 15 minuti.
+- Regole come contro la CPU; chi inizia lo decide il caso. Ognuno ha 30 secondi per scegliere: se non lo fa (o chiude l'app), il server gioca la metrica migliore della sua card.
+- Premi: la vittoria conta per il pacchetto (come contro la CPU) e vale **+10 crediti**, il pareggio **+5 crediti**. Chi abbandona perde e l'avversario vince.
+- Il telefono chiede al server ogni 2 secondi se l'avversario ha giocato (tabella `pvp_matches`, chiusa ai telefoni).
+
 ## Sfida del giorno e missioni
 
 - **Sfida del giorno**: una sola partita al giorno contro un mazzo CPU a tema (una scuderia o un decennio, 1 Oro + 2 Argento + 4 Bronzo). Vincendo si ottengono 1 pacchetto e 25 crediti; vincerla più giorni di fila fa crescere la serie 🔥. Conta come giocata appena parte, quindi abbandonarla non dà un secondo tentativo.
@@ -36,7 +45,7 @@ Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per 
 ## Collezione
 
 - Si parte con 15 card e un pacchetto di benvenuto.
-- **Ogni 5 vittorie** si riceve un pacchetto da 5 card (70% Bronzo, 22% Argento, 7% Oro, 1% Leggendaria; l'ultima card è sempre almeno Argento).
+- **Ogni 10 vittorie** (contro la CPU o contro un amico) si riceve un pacchetto da 5 card (70% Bronzo, 22% Argento, 7% Oro, 1% Leggendaria; l'ultima card è sempre almeno Argento).
 - I doppioni diventano **crediti**, che servono a comprare una card a scelta o un pacchetto.
 - Nel 20% dei pacchetti c'è anche un **Jolly** 🃏: una card scuderia a scelta di un pilota che stai completando (ne devi già avere almeno una).
 - Un pilota ha una card per ogni scuderia (es. Hamilton: McLaren, Mercedes, Ferrari) più una card **Carriera** leggendaria. Completando tutte le card scuderia di un pilota si sblocca la sua Carriera.

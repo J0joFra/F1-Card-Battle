@@ -2,7 +2,7 @@ import type { Card, StatKey } from '../types';
 import { CARD_BY_ID } from './cards';
 import { DAILY_REWARD_CREDITS, finishDaily, missionDone, missionsAfterMatch, missionsFor } from './daily';
 import { cpuChooseStat, matchOutcome, playRound, type MatchOutcome, type MatchState, type Side } from './engine';
-import { recordMatch, type Progress } from './collection';
+import { FRIEND_DRAW_CREDITS, FRIEND_WIN_CREDITS, recordMatch, type Progress } from './collection';
 
 /*
  * Pezzi condivisi tra il gioco sul telefono e il server:
@@ -27,6 +27,7 @@ export interface MatchView {
   history: RoundView[];
   current: string | null; // la tua card di questo round (quella della CPU resta coperta)
   outcome: MatchOutcome;
+  opponentLeft?: boolean; // sfida tra amici: l'avversario ha abbandonato
 }
 
 export function toView(s: MatchState): MatchView {
@@ -100,30 +101,59 @@ export interface MatchRewards {
   packEarned: boolean;
   dailyWon: boolean;
   missionsCompleted: number; // missioni completate da questa partita
+  credits: number; // crediti vinti (sfida tra amici)
 }
 
-// Fine partita: statistiche, avanzamento verso il pacchetto, missioni e (se è la sfida del giorno) premio.
+export interface MatchEndOptions {
+  daily?: boolean; // sfida del giorno
+  friend?: boolean; // sfida contro un amico
+  outcome?: Exclude<MatchOutcome, null>; // esito già deciso (es. l'avversario ha abbandonato)
+}
+
+// Fine partita: statistiche, avanzamento verso il pacchetto, missioni e premi.
 export function applyMatchEnd(
   p: Progress,
   state: MatchState,
-  daily: boolean,
   today: string,
+  opts: MatchEndOptions = {},
 ): { progress: Progress; rewards: MatchRewards } {
-  const outcome = matchOutcome(state) ?? 'draw';
+  const outcome = opts.outcome ?? matchOutcome(state) ?? 'draw';
   let { progress: next, packEarned } = recordMatch(p, outcome);
   const missions = missionsFor(p.missions, p.owned, today);
   const before = missions.list.filter(missionDone).length;
   const after = missionsAfterMatch(missions, state, state.player);
   next = { ...next, missions: after };
   let dailyWon = false;
-  if (daily) {
+  if (opts.daily) {
     dailyWon = outcome === 'player';
     next = { ...next, daily: finishDaily(next.daily, dailyWon, today) };
     if (dailyWon) next = { ...next, packs: next.packs + 1, credits: next.credits + DAILY_REWARD_CREDITS };
   }
+  const credits = opts.friend ? (outcome === 'player' ? FRIEND_WIN_CREDITS : outcome === 'draw' ? FRIEND_DRAW_CREDITS : 0) : 0;
+  next = { ...next, credits: next.credits + credits };
   return {
     progress: next,
-    rewards: { packEarned, dailyWon, missionsCompleted: after.list.filter(missionDone).length - before },
+    rewards: { packEarned, dailyWon, missionsCompleted: after.list.filter(missionDone).length - before, credits },
+  };
+}
+
+// La stessa partita vista dall'altro giocatore ("player" diventa "cpu" e viceversa).
+const other = (s: Side): Side => (s === 'player' ? 'cpu' : 'player');
+export function flipMatch(s: MatchState): MatchState {
+  return {
+    player: s.cpu,
+    cpu: s.player,
+    round: s.round,
+    chooser: other(s.chooser),
+    usedStats: s.usedStats,
+    score: { player: s.score.cpu, cpu: s.score.player },
+    history: s.history.map((h) => ({
+      stat: h.stat,
+      chooser: other(h.chooser),
+      playerCard: h.cpuCard,
+      cpuCard: h.playerCard,
+      winner: h.winner === 'tie' ? 'tie' : other(h.winner),
+    })),
   };
 }
 

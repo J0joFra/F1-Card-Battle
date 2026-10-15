@@ -633,3 +633,56 @@ p { line-height: 1.45; }
   opacity: 0.7;
   transition: opacity 0.2s;
 }
+
+/* tempo per scegliere la metrica */
+.turn-timer {
+  position: relative;
+  width: min(260px, 70%);
+  height: 22px;
+  margin: 0 auto 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+}
+.turn-timer span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: color-mix(in srgb, var(--win) 35%, transparent);
+  transition: width 0.25s linear;
+}
+.turn-timer b { position: relative; }
+.turn-timer.hurry span { background: color-mix(in srgb, var(--lose) 45%, transparent); }
+.turn-timer.hurry b { animation: timer-pulse 1s ease-in-out infinite; }
+@keyframes timer-pulse { 50% { transform: scale(1.12); } }
+@media (prefers-reduced-motion: reduce) { .turn-timer.hurry b { animation: none; } }
+
+/* sfida tra amici */
+.friend .code-big {
+  font: 800 2.2rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.18em;
+  text-align: center;
+  padding: 18px 12px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 2px dashed var(--line);
+  user-select: all;
+}
+.friend .code-input {
+  width: 100%;
+  font: 700 1.4rem ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: inherit;
+}
+.friend .waiting-dots::after { content: '…'; animation: timer-pulse 1.4s ease-in-out infinite; display: inline-block; }
+.friend .panel { display: grid; gap: 10px; }
+.friend-btn { display: flex; align-items: center; justify-content: center; gap: 8px; }

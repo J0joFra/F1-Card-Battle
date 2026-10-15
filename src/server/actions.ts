@@ -12,8 +12,9 @@ import {
 } from '../game/collection';
 import { claimMission, dailyChallenge, dailyPlayed, missionsAfterPack, missionsFor, startDaily } from '../game/daily';
 import { deckProblems } from '../game/deckRules';
-import { buildCpuDeck, cpuChooseStat, isAvailable, matchOutcome, newMatch, playRound, type Rng } from '../game/engine';
-import { applyMatchEnd, loadMatch, storeMatch, toView, type MatchRewards, type MatchView, type StoredMatch } from '../game/match';
+import { availableStats, bestStat, buildCpuDeck, cpuChooseStat, currentCards, isAvailable, matchOutcome, newMatch, playRound, TURN_SECONDS, type MatchState, type Rng, type Side } from '../game/engine';
+import { applyMatchEnd, flipMatch, loadMatch, storeMatch, toView, type MatchRewards, type MatchView, type StoredMatch } from '../game/match';
+import type { Card } from '../types';
 
 /*
  * Logica del server ("arbitro"). È separata dal database (vedi `Store`) così si può provare con i test.
@@ -31,7 +32,44 @@ export type GameRequest =
   | { action: 'claim_mission'; index: number; date: string }
   | { action: 'match_start'; deck: string[]; daily: boolean; date: string }
   | { action: 'match_play'; match: string; stat?: StatKey }
-  | { action: 'match_quit'; match: string };
+  | { action: 'match_quit'; match: string }
+  // sfida tra amici
+  | { action: 'pvp_create'; deck: string[]; date: string }
+  | { action: 'pvp_join'; code: string; deck: string[]; date: string }
+  | { action: 'pvp_state'; match: string }
+  | { action: 'pvp_play'; match: string; stat: StatKey }
+  | { action: 'pvp_quit'; match: string };
+
+export type PvpStatus = 'waiting' | 'playing' | 'finished' | 'cancelled';
+
+// Partita tra amici salvata sul server. La partita è "vista dall'host": player = host, cpu = ospite.
+export interface PvpRecord {
+  code: string;
+  status: PvpStatus;
+  host: string;
+  hostName: string | null;
+  hostDeck: string[];
+  hostDate: string;
+  guest: string | null;
+  guestName: string | null;
+  guestDeck: string[] | null;
+  guestDate: string | null;
+  state: StoredMatch | null;
+  deadline: number | null; // entro quando deve scegliere chi è di turno (ms)
+  forfeit: Side | null; // chi ha abbandonato
+  rewards: { host?: MatchRewards; guest?: MatchRewards };
+  createdAt: number;
+}
+
+// cosa sa il telefono della sfida
+export interface PvpInfo {
+  id: string;
+  code: string;
+  status: PvpStatus;
+  opponent: string | null;
+  timeLeft: number | null; // ms prima della scelta automatica
+  opponentLeft: boolean;
+}
 
 export interface PackResult {
   added: { card: string; duplicate: boolean; credits: number }[];
@@ -47,6 +85,7 @@ export interface GameResponse {
   match?: string;
   view?: MatchView;
   rewards?: MatchRewards;
+  pvp?: PvpInfo;
 }
 
 export interface MatchRecord {
@@ -57,13 +96,22 @@ export interface MatchRecord {
 }
 
 export interface Store {
-  getProfile(): Promise<{ progress: Partial<Progress>; version: number } | null>;
+  me: { id: string; name: string | null };
+  // profilo di chi fa la richiesta, oppure di un altro giocatore (uid) per i premi della sfida tra amici
+  getProfile(uid?: string): Promise<{ progress: Partial<Progress>; version: number } | null>;
   // salva solo se nessun altro l'ha cambiato nel frattempo (version); prevVersion null = nuovo profilo
-  putProfile(progress: Progress, prevVersion: number | null): Promise<boolean>;
+  putProfile(progress: Progress, prevVersion: number | null, uid?: string): Promise<boolean>;
   getMatch(id: string): Promise<MatchRecord | null>;
   createMatch(rec: MatchRecord): Promise<string>;
   // aggiorna solo se il round salvato è ancora `expectedRound` (evita doppi invii)
   updateMatch(id: string, rec: MatchRecord, expectedRound: number): Promise<boolean>;
+  getPvp(id: string): Promise<{ rec: PvpRecord; rev: number } | null>;
+  // solo sfide ancora in attesa dell'avversario
+  findPvpByCode(code: string): Promise<{ id: string; rec: PvpRecord; rev: number } | null>;
+  // null se il codice è già usato da un'altra sfida in attesa
+  createPvp(rec: PvpRecord): Promise<string | null>;
+  // salva solo se la sfida non è cambiata nel frattempo (rev)
+  updatePvp(id: string, rec: PvpRecord, rev: number): Promise<boolean>;
 }
 
 export class GameError extends Error {
@@ -78,7 +126,15 @@ export class GameError extends Error {
 export interface Ctx {
   today: string; // data del server (UTC), AAAA-MM-GG
   rng: Rng;
+  now?: () => number;
 }
+
+// Tempo per scegliere la metrica nella sfida tra amici, più un margine per guardare il risultato del round
+// e per la rete. Scaduto, il server gioca la metrica migliore della card di chi doveva scegliere.
+export const PVP_TURN_MS = (TURN_SECONDS + 15) * 1000;
+export const PVP_CODE_TTL_MS = 15 * 60_000; // una sfida non accettata scade dopo 15 minuti
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // niente 0/O e 1/I, facili da confondere
+export const normalizeCode = (code: unknown) => (typeof code === 'string' ? code.toUpperCase().replace(/[^A-Z0-9]/g, '') : '');
 
 const MAX_RETRIES = 4;
 
@@ -125,15 +181,95 @@ async function withProfile<T extends GameResponse>(
   store: Store,
   ctx: Ctx,
   change: (p: Progress) => T & { progress: Progress },
+  uid?: string,
 ): Promise<T> {
   for (let i = 0; i < MAX_RETRIES; i++) {
-    const row = await store.getProfile();
+    const row = await store.getProfile(uid);
     if (!row) throw new GameError('no_profile', 409);
     const current = normalizeProgress(row.progress);
     const res = change(current);
-    if (await store.putProfile({ ...res.progress, updatedAt: Date.now() }, row.version)) return res;
+    if (await store.putProfile({ ...res.progress, updatedAt: Date.now() }, row.version, uid)) return res;
   }
   throw new GameError('busy', 409);
+}
+
+// mazzo valido: card esistenti, possedute, senza doppioni e nel rispetto dei limiti di rarità
+function validDeck(ids: unknown, p: Progress): Card[] {
+  if (!Array.isArray(ids) || new Set(ids).size !== ids.length) throw new GameError('bad_deck');
+  const deck = ids.map(cardOrThrow);
+  if (deck.some((c) => !p.owned[c.id]) || deckProblems(deck).length) throw new GameError('bad_deck');
+  return deck;
+}
+
+async function myProgress(store: Store) {
+  const row = await store.getProfile();
+  if (!row) throw new GameError('no_profile', 409);
+  return normalizeProgress(row.progress);
+}
+
+const sideOf = (rec: PvpRecord, uid: string): Side | null => (rec.host === uid ? 'player' : rec.guest === uid ? 'cpu' : null);
+const asSide = (s: MatchState, side: Side) => (side === 'player' ? s : flipMatch(s));
+
+function pvpInfo(id: string, rec: PvpRecord, side: Side, now: number): PvpInfo {
+  return {
+    id,
+    code: rec.code,
+    status: rec.status,
+    opponent: side === 'player' ? rec.guestName : rec.hostName,
+    timeLeft: rec.status === 'playing' && rec.deadline ? Math.max(0, rec.deadline - now) : null,
+    opponentLeft: !!rec.forfeit && rec.forfeit !== side,
+  };
+}
+
+// risposta per chi chiede: la partita dal suo punto di vista (mai le carte future dell'avversario)
+async function pvpResponse(store: Store, id: string, rec: PvpRecord, now: number): Promise<GameResponse> {
+  const side = sideOf(rec, store.me.id)!;
+  const res: GameResponse = { pvp: pvpInfo(id, rec, side, now) };
+  if (rec.state) {
+    const view = toView(asSide(loadMatch(rec.state), side));
+    if (rec.forfeit) view.outcome = rec.forfeit === side ? 'cpu' : 'player';
+    res.view = view;
+  }
+  if (rec.status === 'finished') {
+    res.rewards = side === 'player' ? rec.rewards.host : rec.rewards.guest;
+    res.progress = await myProgress(store);
+  }
+  return res;
+}
+
+// Gioca un round della sfida tra amici; se è l'ultimo (o qualcuno ha abbandonato) assegna i premi a entrambi.
+async function pvpAdvance(store: Store, ctx: Ctx, id: string, rec: PvpRecord, rev: number, next: PvpRecord) {
+  const now = (ctx.now ?? Date.now)();
+  const state = loadMatch(next.state!);
+  const finished = !!matchOutcome(state) || !!next.forfeit;
+  const saved: PvpRecord = { ...next, status: finished ? 'finished' : 'playing', deadline: finished ? null : now + PVP_TURN_MS };
+  if (!(await store.updatePvp(id, saved, rev))) throw new GameError('busy', 409);
+  if (!finished) return saved;
+  const forfeitOutcome = (side: Side) => (saved.forfeit ? (saved.forfeit === side ? 'cpu' : 'player') : undefined);
+  const rewards: PvpRecord['rewards'] = {};
+  for (const side of ['player', 'cpu'] as const) {
+    const uid = side === 'player' ? saved.host : saved.guest!;
+    const date = (side === 'player' ? saved.hostDate : saved.guestDate) ?? ctx.today;
+    await withProfile(
+      store,
+      ctx,
+      (p) => {
+        const end = applyMatchEnd(p, asSide(state, side), date, { friend: true, outcome: forfeitOutcome(side) });
+        rewards[side === 'player' ? 'host' : 'guest'] = end.rewards;
+        return { progress: end.progress };
+      },
+      uid,
+    );
+  }
+  const done = { ...saved, rewards };
+  await store.updatePvp(id, done, rev + 1);
+  return done;
+}
+
+async function loadPvp(store: Store, id: string) {
+  const got = typeof id === 'string' ? await store.getPvp(id) : null;
+  if (!got || !sideOf(got.rec, store.me.id)) throw new GameError('no_match', 404);
+  return got;
 }
 
 export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<GameResponse> {
@@ -221,9 +357,7 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       let stored: StoredMatch | null = null;
       const res = await withProfile(store, ctx, (p) => {
         const ids = Array.isArray(req.deck) ? req.deck : [];
-        if (new Set(ids).size !== ids.length) throw new GameError('bad_deck');
-        const deck = ids.map(cardOrThrow);
-        if (deck.some((c) => !p.owned[c.id]) || deckProblems(deck).length) throw new GameError('bad_deck');
+        const deck = validDeck(ids, p);
         if (req.daily && dailyPlayed(p.daily, req.date)) throw new GameError('daily_played');
         const cpu = req.daily ? dailyChallenge(req.date).cpuDeck : buildCpuDeck(deck, ctx.rng);
         const state = newMatch(deck, cpu, ctx.rng);
@@ -255,7 +389,7 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       if (!finished) return { view: toView(next) };
       let rewards: MatchRewards | undefined;
       const res = await withProfile(store, ctx, (p) => {
-        const end = applyMatchEnd(p, next, rec.daily, rec.date);
+        const end = applyMatchEnd(p, next, rec.date, { daily: rec.daily });
         rewards = end.rewards;
         return { progress: end.progress };
       });
@@ -266,6 +400,102 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       const rec = await store.getMatch(req.match);
       if (rec && !rec.finished) await store.updateMatch(req.match, { ...rec, finished: true }, rec.state.round);
       return {};
+    }
+
+    case 'pvp_create': {
+      checkDate(req.date, ctx.today);
+      const now = (ctx.now ?? Date.now)();
+      const deck = validDeck(req.deck, await myProgress(store));
+      for (let i = 0; i < 6; i++) {
+        const code = Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(ctx.rng() * CODE_CHARS.length)]).join('');
+        const rec: PvpRecord = {
+          code,
+          status: 'waiting',
+          host: store.me.id,
+          hostName: store.me.name,
+          hostDeck: deck.map((c) => c.id),
+          hostDate: req.date,
+          guest: null,
+          guestName: null,
+          guestDeck: null,
+          guestDate: null,
+          state: null,
+          deadline: null,
+          forfeit: null,
+          rewards: {},
+          createdAt: now,
+        };
+        const id = await store.createPvp(rec);
+        if (id) return { pvp: pvpInfo(id, rec, 'player', now) };
+      }
+      throw new GameError('busy', 409);
+    }
+
+    case 'pvp_join': {
+      checkDate(req.date, ctx.today);
+      const now = (ctx.now ?? Date.now)();
+      const found = await store.findPvpByCode(normalizeCode(req.code));
+      if (!found || now - found.rec.createdAt > PVP_CODE_TTL_MS) throw new GameError('bad_code', 404);
+      if (found.rec.host === store.me.id) throw new GameError('own_match');
+      const deck = validDeck(req.deck, await myProgress(store));
+      // chi inizia lo decide il caso
+      const state = newMatch(found.rec.hostDeck.map(cardOrThrow), deck, ctx.rng, ctx.rng() < 0.5 ? 'player' : 'cpu');
+      const rec: PvpRecord = {
+        ...found.rec,
+        status: 'playing',
+        guest: store.me.id,
+        guestName: store.me.name,
+        guestDeck: deck.map((c) => c.id),
+        guestDate: req.date,
+        state: storeMatch(state),
+        deadline: now + PVP_TURN_MS,
+      };
+      if (!(await store.updatePvp(found.id, rec, found.rev))) throw new GameError('bad_code', 404); // entrato prima un altro
+      return pvpResponse(store, found.id, rec, now);
+    }
+
+    case 'pvp_state': {
+      const now = (ctx.now ?? Date.now)();
+      let { rec, rev } = await loadPvp(store, req.match);
+      // tempo scaduto: il server sceglie la metrica migliore per chi doveva scegliere
+      if (rec.status === 'playing' && rec.deadline !== null && now > rec.deadline) {
+        const state = loadMatch(rec.state!);
+        const card = state.chooser === 'player' ? currentCards(state).player : currentCards(state).cpu;
+        const next = playRound(state, bestStat(card, availableStats(state)));
+        try {
+          rec = await pvpAdvance(store, ctx, req.match, rec, rev, { ...rec, state: storeMatch(next) });
+        } catch (e) {
+          if (!(e instanceof GameError && e.code === 'busy')) throw e;
+          rec = (await loadPvp(store, req.match)).rec; // l'ha già fatto un'altra richiesta
+        }
+      }
+      return pvpResponse(store, req.match, rec, now);
+    }
+
+    case 'pvp_play': {
+      const now = (ctx.now ?? Date.now)();
+      const { rec, rev } = await loadPvp(store, req.match);
+      if (rec.status !== 'playing') throw new GameError('match_finished');
+      const side = sideOf(rec, store.me.id)!;
+      const state = loadMatch(rec.state!);
+      if (state.chooser !== side) throw new GameError('not_your_turn', 409);
+      if (!req.stat || !STATS.some((s) => s.key === req.stat) || !isAvailable(state, req.stat)) throw new GameError('bad_stat');
+      const next = await pvpAdvance(store, ctx, req.match, rec, rev, { ...rec, state: storeMatch(playRound(state, req.stat)) });
+      return pvpResponse(store, req.match, next, now);
+    }
+
+    case 'pvp_quit': {
+      const now = (ctx.now ?? Date.now)();
+      const { rec, rev } = await loadPvp(store, req.match);
+      const side = sideOf(rec, store.me.id)!;
+      if (rec.status === 'waiting') {
+        await store.updatePvp(req.match, { ...rec, status: 'cancelled' }, rev);
+        return {};
+      }
+      if (rec.status !== 'playing') return pvpResponse(store, req.match, rec, now);
+      // chi abbandona perde, l'avversario vince
+      const next = await pvpAdvance(store, ctx, req.match, rec, rev, { ...rec, forfeit: side });
+      return pvpResponse(store, req.match, next, now);
     }
 
     default:
