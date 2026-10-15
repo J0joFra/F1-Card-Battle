@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Card } from '../types';
 import { CARD_BY_ID, rarityLabel } from '../game/cards';
 import { useI18n } from '../lib/i18n';
@@ -6,6 +6,9 @@ import { TutorialSection } from '../components/TutorialSection';
 import { WINS_PER_PACK } from '../game/collection';
 import { JOLLY_CHANCE, PACK_ODDS, PACK_PRICE, PACK_SIZE, jollyTargets, type Progress, type UnlockResult } from '../game/collection';
 import { CardBack, CardView } from '../components/CardView';
+import { haptic, sfx } from '../lib/feedback';
+
+const TEAR_MS = 750; // durata dell'animazione del pacchetto che si apre
 
 interface Props {
   progress: Progress;
@@ -18,12 +21,41 @@ export function PacksScreen({ progress, onOpen, onBuyPack, onUseJolly }: Props) 
   const { t } = useI18n();
   const [opened, setOpened] = useState<UnlockResult | null>(null);
   const [revealed, setRevealed] = useState<boolean[]>([]);
+  const [tearing, setTearing] = useState(false);
 
   function open() {
-    const res = onOpen();
-    if (!res) return;
-    setOpened(res);
-    setRevealed(Array(res.added.length).fill(false));
+    if (tearing || progress.packs <= 0) return;
+    sfx('pack');
+    haptic('medium');
+    setTearing(true);
+  }
+
+  // il pacchetto trema e si strappa, poi escono le card coperte
+  useEffect(() => {
+    if (!tearing) return;
+    const t = setTimeout(() => {
+      setTearing(false);
+      const res = onOpen();
+      if (!res) return;
+      setOpened(res);
+      setRevealed(Array(res.added.length).fill(false));
+    }, TEAR_MS);
+    return () => clearTimeout(t);
+  }, [tearing]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function reveal(i: number) {
+    if (!opened || revealed[i]) return;
+    const rare = opened.added[i].card.rarity === 'oro' || opened.added[i].card.rarity === 'leggendaria';
+    sfx(rare ? 'rare' : 'reveal');
+    haptic(rare ? 'success' : 'light');
+    setRevealed((r) => r.map((v, j) => (j === i ? true : v)));
+  }
+
+  // "gira tutte": una alla volta, così ogni card ha il suo momento
+  function revealAll() {
+    revealed.forEach((done, i) => {
+      if (!done) setTimeout(() => reveal(i), 160 * i);
+    });
   }
 
   const allRevealed = revealed.length > 0 && revealed.every(Boolean);
@@ -39,15 +71,15 @@ export function PacksScreen({ progress, onOpen, onBuyPack, onUseJolly }: Props) 
         <div className="pack-cards">
           {opened.added.map((a, i) =>
             revealed[i] ? (
-              <div key={i} className="pack-slot flip-in">
+              <div key={i} className={`pack-slot flip-in ${a.card.rarity === 'oro' || a.card.rarity === 'leggendaria' ? `burst burst-${a.card.rarity}` : ''}`}>
                 <CardView card={a.card} size="sm" />
                 <span className={`tag ${a.duplicate ? 'dup' : 'new'}`}>
                   {a.duplicate ? t('p_dup', { n: a.credits }) : t('p_new')}
                 </span>
               </div>
             ) : (
-              <div key={i} className="pack-slot">
-                <CardBack size="sm" onClick={() => setRevealed((r) => r.map((v, j) => (j === i ? true : v)))} />
+              <div key={i} className="pack-slot deal-in" style={{ animationDelay: `${i * 90}ms` }}>
+                <CardBack size="sm" onClick={() => reveal(i)} />
               </div>
             ),
           )}
@@ -83,7 +115,7 @@ export function PacksScreen({ progress, onOpen, onBuyPack, onUseJolly }: Props) 
           </>
         ) : (
           <div className="actions">
-            <button className="btn ghost" onClick={() => setRevealed((r) => r.map(() => true))}>
+            <button className="btn ghost" onClick={revealAll}>
               {t('p_flipAll')}
             </button>
           </div>
@@ -99,13 +131,13 @@ export function PacksScreen({ progress, onOpen, onBuyPack, onUseJolly }: Props) 
         <span className="muted">🪙 {progress.credits}</span>
       </header>
       <div className="pack-hero">
-        <button className={`pack ${progress.packs > 0 ? 'ready' : ''}`} onClick={open} disabled={progress.packs === 0}>
+        <button className={`pack ${progress.packs > 0 ? 'ready' : ''} ${tearing ? 'tearing' : ''}`} onClick={open} disabled={progress.packs === 0}>
           <span>F1</span>
           <small>{t('p_cards', { n: PACK_SIZE })}</small>
           {progress.packs > 0 && <span className="badge">{progress.packs}</span>}
         </button>
         {progress.packs > 0 ? (
-          <button className="btn primary big block" onClick={open}>
+          <button className="btn primary big block" onClick={open} disabled={tearing}>
             {t('p_open')}
           </button>
         ) : (
