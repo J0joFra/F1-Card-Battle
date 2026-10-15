@@ -9,7 +9,6 @@ import {
   buyPack,
   loadProgress,
   openPack,
-  recordMatch,
   resetProgress,
   saveProgress,
   spendJolly,
@@ -25,20 +24,21 @@ import {
   DAILY_REWARD_CREDITS,
   claimMission,
   dailyChallenge,
-  finishDaily,
-  missionDone,
-  missionsAfterMatch,
   missionsAfterPack,
   missionsFor,
   startDaily,
   todayKey,
 } from './game/daily';
-import type { MatchState } from './game/engine';
+import { buildCpuDeck, newMatch } from './game/engine';
+import { applyMatchEnd, localDriver, type MatchDriver, type MatchRewards } from './game/match';
+import { CARD_BY_ID } from './game/cards';
+import { ApiError, callGame, errorMessage } from './lib/api';
+import type { GameRequest, GameResponse } from './server/actions';
 import { themeLabel } from './components/Daily';
 import { MatchScreen } from './screens/MatchScreen';
 import { DeckBuilderScreen } from './screens/DeckBuilderScreen';
 import { CollectionScreen } from './screens/CollectionScreen';
-import { PacksScreen } from './screens/PacksScreen';
+import { PacksScreen, type OpenedPack } from './screens/PacksScreen';
 import { SettingsSheet } from './components/SettingsSheet';
 import { Onboarding, onboardingDone } from './components/Onboarding';
 
@@ -56,7 +56,7 @@ export default function App() {
     [],
   );
   const [screen, setScreen] = useState<Screen>('home');
-  const [matchCards, setMatchCards] = useState<Card[] | null>(null);
+  const [driver, setDriver] = useState<MatchDriver | null>(null); // partita in corso
   const [dailyMode, setDailyMode] = useState(false); // la partita in corso è la sfida del giorno
   // sfida e missioni di oggi (si rigenerano da sole quando cambia il giorno)
   const today = todayKey();
@@ -84,7 +84,7 @@ export default function App() {
     if (intro) return;
     if (settings) setSettings(false);
     else if (screen === 'match') {
-      if (confirm(t('m_quitConfirm'))) setScreen('home');
+      if (confirm(t('m_quitConfirm'))) quitMatch();
     } else if (screen !== 'home') setScreen('home');
     else NativeApp.minimizeApp();
   };
@@ -96,66 +96,151 @@ export default function App() {
     };
   }, []);
 
-  function startMatch(deck: Card[]) {
-    setProgress((p) => ({
-      ...p,
-      deck: deck.map((c) => c.id), // ricorda il mazzo per la prossima volta
-      // la sfida del giorno si considera giocata appena parte: abbandonarla non dà un secondo tentativo
-      daily: dailyMode ? startDaily(p.daily, today) : p.daily,
-    }));
-    setMatchCards(deck);
+  // con l'accesso fatto ogni azione passa dal server, che risponde con la collezione aggiornata
+  async function server(req: GameRequest): Promise<GameResponse | null> {
+    try {
+      const res = await account.track(callGame(req));
+      if (res.progress) setProgressRaw(res.progress);
+      return res;
+    } catch (e) {
+      setToast(errorMessage(e));
+      if (e instanceof ApiError && e.code === 'no_profile') account.resync();
+      return null;
+    }
+  }
+
+  const progressRef = useRef(progress);
+  progressRef.current = progress;
+  const rewardsRef = useRef<MatchRewards | null>(null);
+  const [starting, setStarting] = useState(false);
+
+  async function startMatch(deck: Card[]) {
+    const ids = deck.map((c) => c.id);
+    const daily = dailyMode;
+    rewardsRef.current = null;
+    if (account.online) {
+      if (starting) return;
+      setStarting(true);
+      const res = await server({ action: 'match_start', deck: ids, daily, date: today });
+      setStarting(false);
+      if (!res?.match || !res.view) return;
+      const id = res.match;
+      setDriver({
+        start: res.view,
+        async play(stat) {
+          const r = await account.track(callGame({ action: 'match_play', match: id, stat }));
+          if (r.progress) setProgressRaw(r.progress);
+          if (r.rewards) rewardsRef.current = r.rewards;
+          return r.view!;
+        },
+        quit() {
+          void callGame({ action: 'match_quit', match: id }).catch(() => {});
+        },
+      });
+    } else {
+      setProgress((p) => ({
+        ...p,
+        deck: ids, // ricorda il mazzo per la prossima volta
+        // la sfida del giorno si considera giocata appena parte: abbandonarla non dà un secondo tentativo
+        daily: daily ? startDaily(p.daily, today) : p.daily,
+      }));
+      const state = newMatch(deck, daily ? challenge.cpuDeck : buildCpuDeck(deck));
+      setDriver(
+        localDriver(state, (final) => {
+          const end = applyMatchEnd(progressRef.current, final, daily, today);
+          setProgress(end.progress);
+          rewardsRef.current = end.rewards;
+        }),
+      );
+    }
     setScreen('match');
   }
 
-  function finishMatch(outcome: 'player' | 'cpu' | 'draw', state: MatchState) {
-    let { progress: next, packEarned } = recordMatch(progress, outcome);
-    const before = missions.list.filter(missionDone).length;
-    const nextMissions = missionsAfterMatch(missions, state, matchCards ?? []);
-    next = { ...next, missions: nextMissions };
-    let dailyWon = false;
-    if (dailyMode) {
-      dailyWon = outcome === 'player';
-      next = { ...next, daily: finishDaily(next.daily, dailyWon, today) };
-      if (dailyWon) next = { ...next, packs: next.packs + 1, credits: next.credits + DAILY_REWARD_CREDITS };
-    }
-    setProgress(next);
-    setMatchCards(null);
+  // "Continua" a fine partita: i premi sono già stati assegnati all'ultimo round
+  function finishMatch() {
+    const r = rewardsRef.current;
+    setDriver(null);
     setDailyMode(false);
-    if (dailyWon) setToast(t('toast_dailyWon', { c: DAILY_REWARD_CREDITS }));
-    else if (nextMissions.list.filter(missionDone).length > before) setToast(t('mis_completed'));
-    else if (packEarned) setToast(t('toast_packEarned', { n: WINS_PER_PACK }));
-    setScreen(packEarned || dailyWon ? 'packs' : 'home');
+    if (r?.dailyWon) setToast(t('toast_dailyWon', { c: DAILY_REWARD_CREDITS }));
+    else if (r?.missionsCompleted) setToast(t('mis_completed'));
+    else if (r?.packEarned) setToast(t('toast_packEarned', { n: WINS_PER_PACK }));
+    setScreen(r?.packEarned || r?.dailyWon ? 'packs' : 'home');
   }
 
-  function claim(i: number) {
-    const { missions: m, credits } = claimMission(missions, i);
+  function quitMatch() {
+    driver?.quit();
+    setDriver(null);
+    setDailyMode(false);
+    setScreen('home');
+  }
+
+  async function claim(i: number) {
+    let credits = 0;
+    if (account.online) credits = (await server({ action: 'claim_mission', index: i, date: today }))?.credits ?? 0;
+    else {
+      const res = claimMission(missions, i);
+      credits = res.credits;
+      if (credits) setProgress((p) => ({ ...p, missions: res.missions, credits: p.credits + credits }));
+    }
     if (!credits) return;
     sfx('roundWin');
     haptic('success');
-    setProgress((p) => ({ ...p, missions: m, credits: p.credits + credits }));
     setToast(t('toast_claimed', { n: credits }));
   }
 
-  function buy(card: Card) {
-    const res = buyCard(progress, card);
-    if (!res) return;
-    setProgress(res.progress);
+  async function buy(card: Card) {
+    let career = false;
+    if (account.online) {
+      const res = await server({ action: 'buy_card', card: card.id });
+      if (!res) return;
+      career = !!res.unlockedCareers?.length;
+    } else {
+      const res = buyCard(progress, card);
+      if (!res) return;
+      setProgress(res.progress);
+      career = res.unlockedCareers.length > 0;
+    }
     const name = `${card.driver.name} · ${card.team.name}`;
-    setToast(res.unlockedCareers.length ? t('toast_boughtCareer', { driver: card.driver.name }) : t('toast_bought', { card: name }));
+    setToast(career ? t('toast_boughtCareer', { driver: card.driver.name }) : t('toast_bought', { card: name }));
   }
 
-  function applyJolly(card: Card) {
-    const res = spendJolly(progress, card);
-    if (!res) return;
-    setProgress(res.progress);
+  async function applyJolly(card: Card) {
+    let career = false;
+    if (account.online) {
+      const res = await server({ action: 'use_jolly', card: card.id });
+      if (!res) return;
+      career = !!res.unlockedCareers?.length;
+    } else {
+      const res = spendJolly(progress, card);
+      if (!res) return;
+      setProgress(res.progress);
+      career = res.unlockedCareers.length > 0;
+    }
     const name = `${card.driver.name} · ${card.team.name}`;
-    setToast(res.unlockedCareers.length ? t('toast_jollyCareer', { card: name }) : t('toast_jolly', { card: name }));
+    setToast(career ? t('toast_jollyCareer', { card: name }) : t('toast_jolly', { card: name }));
   }
 
-  function open() {
+  async function open(): Promise<OpenedPack | null> {
+    if (account.online) {
+      const pack = (await server({ action: 'open_pack', date: today }))?.pack;
+      if (!pack) return null;
+      return {
+        added: pack.added.map((a) => ({ card: CARD_BY_ID.get(a.card)!, duplicate: a.duplicate, credits: a.credits })),
+        unlockedCareers: pack.unlockedCareers.map((id) => CARD_BY_ID.get(id)!),
+        jolly: pack.jolly,
+      };
+    }
     const res = openPack(progress);
     if (res) setProgress({ ...res.progress, missions: missionsAfterPack(missionsFor(res.progress.missions, res.progress.owned, today)) });
     return res;
+  }
+
+  function buyOnePack() {
+    if (account.online) void server({ action: 'buy_pack' });
+    else {
+      const next = buyPack(progress);
+      if (next) setProgress(next);
+    }
   }
 
   function reset() {
@@ -235,16 +320,12 @@ export default function App() {
             banner={dailyMode ? `${t('daily_vs', { theme: themeLabel(challenge.theme, t) })} — ${t('daily_cpuDeck')}` : undefined}
           />
         )}
-        {screen === 'match' && matchCards && (
+        {screen === 'match' && driver && (
           <MatchScreen
-            deck={matchCards}
-            cpuDeck={dailyMode ? challenge.cpuDeck : undefined}
+            driver={driver}
             title={dailyMode ? t('daily_vs', { theme: themeLabel(challenge.theme, t) }) : undefined}
             onFinish={finishMatch}
-            onQuit={() => {
-              setDailyMode(false);
-              setScreen('home');
-            }}
+            onQuit={quitMatch}
           />
         )}
         {screen === 'collection' && <CollectionScreen progress={progress} onBuy={buy} />}
@@ -253,10 +334,7 @@ export default function App() {
             progress={progress}
             onOpen={open}
             onUseJolly={applyJolly}
-            onBuyPack={() => {
-              const next = buyPack(progress);
-              if (next) setProgress(next);
-            }}
+            onBuyPack={buyOnePack}
           />
         )}
       </main>

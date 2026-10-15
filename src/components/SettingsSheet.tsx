@@ -96,9 +96,12 @@ export function SettingsSheet({ theme, onTheme, account, onIntro, onReset, onClo
           <button className="btn ghost block" onClick={onIntro}>
             {t('set_intro')}
           </button>
-          <button className="btn text danger block" onClick={onReset}>
-            <RotateCcw size={14} /> {t('reset')}
-          </button>
+          {/* con l'accesso fatto la collezione è sul server: si ricomincia solo da ospite */}
+          {!account.session && (
+            <button className="btn text danger block" onClick={onReset}>
+              <RotateCcw size={14} /> {t('reset')}
+            </button>
+          )}
         </section>
 
         <footer className="credits">

@@ -613,3 +613,23 @@ p { line-height: 1.45; }
 .bar.small { height: 6px; }
 .missions li.done .bar > div { background: linear-gradient(90deg, var(--win), #5fe39a); }
 .mis-claimed { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: var(--win); white-space: nowrap; }
+
+/* errore dell'arbitro (server) durante la partita */
+.match-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 auto 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--lose) 16%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--lose) 50%, var(--line));
+  font-size: 0.9rem;
+  text-align: center;
+}
+.duel.waiting {
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}

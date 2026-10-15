@@ -126,7 +126,7 @@ const it = {
   toast_boughtCareer: 'Comprata! ★ Sbloccata anche la Carriera di {driver}',
   toast_jolly: '🃏 Jolly usato: {card}',
   toast_jollyCareer: '🃏 {card}. ★ Carriera sbloccata!',
-  acc_readError: 'Non riesco a leggere i dati online: continuo a salvare sul dispositivo.',
+  acc_readError: 'Non riesco a raggiungere il server: riprovo tra poco.',
   acc_migrated: '☁️ La tua collezione ora è salvata sul tuo account.',
   acc_merged: '☁️ Ho unito le card di questo dispositivo a quelle del tuo account.',
   acc_signinFail: 'Accesso non riuscito: {msg}',
@@ -250,6 +250,13 @@ const it = {
   j_desc: 'Scegli una card scuderia mancante di un pilota che stai completando.',
   j_none: 'Nessun pilota da completare per ora: tienilo per dopo.',
   j_teams: '{a}/{b} scuderie',
+  err_network: 'Server non raggiungibile: controlla la connessione e riprova.',
+  err_busy: 'Il server è occupato, riprova tra un attimo.',
+  err_daily_played: 'Hai già giocato la sfida di oggi.',
+  err_not_enough_credits: 'Crediti insufficienti.',
+  err_no_packs: 'Nessun pacchetto da aprire.',
+  err_generic: 'Qualcosa è andato storto, riprova.',
+  retry: 'Riprova',
 };
 
 export type TKey = keyof typeof it;
@@ -305,7 +312,7 @@ const en: Dict = {
   set_intro: 'Show introduction again', sync_loading: 'Syncing…', sync_saving: 'Saving…', sync_saved: 'Saved online', sync_error: 'Not saved online',
   toast_packEarned: '🎁 {n} wins: you earned a pack!', toast_bought: 'Bought: {card}',
   toast_boughtCareer: 'Bought! ★ {driver}’s Career card unlocked too', toast_jolly: '🃏 Joker used: {card}',
-  toast_jollyCareer: '🃏 {card}. ★ Career unlocked!', acc_readError: 'Can’t read your online data: still saving on this device.',
+  toast_jollyCareer: '🃏 {card}. ★ Career unlocked!', acc_readError: 'Can’t reach the server: retrying shortly.',
   acc_migrated: '☁️ Your collection is now saved to your account.', acc_merged: '☁️ I merged this device’s cards into your account.',
   acc_signinFail: 'Sign-in failed: {msg}', acc_signedOut: 'You signed out. Your collection is saved to your account.',
   stat_gare: 'Grands Prix', stat_top10: 'Top 10 finishes', stat_puntiGara: 'Points per race', stat_migliorArrivo: 'Best finish',
@@ -347,6 +354,13 @@ const en: Dict = {
   p_jollyOdds: '🃏 Bonus Joker in {n}% of packs.', p_cards: '{n} cards', j_title: '🃏 You have {n} Joker(s) to use',
   j_desc: 'Pick a missing team card of a driver you are completing.', j_none: 'No drivers to complete for now: keep it for later.',
   j_teams: '{a}/{b} teams',
+  err_network: 'Can’t reach the server: check your connection and try again.',
+  err_busy: 'The server is busy, try again in a moment.',
+  err_daily_played: 'You already played today’s challenge.',
+  err_not_enough_credits: 'Not enough credits.',
+  err_no_packs: 'No packs to open.',
+  err_generic: 'Something went wrong, try again.',
+  retry: 'Retry',
 };
 
 const fr: Dict = {
@@ -399,7 +413,7 @@ const fr: Dict = {
   set_intro: 'Revoir l’introduction', sync_loading: 'Synchronisation…', sync_saving: 'Sauvegarde…', sync_saved: 'Sauvegardé en ligne', sync_error: 'Non sauvegardé en ligne',
   toast_packEarned: '🎁 {n} victoires : tu as gagné un paquet !', toast_bought: 'Achetée : {card}',
   toast_boughtCareer: 'Achetée ! ★ La Carrière de {driver} est aussi débloquée', toast_jolly: '🃏 Joker utilisé : {card}',
-  toast_jollyCareer: '🃏 {card}. ★ Carrière débloquée !', acc_readError: 'Impossible de lire tes données en ligne : sauvegarde sur l’appareil.',
+  toast_jollyCareer: '🃏 {card}. ★ Carrière débloquée !', acc_readError: 'Serveur injoignable : nouvel essai bientôt.',
   acc_migrated: '☁️ Ta collection est maintenant sauvegardée sur ton compte.', acc_merged: '☁️ J’ai fusionné les cartes de cet appareil avec ton compte.',
   acc_signinFail: 'Connexion échouée : {msg}', acc_signedOut: 'Tu es déconnecté. Ta collection est sauvegardée sur ton compte.',
   stat_gare: 'Grands Prix', stat_top10: 'Arrivées top 10', stat_puntiGara: 'Points par course', stat_migliorArrivo: 'Meilleure arrivée',
@@ -441,6 +455,13 @@ const fr: Dict = {
   p_jollyOdds: '🃏 Joker bonus dans {n} % des paquets.', p_cards: '{n} cartes', j_title: '🃏 Tu as {n} Joker(s) à utiliser',
   j_desc: 'Choisis une carte écurie manquante d’un pilote que tu complètes.', j_none: 'Aucun pilote à compléter pour l’instant : garde-le pour plus tard.',
   j_teams: '{a}/{b} écuries',
+  err_network: 'Serveur injoignable : vérifie ta connexion et réessaie.',
+  err_busy: 'Le serveur est occupé, réessaie dans un instant.',
+  err_daily_played: 'Tu as déjà joué le défi du jour.',
+  err_not_enough_credits: 'Crédits insuffisants.',
+  err_no_packs: 'Aucun paquet à ouvrir.',
+  err_generic: 'Un problème est survenu, réessaie.',
+  retry: 'Réessayer',
 };
 
 const es: Dict = {
@@ -493,7 +514,7 @@ const es: Dict = {
   set_intro: 'Ver la introducción', sync_loading: 'Sincronizando…', sync_saving: 'Guardando…', sync_saved: 'Guardado en línea', sync_error: 'No guardado en línea',
   toast_packEarned: '🎁 {n} victorias: ¡has ganado un sobre!', toast_bought: 'Comprada: {card}',
   toast_boughtCareer: '¡Comprada! ★ También se desbloqueó la Carrera de {driver}', toast_jolly: '🃏 Comodín usado: {card}',
-  toast_jollyCareer: '🃏 {card}. ★ ¡Carrera desbloqueada!', acc_readError: 'No puedo leer tus datos en línea: sigo guardando en el dispositivo.',
+  toast_jollyCareer: '🃏 {card}. ★ ¡Carrera desbloqueada!', acc_readError: 'No puedo conectar con el servidor: lo reintento enseguida.',
   acc_migrated: '☁️ Tu colección ahora está guardada en tu cuenta.', acc_merged: '☁️ He unido las cartas de este dispositivo a tu cuenta.',
   acc_signinFail: 'Error al iniciar sesión: {msg}', acc_signedOut: 'Has cerrado sesión. Tu colección está guardada en tu cuenta.',
   stat_gare: 'Grandes Premios', stat_top10: 'Llegadas top 10', stat_puntiGara: 'Puntos por carrera', stat_migliorArrivo: 'Mejor resultado',
@@ -535,6 +556,13 @@ const es: Dict = {
   p_jollyOdds: '🃏 Comodín extra en el {n}% de los sobres.', p_cards: '{n} cartas', j_title: '🃏 Tienes {n} comodín(es) por usar',
   j_desc: 'Elige una carta de escudería que te falte de un piloto que estás completando.', j_none: 'Ningún piloto por completar de momento: guárdalo para después.',
   j_teams: '{a}/{b} escuderías',
+  err_network: 'No se puede conectar con el servidor: revisa la conexión y reinténtalo.',
+  err_busy: 'El servidor está ocupado, reinténtalo en un momento.',
+  err_daily_played: 'Ya jugaste el desafío de hoy.',
+  err_not_enough_credits: 'Créditos insuficientes.',
+  err_no_packs: 'No hay sobres para abrir.',
+  err_generic: 'Algo salió mal, reinténtalo.',
+  retry: 'Reintentar',
 };
 
 const de: Dict = {
@@ -587,7 +615,7 @@ const de: Dict = {
   set_intro: 'Einführung erneut zeigen', sync_loading: 'Synchronisiere…', sync_saving: 'Speichere…', sync_saved: 'Online gespeichert', sync_error: 'Nicht online gespeichert',
   toast_packEarned: '🎁 {n} Siege: Du hast ein Pack verdient!', toast_bought: 'Gekauft: {card}',
   toast_boughtCareer: 'Gekauft! ★ Auch die Karriere von {driver} ist freigeschaltet', toast_jolly: '🃏 Joker benutzt: {card}',
-  toast_jollyCareer: '🃏 {card}. ★ Karriere freigeschaltet!', acc_readError: 'Online-Daten nicht lesbar: Ich speichere weiter auf dem Gerät.',
+  toast_jollyCareer: '🃏 {card}. ★ Karriere freigeschaltet!', acc_readError: 'Server nicht erreichbar: Ich versuche es gleich erneut.',
   acc_migrated: '☁️ Deine Sammlung ist jetzt in deinem Konto gespeichert.', acc_merged: '☁️ Die Karten dieses Geräts wurden mit deinem Konto zusammengeführt.',
   acc_signinFail: 'Anmeldung fehlgeschlagen: {msg}', acc_signedOut: 'Du bist abgemeldet. Deine Sammlung ist in deinem Konto gespeichert.',
   stat_gare: 'Grands Prix', stat_top10: 'Top-10-Ankünfte', stat_puntiGara: 'Punkte pro Rennen', stat_migliorArrivo: 'Bestes Ergebnis',
@@ -629,6 +657,13 @@ const de: Dict = {
   p_jollyOdds: '🃏 Bonus-Joker in {n} % der Packs.', p_cards: '{n} Karten', j_title: '🃏 Du hast {n} Joker zu vergeben',
   j_desc: 'Wähle eine fehlende Teamkarte eines Fahrers, den du gerade vervollständigst.', j_none: 'Gerade kein Fahrer zum Vervollständigen: Heb ihn für später auf.',
   j_teams: '{a}/{b} Teams',
+  err_network: 'Server nicht erreichbar: Verbindung prüfen und erneut versuchen.',
+  err_busy: 'Der Server ist beschäftigt, gleich nochmal versuchen.',
+  err_daily_played: 'Du hast die heutige Challenge schon gespielt.',
+  err_not_enough_credits: 'Nicht genug Credits.',
+  err_no_packs: 'Keine Packs zum Öffnen.',
+  err_generic: 'Etwas ist schiefgelaufen, versuch es nochmal.',
+  retry: 'Erneut versuchen',
 };
 
 const DICT: Record<Lang, Dict> = { it, en, fr, es, de };
