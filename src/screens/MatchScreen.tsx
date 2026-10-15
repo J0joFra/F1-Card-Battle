@@ -152,13 +152,11 @@ export function MatchScreen({ deck, onFinish, onQuit }: Props) {
               ? free.length === 1
                 ? `Ultimo round: resta solo ${STAT_BY_KEY[free[0]].label}`
                 : state.round === 0
-                  ? 'Sorteggio: inizi tu! Scegli la metrica'
+                  ? 'Inizi tu: scegli la metrica'
                   : 'Tocca a te: scegli la metrica'
               : cpuPick
                 ? `La CPU sceglie: ${STAT_BY_KEY[cpuPick].label}`
-                : state.round === 0
-                  ? 'Sorteggio: inizia la CPU…'
-                  : 'La CPU sta scegliendo…'}
+                : 'La CPU sta scegliendo…'}
           </div>
           <div className="duel">
             <CardView

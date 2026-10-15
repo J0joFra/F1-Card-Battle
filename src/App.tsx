@@ -165,7 +165,7 @@ export default function App() {
                 </li>
                 <li>
                   La partita dura {ROUNDS} round. A ogni round esce una card a caso dal mazzo di ognuno. Il primo
-                  round si tira a sorte, poi la metrica la sceglie chi ha vinto il round precedente.
+                  round lo scegli tu, poi la metrica la sceglie chi ha vinto il round precedente.
                 </li>
                 <li>Ogni metrica si può usare una sola volta per partita: all'ultimo round resta quella rimasta.</li>
                 <li>Vince la metrica il valore più alto (↓ = vince il più basso). Chi fa più punti vince la partita.</li>

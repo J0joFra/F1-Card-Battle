@@ -116,17 +116,17 @@ describe('motore di gioco', () => {
     expect(tie.chooser).toBe('cpu');
   });
 
-  it('il primo a scegliere è sorteggiato', () => {
-    const firsts = new Set(Array.from({ length: 20 }, (_, i) => newMatch(deck, deck, seeded(i + 1)).chooser));
-    expect(firsts).toEqual(new Set(['player', 'cpu']));
+  it('contro la CPU il primo round lo sceglie il giocatore', () => {
+    for (let i = 1; i <= 10; i++) expect(newMatch(deck, deck, seeded(i)).chooser).toBe('player');
   });
 
   it('la CPU sceglie una metrica libera in cui la sua carta è forte', () => {
     const state = { ...newMatch([hamFerr], [hamMerc], seeded()), chooser: 'cpu' as const };
-    const stat = cpuChooseStat(state, seeded(), 0);
-    expect(percentile(stat, hamMerc.stats[stat])).toBeGreaterThan(0.85);
+    const stat = cpuChooseStat(state);
+    // è la metrica più forte della sua carta
+    for (const s of STATS) expect(percentile(stat, hamMerc.stats[stat])).toBeGreaterThanOrEqual(percentile(s.key, hamMerc.stats[s.key]));
     const used = { ...state, usedStats: [stat] };
-    expect(cpuChooseStat(used, seeded(), 0)).not.toBe(stat);
+    expect(cpuChooseStat(used)).not.toBe(stat);
   });
 
   it('partita completa: 7 round, ogni metrica e ogni card usate una volta', () => {

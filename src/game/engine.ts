@@ -91,12 +91,18 @@ export interface MatchState {
   history: RoundResult[];
 }
 
-export function newMatch(playerDeck: Card[], cpuDeck: Card[], rng: Rng = Math.random): MatchState {
+// Contro la CPU il primo round lo sceglie sempre il giocatore.
+export function newMatch(
+  playerDeck: Card[],
+  cpuDeck: Card[],
+  rng: Rng = Math.random,
+  firstChooser: Side = 'player',
+): MatchState {
   return {
     player: shuffle(playerDeck, rng),
     cpu: shuffle(cpuDeck, rng),
     round: 0,
-    chooser: rng() < 0.5 ? 'player' : 'cpu', // il primo round si tira a sorte
+    chooser: firstChooser,
     usedStats: [],
     score: { player: 0, cpu: 0 },
     history: [],
@@ -133,9 +139,10 @@ export function matchOutcome(state: MatchState): MatchOutcome {
   return player > cpu ? 'player' : cpu > player ? 'cpu' : 'draw';
 }
 
-// La CPU conosce solo la propria carta: sceglie, tra le metriche ancora libere,
-// quella in cui la sua carta è più forte. Ogni tanto sbaglia, per non essere imbattibile.
-export function cpuChooseStat(state: MatchState, rng: Rng = Math.random, mistakeRate = 0.1): StatKey {
+// La CPU non vede la tua carta: sceglie, tra le metriche ancora libere, la migliore della propria.
+// "Migliore" = il valore più alto rispetto a tutte le card del gioco (percentile), perché metriche
+// diverse hanno scale diverse (es. 120 GP contro 8,5 punti a gara).
+export function cpuChooseStat(state: MatchState, rng: Rng = Math.random, mistakeRate = 0): StatKey {
   const free = availableStats(state);
   if (rng() < mistakeRate) return free[Math.floor(rng() * free.length)];
   const card = currentCards(state).cpu;
