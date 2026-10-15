@@ -32,6 +32,7 @@ export interface Progress {
   packs: number; // pacchetti da aprire
   winsTowardPack: number;
   jolly: number; // Jolly da usare
+  updatedAt: number; // ultima modifica (ms), per capire quale copia è più recente tra dispositivo e cloud
 }
 
 export function starterProgress(rng: Rng = Math.random): Progress {
@@ -51,6 +52,7 @@ export function starterProgress(rng: Rng = Math.random): Progress {
     packs: 1, // un pacchetto di benvenuto
     winsTowardPack: 0,
     jolly: 0,
+    updatedAt: 0,
   };
 }
 
@@ -202,15 +204,45 @@ export function loadProgress(): Progress | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const p = JSON.parse(raw) as Progress;
-    // scarta card non più presenti dopo un aggiornamento dei dati
-    p.owned = Object.fromEntries(Object.entries(p.owned).filter(([id]) => CARD_BY_ID.has(id)));
-    p.deck = p.deck.filter((id) => CARD_BY_ID.has(id));
-    p.jolly ??= 0; // salvataggi precedenti al Jolly
-    return p;
+    return normalizeProgress(JSON.parse(raw));
   } catch {
     return null;
   }
+}
+
+// Rende valido un salvataggio (locale o dal cloud) anche se creato da una versione precedente.
+export function normalizeProgress(raw: Partial<Progress>): Progress {
+  const base = starterProgress();
+  const p = { ...base, ...raw, owned: raw.owned ?? {}, deck: raw.deck ?? [] };
+  // scarta card non più presenti dopo un aggiornamento dei dati
+  p.owned = Object.fromEntries(Object.entries(p.owned).filter(([id]) => CARD_BY_ID.has(id)));
+  p.deck = p.deck.filter((id) => CARD_BY_ID.has(id));
+  p.jolly ??= 0;
+  p.updatedAt ??= 0;
+  return p;
+}
+
+// Nessuna partita giocata e nessun pacchetto aperto: è la collezione iniziale di un ospite.
+export const isUntouched = (p: Progress) =>
+  p.wins + p.losses + p.draws === 0 && p.packs >= 1 && p.credits === 0 && p.jolly === 0 && collectionSize(p) <= 15;
+
+// Unisce due progressioni (es. quella da ospite sul dispositivo e quella dell'account) senza perdere
+// card: per ogni valore tiene il massimo, così nessuno dei due perde nulla e non si duplica niente.
+export function mergeProgress(account: Progress, device: Progress): Progress {
+  const owned = { ...account.owned };
+  for (const [id, n] of Object.entries(device.owned)) owned[id] = Math.max(owned[id] ?? 0, n);
+  return {
+    owned,
+    deck: account.deck.length ? account.deck : device.deck,
+    credits: Math.max(account.credits, device.credits),
+    wins: Math.max(account.wins, device.wins),
+    losses: Math.max(account.losses, device.losses),
+    draws: Math.max(account.draws, device.draws),
+    packs: Math.max(account.packs, device.packs),
+    winsTowardPack: Math.max(account.winsTowardPack, device.winsTowardPack),
+    jolly: Math.max(account.jolly, device.jolly),
+    updatedAt: Date.now(),
+  };
 }
 
 export function saveProgress(p: Progress) {

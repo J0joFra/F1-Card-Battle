@@ -301,3 +301,23 @@ nav button.on { color: var(--text); background: var(--surface-2); }
 .jolly-options .chip { color: var(--text); }
 .jolly-options .chip:hover { border-color: var(--leggendaria); }
 .prefilled { margin: 0 0 12px; padding: 10px 14px; border-radius: 10px; background: color-mix(in srgb, var(--win) 14%, var(--surface)); border: 1px solid color-mix(in srgb, var(--win) 40%, var(--line)); font-size: 14px; }
+
+/* --- account e salvataggio online --- */
+.topbar { position: relative; }
+.btn.google { background: #fff; color: #1f1f1f; border-color: #dadce0; display: inline-flex; align-items: center; gap: 8px; }
+.btn.google:hover { background: #f4f4f4; }
+.btn.small { padding: 6px 12px; font-size: 14px; }
+.account { display: flex; align-items: center; gap: 8px; position: relative; margin-left: auto; }
+.btn.account { margin-left: auto; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--line); background: var(--accent); color: #fff; font-weight: 800; }
+.sync { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.sync-error { color: var(--tie); }
+.account-menu {
+  position: absolute; top: 42px; left: 0; z-index: 25; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 12px; padding: 12px; display: grid; gap: 8px; min-width: 200px; box-shadow: 0 10px 30px rgba(0,0,0,.5);
+}
+.cloud-cta {
+  display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid color-mix(in srgb, #4285f4 50%, var(--line)); border-radius: 12px; padding: 16px;
+}
+.cloud-cta p { margin: 4px 0 0; font-size: 14px; max-width: 560px; }
