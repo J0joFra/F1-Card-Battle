@@ -71,10 +71,13 @@ Formato consigliato: WebP 600 × 600 px con sfondo trasparente. Senza immagine l
 
 Il login con Google e il salvataggio della collezione usano [Supabase](https://supabase.com) (progetto `f1-card-battle`, piano gratuito).
 
-- Senza login si gioca come prima: tutto resta salvato nel browser.
-- Al primo login la collezione del dispositivo viene copiata sull'account. Se l'account ha già dei dati, le due collezioni vengono unite (per ogni card e ogni contatore si tiene il valore più alto, quindi non si perde niente).
-- Da lì ogni modifica viene salvata online in automatico. Uscendo, il dispositivo torna "ospite" e la collezione resta sull'account.
-- Tabella `profiles`, una riga per utente. Le regole RLS permettono a ognuno di leggere e modificare solo la propria riga. Lo schema è in `supabase/migrations/`.
+- Senza login si gioca come prima: tutto resta salvato sul dispositivo, e decide il telefono.
+- **Con il login decide il server.** Pacchetti, crediti, acquisti, Jolly, premi delle missioni e partite contro la CPU passano dalla Edge Function `game` (Supabase): il telefono chiede un'azione, il server la controlla con le stesse regole del gioco e salva. Nelle partite il server gioca un round alla volta, quindi il telefono non conosce mai in anticipo le carte della CPU.
+- Al primo login la collezione del dispositivo diventa quella dell'account, ma solo se plausibile (limiti su card, crediti, pacchetti…); altrimenti si parte dal mazzo iniziale. Chi aveva già un account con la vecchia app riceve un'ultima unione con i dati del telefono, poi conta solo il server.
+- Uscendo, il dispositivo torna "ospite" e la collezione resta sull'account.
+- Tabelle: `profiles` (una riga per utente, con un numero di `version` per evitare che due richieste contemporanee si sovrascrivano) e `matches` (partite in corso). `matches` è chiusa ai telefoni: la usa solo il server. Lo schema è in `supabase/migrations/`.
+- Codice del server: la logica è in `src/server/actions.ts` (con i test), l'aggancio a Supabase in `server/edge.ts`. `npm run build:server` crea `supabase/functions/game/index.js`, che si pubblica come Edge Function `game` (entrypoint `index.js`, JWT obbligatorio). Il catalogo delle card il server lo scarica da `src/data/cards.json` sul branch `main`.
+- Quando tutti avranno l'app aggiornata, va eseguito `supabase/pending/close_client_writes.sql`: toglie ai telefoni il permesso di scrivere direttamente il profilo (la vecchia app lo faceva).
 - URL e chiave *publishable* sono in `src/lib/supabase.ts`: sono pubblici per definizione (la protezione dei dati la fanno le regole RLS). Si possono sostituire con `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`.
 
 ### Configurare il login con Google (una volta sola)

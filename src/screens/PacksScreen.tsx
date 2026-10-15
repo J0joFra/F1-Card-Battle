@@ -5,6 +5,8 @@ import { useI18n } from '../lib/i18n';
 import { TutorialSection } from '../components/TutorialSection';
 import { WINS_PER_PACK } from '../game/collection';
 import { JOLLY_CHANCE, PACK_ODDS, PACK_PRICE, PACK_SIZE, jollyTargets, type Progress, type UnlockResult } from '../game/collection';
+
+export type OpenedPack = Omit<UnlockResult, 'progress'>;
 import { CardBack, CardView } from '../components/CardView';
 import { haptic, sfx } from '../lib/feedback';
 
@@ -12,14 +14,14 @@ const TEAR_MS = 750; // durata dell'animazione del pacchetto che si apre
 
 interface Props {
   progress: Progress;
-  onOpen: () => UnlockResult | null;
+  onOpen: () => Promise<OpenedPack | null>; // null: niente da aprire o errore (già segnalato)
   onBuyPack: () => void;
   onUseJolly: (card: Card) => void;
 }
 
 export function PacksScreen({ progress, onOpen, onBuyPack, onUseJolly }: Props) {
   const { t } = useI18n();
-  const [opened, setOpened] = useState<UnlockResult | null>(null);
+  const [opened, setOpened] = useState<OpenedPack | null>(null);
   const [revealed, setRevealed] = useState<boolean[]>([]);
   const [tearing, setTearing] = useState(false);
 
@@ -30,17 +32,21 @@ export function PacksScreen({ progress, onOpen, onBuyPack, onUseJolly }: Props) 
     setTearing(true);
   }
 
-  // il pacchetto trema e si strappa, poi escono le card coperte
+  // il pacchetto trema e si strappa (intanto si apre, anche sul server), poi escono le card coperte
   useEffect(() => {
     if (!tearing) return;
-    const t = setTimeout(() => {
+    let alive = true;
+    const minDelay = new Promise((r) => setTimeout(r, TEAR_MS));
+    Promise.all([onOpen(), minDelay]).then(([res]) => {
+      if (!alive) return;
       setTearing(false);
-      const res = onOpen();
       if (!res) return;
       setOpened(res);
       setRevealed(Array(res.added.length).fill(false));
-    }, TEAR_MS);
-    return () => clearTimeout(t);
+    });
+    return () => {
+      alive = false;
+    };
   }, [tearing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function reveal(i: number) {

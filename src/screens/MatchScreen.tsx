@@ -1,81 +1,126 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Card, StatKey } from '../types';
 import { X } from 'lucide-react';
-import { STATS, STAT_BY_KEY, formatStat, statLabel, statShort } from '../game/cards';
+import { CARD_BY_ID, STATS, STAT_BY_KEY, formatStat, statLabel, statShort } from '../game/cards';
 import { useI18n } from '../lib/i18n';
+import { errorMessage } from '../lib/api';
 import { WINS_PER_PACK } from '../game/collection';
-import {
-  ROUNDS,
-  availableStats,
-  buildCpuDeck,
-  cpuChooseStat,
-  currentCards,
-  matchOutcome,
-  newMatch,
-  playRound,
-  type MatchOutcome,
-  type MatchState,
-} from '../game/engine';
+import { ROUNDS, type Side } from '../game/engine';
+import type { MatchDriver, MatchView } from '../game/match';
 import { CardBack, CardView } from '../components/CardView';
 import { haptic, reducedMotion, sfx } from '../lib/feedback';
 
 // tempo della carta CPU che si gira prima di mostrare il risultato del round
 const REVEAL_MS = 650;
+const CPU_THINK_MS = 900;
+const CPU_ANNOUNCE_MS = 1300;
 
 interface Props {
-  deck: Card[];
-  cpuDeck?: Card[]; // mazzo CPU già deciso (sfida del giorno); altrimenti viene costruito
+  driver: MatchDriver; // chi arbitra: il telefono (ospite) o il server
   title?: string;
-  onFinish: (outcome: Exclude<MatchOutcome, null>, state: MatchState) => void;
+  onFinish: () => void;
   onQuit: () => void;
 }
 
-export function MatchScreen({ deck, cpuDeck, title, onFinish, onQuit }: Props) {
+interface Round {
+  stat: StatKey;
+  chooser: Side;
+  playerCard: Card;
+  cpuCard: Card;
+  winner: Side | 'tie';
+}
+
+const cardOf = (id: string) => CARD_BY_ID.get(id)!;
+
+export function MatchScreen({ driver, title, onFinish, onQuit }: Props) {
   const { t } = useI18n();
-  const initial = useMemo(() => newMatch(deck, cpuDeck ?? buildCpuDeck(deck)), [deck, cpuDeck]);
-  const [state, setState] = useState<MatchState>(initial);
+  const [view, setView] = useState<MatchView>(driver.start);
   const [showResult, setShowResult] = useState(false); // round appena giocato, in attesa di "avanti"
   const [cpuPick, setCpuPick] = useState<StatKey | null>(null);
   const [settled, setSettled] = useState(true); // false mentre la carta CPU si sta girando
-  const last = state.history[state.history.length - 1];
-  const outcome = matchOutcome(state);
+  const [busy, setBusy] = useState(false); // round in corso (in attesa dell'arbitro)
+  const [error, setError] = useState<string | null>(null);
+  const pending = useRef<MatchView | null>(null); // round della CPU già giocato, mostrato dopo l'annuncio
+  const alive = useRef(true);
+  useEffect(
+    () => () => {
+      alive.current = false;
+    },
+    [],
+  );
+
+  const history: Round[] = useMemo(
+    () => view.history.map((h) => ({ ...h, playerCard: cardOf(h.player), cpuCard: cardOf(h.cpu) })),
+    [view.history],
+  );
+  const last = history[history.length - 1];
+  const outcome = view.outcome;
   const finished = outcome && !showResult;
   const choosing = !outcome && !showResult;
-  const free = availableStats(state);
+  const free = STATS.map((s) => s.key).filter((k) => !view.usedStats.includes(k));
+  const current = view.current ? cardOf(view.current) : null;
 
-  // Turno della CPU: "pensa", annuncia la metrica, poi la gioca.
-  useEffect(() => {
-    if (!choosing || state.chooser !== 'cpu' || cpuPick) return;
-    const t = setTimeout(() => {
-      setCpuPick(cpuChooseStat(state));
-      sfx('tap');
-      haptic('light');
-    }, 900);
-    return () => clearTimeout(t);
-  }, [choosing, state, cpuPick]);
-
-  useEffect(() => {
-    if (!cpuPick) return;
-    const t = setTimeout(() => pick(cpuPick), 1300);
-    return () => clearTimeout(t);
-  }, [cpuPick]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function pick(stat: StatKey) {
-    if (state.chooser === 'player') {
-      sfx('select');
-      haptic('light');
-    }
-    setState(playRound(state, stat));
+  function show(next: MatchView) {
+    setView(next);
     setCpuPick(null);
     setShowResult(true);
     setSettled(false);
     sfx('flip');
   }
 
+  function fail(e: unknown) {
+    if (!alive.current) return;
+    setBusy(false);
+    setCpuPick(null);
+    setError(errorMessage(e));
+    haptic('error');
+  }
+
+  // Turno della CPU: "pensa" (intanto l'arbitro gioca il round), annuncia la metrica, poi la mostra.
+  useEffect(() => {
+    if (!choosing || view.chooser !== 'cpu' || busy || error) return;
+    setBusy(true);
+    const started = Date.now();
+    driver.play().then((next) => {
+      if (!alive.current) return;
+      setTimeout(() => {
+        if (!alive.current) return;
+        pending.current = next;
+        setCpuPick(next.history[next.history.length - 1].stat);
+        sfx('tap');
+        haptic('light');
+      }, Math.max(0, CPU_THINK_MS - (Date.now() - started)));
+    }, fail);
+  }, [choosing, view, busy, error]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!cpuPick || !pending.current) return;
+    const tm = setTimeout(() => {
+      const next = pending.current!;
+      pending.current = null;
+      setBusy(false);
+      show(next);
+    }, CPU_ANNOUNCE_MS);
+    return () => clearTimeout(tm);
+  }, [cpuPick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function pick(stat: StatKey) {
+    if (busy || view.chooser !== 'player') return;
+    sfx('select');
+    haptic('light');
+    setError(null);
+    setBusy(true);
+    driver.play(stat).then((next) => {
+      if (!alive.current) return;
+      setBusy(false);
+      show(next);
+    }, fail);
+  }
+
   // Dopo che la carta CPU si è girata: esito del round con suono e vibrazione.
   useEffect(() => {
     if (settled || !last) return;
-    const t = setTimeout(() => {
+    const tm = setTimeout(() => {
       setSettled(true);
       if (last.winner === 'player') {
         sfx('roundWin');
@@ -88,7 +133,7 @@ export function MatchScreen({ deck, cpuDeck, title, onFinish, onQuit }: Props) {
         haptic('warning');
       }
     }, REVEAL_MS);
-    return () => clearTimeout(t);
+    return () => clearTimeout(tm);
   }, [settled, last]);
 
   // Fine partita: fanfara (e coriandoli se hai vinto) o musichetta della sconfitta.
@@ -112,12 +157,14 @@ export function MatchScreen({ deck, cpuDeck, title, onFinish, onQuit }: Props) {
 
   // mentre la carta CPU si gira il punteggio non è ancora aggiornato, per non rovinare la sorpresa
   const shown = {
-    player: state.score.player - (!settled && last?.winner === 'player' ? 1 : 0),
-    cpu: state.score.cpu - (!settled && last?.winner === 'cpu' ? 1 : 0),
+    player: view.score.player - (!settled && last?.winner === 'player' ? 1 : 0),
+    cpu: view.score.cpu - (!settled && last?.winner === 'cpu' ? 1 : 0),
   };
   const chooserLabel = (side: 'player' | 'cpu') => (side === 'player' ? t('m_choseYou') : t('m_choseCpu'));
   const quit = () => {
-    if (confirm(t('m_quitConfirm'))) onQuit();
+    if (!confirm(t('m_quitConfirm'))) return;
+    driver.quit();
+    onQuit();
   };
 
   return (
@@ -136,11 +183,11 @@ export function MatchScreen({ deck, cpuDeck, title, onFinish, onQuit }: Props) {
           </b>
         </div>
         <div className="round">
-          {finished ? t('m_end') : t('m_round', { a: Math.min(state.round + (showResult ? 0 : 1), ROUNDS), b: ROUNDS })}
+          {finished ? t('m_end') : t('m_round', { a: Math.min(view.round + (showResult ? 0 : 1), ROUNDS), b: ROUNDS })}
           <div className="round-dots">
             {Array.from({ length: ROUNDS }, (_, i) => {
-              const h = state.history[i];
-              const shown = h && (settled || i < state.history.length - 1);
+              const h = history[i];
+              const shown = h && (settled || i < history.length - 1);
               return <span key={i} className={`rd ${shown ? `rd-${h.winner}` : ''}`} title={h ? statLabel(h.stat) : ''} />;
             })}
           </div>
@@ -156,7 +203,7 @@ export function MatchScreen({ deck, cpuDeck, title, onFinish, onQuit }: Props) {
       {!finished && (
         <div className="stat-chips">
           {STATS.map((s) => {
-            const h = state.history.find((x) => x.stat === s.key);
+            const h = history.find((x) => x.stat === s.key);
             return (
               <span key={s.key} className={`stat-chip ${h ? `used rd-${h.winner}` : ''}`} title={statLabel(s.key)}>
                 {statShort(s.key)}
@@ -170,11 +217,11 @@ export function MatchScreen({ deck, cpuDeck, title, onFinish, onQuit }: Props) {
         <div className="match-over">
           <h2 className={`over-${outcome}`}>{outcome === 'player' ? t('m_win') : outcome === 'cpu' ? t('m_lose') : t('m_draw')}</h2>
           <p>
-            {t('m_score', { a: state.score.player, b: state.score.cpu })}{' '}
+            {t('m_score', { a: view.score.player, b: view.score.cpu })}{' '}
             {outcome === 'player' ? t('m_winHint', { n: WINS_PER_PACK }) : t('m_loseHint')}
           </p>
           <ol className="recap">
-            {state.history.map((h, i) => {
+            {history.map((h, i) => {
               const def = STAT_BY_KEY[h.stat];
               return (
                 <li key={i} className={`rd-${h.winner}`}>
@@ -190,7 +237,7 @@ export function MatchScreen({ deck, cpuDeck, title, onFinish, onQuit }: Props) {
               );
             })}
           </ol>
-          <button className="btn primary big block" onClick={() => onFinish(outcome, state)}>
+          <button className="btn primary big block" onClick={onFinish}>
             {t('continue')}
           </button>
         </div>
@@ -211,7 +258,7 @@ export function MatchScreen({ deck, cpuDeck, title, onFinish, onQuit }: Props) {
               result={settled ? (last.winner === 'player' ? 'win' : last.winner === 'cpu' ? 'lose' : 'tie') : undefined}
             />
             <span className="vs">VS</span>
-            <div className="flip-reveal" key={`cpu-${state.round}`}>
+            <div className="flip-reveal" key={`cpu-${view.round}`}>
               <CardView
                 card={last.cpuCard}
                 highlight={last.stat}
@@ -232,29 +279,39 @@ export function MatchScreen({ deck, cpuDeck, title, onFinish, onQuit }: Props) {
         </>
       ) : (
         <>
-          <div className={`banner ${state.chooser === 'cpu' ? 'banner-cpu-turn' : ''}`}>
-            {state.chooser === 'player'
+          <div className={`banner ${view.chooser === 'cpu' ? 'banner-cpu-turn' : ''}`}>
+            {view.chooser === 'player'
               ? free.length === 1
                 ? t('m_last', { stat: statLabel(free[0]) })
-                : state.round === 0
+                : view.round === 0
                   ? t('m_first')
                   : t('m_yourTurn')
               : cpuPick
                 ? t('m_cpuPicks', { stat: statLabel(cpuPick) })
                 : t('m_cpuThinking')}
           </div>
-          <div className="duel">
-            <div className="deal-in" key={`me-${state.round}`}>
+          {error && (
+            <div className="match-error">
+              <span>{error}</span>
+              {view.chooser === 'cpu' && (
+                <button className="btn ghost" onClick={() => setError(null)}>
+                  {t('retry')}
+                </button>
+              )}
+            </div>
+          )}
+          <div className={`duel ${busy && view.chooser === 'player' ? 'waiting' : ''}`}>
+            <div className="deal-in" key={`me-${view.round}`}>
               <CardView
-                card={currentCards(state).player}
-                onPickStat={state.chooser === 'player' ? pick : undefined}
-                lockedStats={state.usedStats}
+                card={current!}
+                onPickStat={view.chooser === 'player' && !busy ? pick : undefined}
+                lockedStats={view.usedStats}
                 highlight={cpuPick ?? undefined}
               />
             </div>
             <span className="vs">VS</span>
-            <div className="deal-in cpu" key={`back-${state.round}`}>
-              <CardBack label={t('m_cpuCard', { a: state.round + 1, b: ROUNDS })} />
+            <div className="deal-in cpu" key={`back-${view.round}`}>
+              <CardBack label={t('m_cpuCard', { a: view.round + 1, b: ROUNDS })} />
             </div>
           </div>
         </>
