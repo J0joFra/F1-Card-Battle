@@ -1,6 +1,5 @@
 import { STATS } from '../game/cards';
 import {
-  buyCard,
   buyPack,
   mergeProgress,
   normalizeProgress,
@@ -17,6 +16,7 @@ import { applyMatchEnd, loadMatch, storeMatch, toView, type MatchRewards, type M
 import type { StatKey } from '../types';
 import { cardOrThrow, checkDate, GameError, validDeck, withProfile, type Ctx } from './common';
 import { handlePvp } from './pvp';
+import { buyAndOpen, buyFromStore, storeFor, storePrice } from '../game/shop';
 import type { GameRequest, GameResponse, Store } from './types';
 
 export * from './types';
@@ -105,18 +105,48 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       });
     }
 
-    case 'buy_pack':
+    case 'buy_pack': {
+      // Classico: va tra i pacchetti da aprire. Premium e Scuderia: si aprono subito.
+      if (!req.kind || req.kind === 'classic')
+        return withProfile(store, ctx, (p) => {
+          const next = buyPack(p);
+          if (!next) throw new GameError('not_enough_credits');
+          return { progress: next };
+        });
+      const kind = req.kind;
+      if (kind !== 'premium' && kind !== 'team') throw new GameError('unknown_pack');
+      const day = req.date ?? ctx.today;
+      checkDate(day, ctx.today);
       return withProfile(store, ctx, (p) => {
-        const next = buyPack(p);
-        if (!next) throw new GameError('not_enough_credits');
-        return { progress: next };
+        const res = buyAndOpen(p, kind, day, ctx.rng);
+        if (!res) throw new GameError('not_enough_credits');
+        return {
+          progress: { ...res.progress, missions: missionsAfterPack(missionsFor(res.progress.missions, res.progress.owned, day)) },
+          pack: {
+            added: res.added.map((a) => ({ card: a.card.id, duplicate: a.duplicate, credits: a.credits })),
+            unlockedCareers: res.unlockedCareers.map((c) => c.id),
+            jolly: !!res.jolly,
+          },
+        };
       });
+    }
 
-    case 'buy_card': {
+    case 'store': {
+      // le card del giorno: si scelgono la prima volta che si apre il negozio e restano fisse
+      checkDate(req.date, ctx.today);
+      const row = await store.getProfile();
+      if (!row) throw new GameError('no_profile', 409);
+      const current = normalizeProgress(row.progress);
+      if (current.store?.date === req.date) return { progress: current };
+      return withProfile(store, ctx, (p) => ({ progress: { ...p, store: storeFor(p.store, p.owned, req.date) } }));
+    }
+
+    case 'buy_store': {
+      checkDate(req.date, ctx.today);
       const card = cardOrThrow(req.card);
       return withProfile(store, ctx, (p) => {
-        const res = buyCard(p, card);
-        if (!res) throw new GameError('cannot_buy');
+        const res = buyFromStore(p, card.id, req.date);
+        if (!res) throw new GameError(p.credits < storePrice(card) ? 'not_enough_credits' : 'cannot_buy');
         return { progress: res.progress, unlockedCareers: res.unlockedCareers.map((c) => c.id) };
       });
     }

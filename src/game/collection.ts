@@ -40,6 +40,7 @@ export interface Progress {
   jolly: number; // Jolly da usare
   daily: DailyState; // sfida del giorno
   missions?: MissionsState; // missioni del giorno (generate al primo uso)
+  store?: { date: string; cards: string[]; bought: string[] }; // card del giorno nel negozio
   updatedAt: number; // ultima modifica (ms), per capire quale copia è più recente tra dispositivo e cloud
 }
 
@@ -282,6 +283,7 @@ export function mergeProgress(account: Progress, device: Progress): Progress {
     // sfida e missioni: vale la copia del giorno più recente (a parità, quella dell'account)
     daily: device.daily.date > account.daily.date ? device.daily : account.daily,
     missions: (device.missions?.date ?? '') > (account.missions?.date ?? '') ? device.missions : account.missions,
+    store: (device.store?.date ?? '') > (account.store?.date ?? '') ? device.store : account.store,
     updatedAt: Date.now(),
   };
 }

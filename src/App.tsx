@@ -5,7 +5,6 @@ import { Gift, Layers, Play, Settings, UserPlus } from 'lucide-react';
 import type { Card } from './types';
 import {
   WINS_PER_PACK,
-  buyCard,
   buyPack,
   DECK_SLOTS,
   loadProgress,
@@ -46,6 +45,7 @@ import { FriendScreen } from './screens/FriendScreen';
 import { SettingsSheet } from './components/SettingsSheet';
 import { Onboarding, onboardingDone } from './components/Onboarding';
 import { ConfirmHost, askConfirm } from './components/ConfirmDialog';
+import { buyAndOpen, buyFromStore, storeFor, storePrice } from './game/shop';
 
 type Screen = 'home' | 'builder' | 'match' | 'collection' | 'packs' | 'friend';
 type Tab = 'home' | 'collection' | 'packs';
@@ -357,21 +357,33 @@ export default function App() {
     setToast(t('toast_claimed', { n: credits }));
   }
 
-  async function buy(card: Card) {
+  // card del giorno del negozio
+  async function buyStoreCard(card: Card) {
+    const price = storePrice(card);
+    if (!(await askConfirm(t('shop_confirm', { name: `${card.driver.name} · ${card.team.name}` }), { confirmLabel: `🪙 ${price}` }))) return;
     let career = false;
     if (account.online) {
-      const res = await server({ action: 'buy_card', card: card.id });
+      const res = await server({ action: 'buy_store', card: card.id, date: today });
       if (!res) return;
       career = !!res.unlockedCareers?.length;
     } else {
-      const res = buyCard(progress, card);
+      const res = buyFromStore(progress, card.id, today);
       if (!res) return;
       setProgress(res.progress);
       career = res.unlockedCareers.length > 0;
     }
+    sfx('rare');
+    haptic('success');
     const name = `${card.driver.name} · ${card.team.name}`;
     setToast(career ? t('toast_boughtCareer', { driver: card.driver.name }) : t('toast_bought', { card: name }));
   }
+
+  // le card del giorno si scelgono quando apri il negozio (sul server, se hai fatto l'accesso)
+  useEffect(() => {
+    if (screen !== 'packs' || progress.store?.date === today) return;
+    if (account.online) void server({ action: 'store', date: today });
+    else setProgress((p) => ({ ...p, store: storeFor(p.store, p.owned, today) }));
+  }, [screen, today, account.online, progress.store?.date]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function applyJolly(card: Card) {
     let career = false;
@@ -389,7 +401,22 @@ export default function App() {
     setToast(career ? t('toast_jollyCareer', { card: name }) : t('toast_jolly', { card: name }));
   }
 
-  async function open(): Promise<OpenedPack | null> {
+  async function open(kind?: 'premium' | 'team'): Promise<OpenedPack | null> {
+    if (kind) {
+      // Premium o Scuderia: si compra e si apre subito
+      if (account.online) {
+        const pack = (await server({ action: 'buy_pack', kind, date: today }))?.pack;
+        if (!pack) return null;
+        return {
+          added: pack.added.map((a) => ({ card: CARD_BY_ID.get(a.card)!, duplicate: a.duplicate, credits: a.credits })),
+          unlockedCareers: pack.unlockedCareers.map((id) => CARD_BY_ID.get(id)!),
+          jolly: pack.jolly,
+        };
+      }
+      const res = buyAndOpen(progress, kind, today);
+      if (res) setProgress({ ...res.progress, missions: missionsAfterPack(missionsFor(res.progress.missions, res.progress.owned, today)) });
+      return res;
+    }
     if (account.online) {
       const pack = (await server({ action: 'open_pack', date: today }))?.pack;
       if (!pack) return null;
@@ -553,7 +580,7 @@ export default function App() {
             onQuit={quitMatch}
           />
         )}
-        {screen === 'collection' && <CollectionScreen progress={progress} onBuy={buy} />}
+        {screen === 'collection' && <CollectionScreen progress={progress} today={today} onShop={() => go('packs')} />}
         {screen === 'friend' && (
           <FriendScreen
             account={account}
@@ -573,9 +600,11 @@ export default function App() {
         {screen === 'packs' && (
           <PacksScreen
             progress={progress}
+            today={today}
             onOpen={open}
             onUseJolly={applyJolly}
             onBuyPack={buyOnePack}
+            onBuyCard={buyStoreCard}
           />
         )}
       </main>

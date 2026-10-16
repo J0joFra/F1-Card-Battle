@@ -49,7 +49,7 @@ export interface DailyChallenge {
 export const DAILY_REWARD_CREDITS = 25;
 
 // temi possibili: le scuderie con tante card e i decenni dagli anni '70 in poi
-const TEAM_THEMES = Object.entries(
+export const TEAM_THEMES = Object.entries(
   ALL_CARDS.reduce<Record<string, number>>((m, c) => {
     if (c.kind === 'team') m[c.team.id] = (m[c.team.id] ?? 0) + 1;
     return m;

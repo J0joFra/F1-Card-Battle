@@ -787,3 +787,44 @@ p { line-height: 1.45; }
 .pop { animation: pop 0.22s ease-out; }
 .sort-label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
 .pick-head > b { white-space: nowrap; }
+
+/* card ingrandita (toccata): il retro grande con il diagramma a ragnatela */
+.flip-zoom-backdrop { z-index: 45; }
+.flip-zoom.card-md { position: relative; inset: auto; width: min(320px, calc(100vw - 48px)); padding: 14px 14px 16px; gap: 8px; }
+.flip-zoom .flip-back-head b { font-size: 17px; }
+.flip-zoom .flip-back-head small { font-size: 12px; }
+.flip-zoom .stat-radar { flex: none; }
+.flip-zoom .radar-label { font-size: 9px; }
+.flip-zoom .radar-value { font-size: 8.5px; }
+.flip-zoom .flip-action .btn { min-height: 44px; font-size: 15px; }
+@media (hover: hover) { .flip.flipped { transform: scale(1.08); z-index: 3; position: relative; transition: transform 0.15s; } }
+
+/* ============ Negozio ============ */
+.pack.pack-premium { border-color: var(--oro); background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--oro) 45%, #14161c), #14161c 70%); }
+.pack.pack-premium span { color: var(--oro); }
+.pack.pack-team { border-color: var(--team); background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--team) 55%, #14161c), #14161c 70%); }
+.pack.pack-team span { color: #fff; }
+.shop-title { display: flex; align-items: baseline; justify-content: space-between; font-size: 17px; font-weight: 900; margin: 4px 0 -6px; }
+.shop-title small { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.shop-packs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.shop-pack {
+  display: grid; justify-items: center; gap: 4px; padding: 12px 6px 10px; border-radius: 16px; color: var(--text);
+  border: 1px solid var(--line); background: var(--surface); text-align: center; transition: transform 0.08s;
+}
+.shop-pack:not(:disabled):active { transform: scale(0.96); }
+.shop-pack:disabled { opacity: 0.55; }
+.shop-pack b { font-size: 14px; font-weight: 900; line-height: 1.1; overflow-wrap: anywhere; }
+.shop-pack small { font-size: 11px; color: var(--muted); line-height: 1.2; }
+.shop-pack .price { margin-top: 2px; font-weight: 900; font-size: 15px; font-variant-numeric: tabular-nums; }
+.mini-pack {
+  width: 44px; height: 58px; border-radius: 8px; display: grid; place-items: center; font-weight: 900; font-style: italic;
+  color: var(--accent); border: 2px solid var(--accent); background: radial-gradient(circle at 50% 30%, #3b0a08, #14161c 75%);
+}
+.shop-premium .mini-pack { color: var(--oro); border-color: var(--oro); background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--oro) 45%, #14161c), #14161c 75%); }
+.shop-premium { border-color: color-mix(in srgb, var(--oro) 55%, var(--line)); }
+.shop-team .mini-pack { color: #fff; border-color: var(--team); background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--team) 60%, #14161c), #14161c 75%); }
+.shop-team { border-color: color-mix(in srgb, var(--team) 60%, var(--line)); }
+.shop-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.shop-card { display: grid; gap: 6px; align-content: start; }
+.shop-card.sold .flip-front .card { filter: grayscale(0.6) brightness(0.7); }
+.pick-badge.useful { background: var(--gold, #e8b931); color: #111; }
