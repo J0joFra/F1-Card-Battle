@@ -8,7 +8,8 @@ import { DECK_SIZE, TURN_SECONDS } from '../game/engine';
 import type { Account } from '../hooks/useAccount';
 import type { Friend, GameResponse, PvpInfo } from '../server/actions';
 import { GoogleIcon } from '../components/GoogleIcon';
-import { TutorialSection } from '../components/TutorialSection';
+import { HelpButton } from '../components/TutorialSection';
+import { askConfirm } from '../components/ConfirmDialog';
 import { haptic, sfx } from '../lib/feedback';
 
 const POLL_MS = 2000;
@@ -73,7 +74,7 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
   }, [account.online, lobby]);
 
   async function remove(f: Friend) {
-    if (!confirm(t('fr_removeConfirm', { name: f.name ?? t('fr_opponent') }))) return;
+    if (!(await askConfirm(t('fr_removeConfirm', { name: f.name ?? t('fr_opponent') }), { danger: true, confirmLabel: t('fr_remove') }))) return;
     setFriends((list) => list?.filter((x) => x.id !== f.id) ?? null);
     await callGame({ action: 'friend_remove', friend: f.id }).catch(() => {});
   }
@@ -98,8 +99,8 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
     }
   }
 
-  const tutorial = (
-    <TutorialSection
+  const help = (
+    <HelpButton
       items={['tut_friend_1', 'tut_friend_2', 'tut_friend_3']}
       params={{ n: DECK_SIZE, s: TURN_SECONDS, w: FRIEND_WIN_CREDITS, d: FRIEND_DRAW_CREDITS }}
     />
@@ -110,6 +111,7 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
       <div className="screen friend">
         <header className="screen-head">
           <h2>{t('fr_title')}</h2>
+          {help}
         </header>
         <section className="panel">
           <p>{t('fr_needLogin')}</p>
@@ -117,7 +119,6 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
             <GoogleIcon /> {t('signin_google')}
           </button>
         </section>
-        {tutorial}
       </div>
     );
   }
@@ -154,8 +155,13 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
     <div className="screen friend">
       <header className="screen-head">
         <h2>{t('fr_title')}</h2>
+        {help}
       </header>
-      <p className="muted">{t('fr_desc', { w: FRIEND_WIN_CREDITS, d: FRIEND_DRAW_CREDITS })}</p>
+      <ul className="odds-chips">
+        <li>⚔️ {t('fr_bo3')}</li>
+        <li>🏆 🪙 +{FRIEND_WIN_CREDITS}</li>
+        <li>🤝 🪙 +{FRIEND_DRAW_CREDITS}</li>
+      </ul>
 
       <section className="panel">
         <div className="decks-ready">
@@ -208,26 +214,25 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
       </section>
 
       <section className="panel">
-        <b>{t('fr_createTitle')}</b>
+        <div className="code-row">
+          <input
+            className="code-input"
+            value={clean}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder={t('fr_codePh')}
+            autoCapitalize="characters"
+            autoComplete="off"
+            maxLength={8}
+            aria-label={t('fr_codePh')}
+          />
+          <button className="btn primary" onClick={() => onJoin(clean)} disabled={clean.length !== 6 || !ready}>
+            {t('fr_join')}
+          </button>
+        </div>
         <button className="btn ghost block friend-btn" onClick={() => onCreate()} disabled={!ready}>
           <Users size={18} /> {t('fr_create')}
         </button>
-        <b>{t('fr_joinTitle')}</b>
-        <input
-          className="code-input"
-          value={clean}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder={t('fr_codePh')}
-          autoCapitalize="characters"
-          autoComplete="off"
-          maxLength={8}
-          aria-label={t('fr_codePh')}
-        />
-        <button className="btn primary block" onClick={() => onJoin(clean)} disabled={clean.length !== 6 || !ready}>
-          {t('fr_join')}
-        </button>
       </section>
-      {tutorial}
     </div>
   );
 }

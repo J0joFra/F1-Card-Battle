@@ -45,6 +45,7 @@ import { PacksScreen, type OpenedPack } from './screens/PacksScreen';
 import { FriendScreen } from './screens/FriendScreen';
 import { SettingsSheet } from './components/SettingsSheet';
 import { Onboarding, onboardingDone } from './components/Onboarding';
+import { ConfirmHost, askConfirm } from './components/ConfirmDialog';
 
 type Screen = 'home' | 'builder' | 'match' | 'collection' | 'packs' | 'friend';
 type Tab = 'home' | 'collection' | 'packs';
@@ -96,7 +97,9 @@ export default function App() {
     if (intro) return;
     if (settings) setSettings(false);
     else if (screen === 'match') {
-      if (confirm(t(opponent ? 'pv_quitConfirm' : 'm_quitConfirm', { name: opponent ?? '' }))) quitMatch();
+      void askConfirm(t(opponent ? 'pv_quitConfirm' : 'm_quitConfirm', { name: opponent ?? '' }), { danger: true, confirmLabel: t('m_quit') }).then(
+        (ok) => ok && quitMatch(),
+      );
     } else if (screen === 'friend' && lobby) cancelLobby();
     else if (screen !== 'home') setScreen('home');
     else NativeApp.minimizeApp();
@@ -409,8 +412,8 @@ export default function App() {
     }
   }
 
-  function reset() {
-    if (!confirm(t('reset_confirm'))) return;
+  async function reset() {
+    if (!(await askConfirm(t('reset_confirm'), { danger: true, confirmLabel: t('reset') }))) return;
     resetProgress();
     setProgress(starterProgress());
     setSettings(false);
@@ -630,6 +633,7 @@ export default function App() {
           </section>
         </div>
       )}
+      <ConfirmHost />
       {toast && <div className="toast">{toast}</div>}
     </div>
   );

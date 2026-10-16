@@ -6,7 +6,7 @@ import { DECK_SIZE } from '../game/engine';
 import type { Account } from '../hooks/useAccount';
 import { CardView } from '../components/CardView';
 import { GoogleIcon } from '../components/GoogleIcon';
-import { TutorialSection } from '../components/TutorialSection';
+import { HelpButton } from '../components/TutorialSection';
 import { DailyCard, MissionsPanel } from '../components/Daily';
 import type { DailyChallenge, MissionsState } from '../game/daily';
 
@@ -41,6 +41,9 @@ export function HomeScreen({ progress, account, challenge, missions, onPlay, onD
   return (
     <div className="screen home">
       <section className="garage">
+        <div className="garage-help">
+          <HelpButton items={['tut_home_1', 'tut_home_2', 'tut_home_3', 'tut_home_4', 'tut_home_5']} params={{ n: DECK_SIZE, w: WINS_PER_PACK }} />
+        </div>
         <div className="fan">
           {showcase.map((c, i) => (
             <div key={c.id} className={`fan-card fan-${i}`}>
@@ -49,7 +52,6 @@ export function HomeScreen({ progress, account, challenge, missions, onPlay, onD
           ))}
         </div>
         <h1>{t('home_title')}</h1>
-        <p>{t('home_sub', { n: DECK_SIZE })}</p>
         <button className="play-btn" onClick={onPlay} disabled={!canPlay}>
           <Play size={28} fill="currentColor" />
           {t('home_play')}
@@ -99,18 +101,11 @@ export function HomeScreen({ progress, account, challenge, missions, onPlay, onD
       </section>
 
       {!account.session && (
-        <section className="panel cloud-cta">
-          <div>
-            <b>☁️ {t('home_cloud_t')}</b>
-            <p className="muted">{t('home_cloud_d')}</p>
-          </div>
-          <button className="btn google block" onClick={account.signIn}>
-            <GoogleIcon /> {t('signin_google')}
-          </button>
-        </section>
+        <button className="btn google block cloud-btn" onClick={account.signIn}>
+          <GoogleIcon /> {t('home_cloud_t')}
+        </button>
       )}
 
-      <TutorialSection items={['tut_home_1', 'tut_home_2', 'tut_home_3', 'tut_home_4', 'tut_home_5']} params={{ n: DECK_SIZE, w: WINS_PER_PACK }} />
     </div>
   );
 }

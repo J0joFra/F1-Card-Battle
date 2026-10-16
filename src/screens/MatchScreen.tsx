@@ -4,10 +4,10 @@ import { X } from 'lucide-react';
 import { CARD_BY_ID, STATS, STAT_BY_KEY, formatStat, statLabel, statShort } from '../game/cards';
 import { useI18n, type TKey } from '../lib/i18n';
 import { errorMessage } from '../lib/api';
-import { WINS_PER_PACK } from '../game/collection';
 import { ROUNDS, TURN_SECONDS, bestStat, type Side } from '../game/engine';
 import type { MatchDriver, MatchView } from '../game/match';
 import { CardBack, CardView } from '../components/CardView';
+import { askConfirm } from '../components/ConfirmDialog';
 import { haptic, reducedMotion, sfx } from '../lib/feedback';
 
 // tempo della carta CPU che si gira prima di mostrare il risultato del round
@@ -217,8 +217,8 @@ export function MatchScreen({ driver, title, opponent, autoNextMs, endExtra, end
     cpu: view.score.cpu - (!settled && last?.winner === 'cpu' ? 1 : 0),
   };
   const chooserLabel = (side: 'player' | 'cpu') => (side === 'player' ? t('m_choseYou') : t('m_choseCpu'));
-  const quit = () => {
-    if (!confirm(t('m_quitConfirm'))) return;
+  const quit = async () => {
+    if (!(await askConfirm(t('m_quitConfirm'), { danger: true, confirmLabel: t('m_quit') }))) return;
     driver.quit();
     onQuit();
   };
@@ -273,10 +273,6 @@ export function MatchScreen({ driver, title, opponent, autoNextMs, endExtra, end
         <div className="match-over">
           <h2 className={`over-${outcome}`}>{outcome === 'player' ? t('m_win') : outcome === 'cpu' ? t('m_lose') : t('m_draw')}</h2>
           {view.opponentLeft && <p className="muted">{t('pv_left')}</p>}
-          <p>
-            {t('m_score', { a: view.score.player, b: view.score.cpu })}{' '}
-            {outcome === 'player' ? t('m_winHint', { n: WINS_PER_PACK }) : t('m_loseHint')}
-          </p>
           <ol className="recap">
             {history.map((h, i) => {
               const def = STAT_BY_KEY[h.stat];

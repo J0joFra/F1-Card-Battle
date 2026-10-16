@@ -1,31 +1,40 @@
 import { useState } from 'react';
-import { ChevronDown, GraduationCap } from 'lucide-react';
+import { CircleHelp, X } from 'lucide-react';
 import { useI18n, type TKey } from '../lib/i18n';
 
 /**
- * Tendina "Rivedi tutorial" in fondo a una schermata, chiusa di default.
+ * Pulsante "?" nell'intestazione di una schermata: apre i consigli solo se servono.
  * `items` sono chiavi di traduzione; `params` i valori da inserire nei testi.
  */
-export function TutorialSection({ items, params }: { items: TKey[]; params?: Record<string, string | number> }) {
+export function HelpButton({ items, params }: { items: TKey[]; params?: Record<string, string | number> }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   return (
-    <section className={`tutorial ${open ? 'open' : ''}`}>
-      <button className="tutorial-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <GraduationCap size={18} />
-        <span>{t('tut_title')}</span>
-        <ChevronDown size={18} className="chev" />
+    <>
+      <button className="icon-btn help-btn" onClick={() => setOpen(true)} aria-label={t('tut_title')}>
+        <CircleHelp size={20} />
       </button>
       {open && (
-        <ol className="tutorial-list">
-          {items.map((k, i) => (
-            <li key={k}>
-              <span className="step">{i + 1}</span>
-              <span>{t(k, params)}</span>
-            </li>
-          ))}
-        </ol>
+        <div className="overlay sheet-backdrop" onClick={() => setOpen(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="sheet-grip" />
+            <header className="sheet-head">
+              <h2>{t('tut_title')}</h2>
+              <button className="icon-btn" onClick={() => setOpen(false)} aria-label={t('close')}>
+                <X size={20} />
+              </button>
+            </header>
+            <ol className="tutorial-list">
+              {items.map((k, i) => (
+                <li key={k}>
+                  <span className="step">{i + 1}</span>
+                  <span>{t(k, params)}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
       )}
-    </section>
+    </>
   );
 }

@@ -74,9 +74,9 @@ export function DailyCard({ challenge, state, canPlay, onPlay }: DailyProps) {
         <p className={`daily-result ${state.won ? 'won' : 'lost'}`}>{state.won ? t('daily_won') : t('daily_lost')}</p>
       ) : (
         <>
-          <p className="muted">{t('daily_desc', { c: DAILY_REWARD_CREDITS })}</p>
-          <button className="btn primary block" onClick={onPlay} disabled={!canPlay}>
+          <button className="btn primary block daily-btn" onClick={onPlay} disabled={!canPlay}>
             {t('daily_play')}
+            <span className="reward-chip">🎁 +1 · 🪙 +{DAILY_REWARD_CREDITS}</span>
           </button>
         </>
       )}

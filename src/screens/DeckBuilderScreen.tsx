@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import type { Card, Rarity, StatKey } from '../types';
-import { ArrowLeft, Check, Dices, Minus, Play, Plus, Save, Trash2, X } from 'lucide-react';
+import { ArrowDownWideNarrow, ArrowLeft, Check, Dices, Minus, Play, Plus, Save, Trash2, X } from 'lucide-react';
 import { STATS, formatStat, rarityLabel, statLabel, statShort } from '../game/cards';
 import { useI18n } from '../lib/i18n';
-import { TutorialSection } from '../components/TutorialSection';
+import { HelpButton } from '../components/TutorialSection';
 import { CardView } from '../components/CardView';
 import { FlipCard } from '../components/FlipCard';
 import { DECK_SLOTS, activeSlot, autoFillDeck, ownedCards, savedDeck, type Progress } from '../game/collection';
@@ -27,17 +27,13 @@ export function DeckBuilderScreen({ progress, onStart, onSave, onBack, banner, e
   const { t } = useI18n();
   // 3 mazzi salvati (stile Clash Royale): si passa dall'uno all'altro con le linguette 1-2-3
   const [slot, setSlot] = useState(() => activeSlot(progress));
-  // uno slot vuoto (o incompleto) lo completiamo noi la prima volta che lo apri: si può giocare subito
+  // uno slot vuoto (o incompleto) lo completiamo noi la prima volta che lo apri: si gioca subito
   const [initial] = useState(() => {
     const active = activeSlot(progress);
     const saved = Array.from({ length: DECK_SLOTS }, (_, i) => savedDeck(progress, i));
-    return {
-      drafts: saved.map((d, i) => (i === active && d.length < DECK_SIZE ? autoFillDeck(progress, d) : d)),
-      prefilled: saved.map((d, i) => i === active && d.length < DECK_SIZE),
-    };
+    return { drafts: saved.map((d, i) => (i === active && d.length < DECK_SIZE ? autoFillDeck(progress, d) : d)) };
   });
   const [drafts, setDrafts] = useState<Card[][]>(initial.drafts);
-  const [prefilled, setPrefilled] = useState<boolean[]>(initial.prefilled);
   const [visited] = useState(() => new Set([activeSlot(progress)]));
   const deck = drafts[slot];
   const setDeck = (next: Card[] | ((d: Card[]) => Card[])) =>
@@ -50,7 +46,6 @@ export function DeckBuilderScreen({ progress, onStart, onSave, onBack, banner, e
       visited.add(i);
       if (drafts[i].length < DECK_SIZE) {
         setDrafts((all) => all.map((d, j) => (j === i ? autoFillDeck(progress, d) : d)));
-        setPrefilled((p) => p.map((v, j) => (j === i ? true : v)));
       }
     }
     setSlot(i);
@@ -78,9 +73,6 @@ export function DeckBuilderScreen({ progress, onStart, onSave, onBack, banner, e
     return def.lowerWins ? Math.min(...vals) : Math.max(...vals);
   };
 
-  const limits = Object.entries(MAX_PER_RARITY)
-    .map(([r, n]) => t('deck_maxRarity', { n: n!, r: rarityLabel(r as Rarity) }))
-    .join(', ');
 
   return (
     <div className="screen builder">
@@ -96,6 +88,10 @@ export function DeckBuilderScreen({ progress, onStart, onSave, onBack, banner, e
           <ArrowLeft size={22} />
         </button>
         <h2>{t('deck_title')}</h2>
+        <HelpButton
+          items={['tut_deck_1', 'tut_deck_2', 'tut_deck_3', 'tut_deck_4']}
+          params={{ leg: MAX_PER_RARITY.leggendaria ?? 0, gold: MAX_PER_RARITY.oro ?? 0 }}
+        />
       </header>
       <div className="deck-tabs" role="tablist" aria-label={t('deck_slots')}>
         {drafts.map((d, i) => {
@@ -108,14 +104,22 @@ export function DeckBuilderScreen({ progress, onStart, onSave, onBack, banner, e
           );
         })}
       </div>
-      <p className="muted intro">
-        {t('deck_intro', { n: DECK_SIZE })} {t('deck_limits', { limits })}
-      </p>
-
       {banner && <p className="daily-banner">{banner}</p>}
-      {prefilled[slot] && <p className="prefilled">{t('deck_prefilled')}</p>}
 
       <div className="deck-bar">
+        <div className="deck-count">
+          <b className={deck.length === DECK_SIZE ? 'ok' : ''}>
+            {deck.length}/{DECK_SIZE}
+          </b>
+          {(Object.entries(MAX_PER_RARITY) as [Rarity, number][]).map(([r, n]) => {
+            const used = deck.filter((c) => c.rarity === r).length;
+            return (
+              <span key={r} className={`limit ${used > n ? 'over' : ''}`} title={t('deck_maxRarity', { n, r: rarityLabel(r) })}>
+                <span className={`dot rarity-${r}`} /> {used}/{n}
+              </span>
+            );
+          })}
+        </div>
         <div className="deck-cards">
           {Array.from({ length: DECK_SIZE }, (_, i) => {
             const c = deck[i];
@@ -180,9 +184,9 @@ export function DeckBuilderScreen({ progress, onStart, onSave, onBack, banner, e
 
       <div className="pick-head">
         <b>{t('deck_collection', { n: rows.length })}</b>
-        <label className="muted">
-          {t('deck_sortBy')}{' '}
-          <select className="sort-select" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+        <label className="sort-label" title={t('deck_sortBy')}>
+          <ArrowDownWideNarrow size={18} aria-hidden />
+          <select aria-label={t('deck_sortBy')} className="sort-select" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
             <option value="rarita">{t('deck_sortRarity')}</option>
             {STATS.map((s) => (
               <option key={s.key} value={s.key}>
@@ -193,7 +197,6 @@ export function DeckBuilderScreen({ progress, onStart, onSave, onBack, banner, e
           </select>
         </label>
       </div>
-      <p className="muted small-text">{t('deck_flipHint')}</p>
       <div className="pick-grid">
         {rows.map((c) => {
           const selected = deck.some((x) => x.id === c.id);
@@ -220,10 +223,6 @@ export function DeckBuilderScreen({ progress, onStart, onSave, onBack, banner, e
         })}
       </div>
 
-      <TutorialSection
-        items={['tut_deck_1', 'tut_deck_2', 'tut_deck_3', 'tut_deck_4']}
-        params={{ leg: MAX_PER_RARITY.leggendaria ?? 0, gold: MAX_PER_RARITY.oro ?? 0 }}
-      />
     </div>
   );
 }
