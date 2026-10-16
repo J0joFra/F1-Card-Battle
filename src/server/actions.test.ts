@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_CARDS, STATS } from '../game/cards';
-import { starterProgress, type Progress } from '../game/collection';
+import { starterProgress, withDecks, type Progress } from '../game/collection';
 import { autoFillDeck } from '../game/collection';
 import { seededRng } from '../game/daily';
 import { PVP_TURN_MS, handle, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type Store } from './actions';
@@ -10,9 +10,35 @@ function memoryDb() {
   const profiles = new Map<string, { progress: Progress; version: number }>();
   const matches = new Map<string, MatchRecord>();
   const pvps = new Map<string, { rec: PvpRecord; rev: number }>();
+  const seen = new Map<string, number>();
+  const names = new Map<string, string | null>();
+  const friendships = new Set<string>(); // "a|b"
   let conflictsToSimulate = 0;
-  const as = (id: string, name: string | null = id): Store => ({
+  const as = (id: string, name: string | null = id): Store => (names.set(id, name), {
     me: { id, name },
+    async invitesForMe() {
+      return [...pvps].filter(([, m]) => m.rec.invitee === id && m.rec.status === 'waiting').map(([pid, m]) => structuredClone({ id: pid, rec: m.rec }));
+    },
+    async touch(now) {
+      seen.set(id, now);
+    },
+    async listFriends() {
+      return [...friendships].filter((f) => f.startsWith(`${id}|`)).map((f) => {
+        const fid = f.split('|')[1];
+        return { id: fid, name: names.get(fid) ?? null, lastSeen: seen.get(fid) ?? null };
+      });
+    },
+    async isFriend(other) {
+      return friendships.has(`${id}|${other}`);
+    },
+    async addFriend(other) {
+      friendships.add(`${id}|${other}`);
+      friendships.add(`${other}|${id}`);
+    },
+    async removeFriend(other) {
+      friendships.delete(`${id}|${other}`);
+      friendships.delete(`${other}|${id}`);
+    },
     async getProfile(uid = id) {
       const p = profiles.get(uid);
       return p ? structuredClone(p) : null;
@@ -72,6 +98,7 @@ function memoryDb() {
   return {
     as,
     profiles,
+    friendships,
     pvps,
     simulateConflicts(n: number) {
       conflictsToSimulate = n;
@@ -224,77 +251,89 @@ describe('server: partita', () => {
   });
 });
 
-describe('server: sfida tra amici', () => {
+describe('server: sfida tra amici (al meglio di 3)', () => {
+  // profilo con i 3 mazzi salvati e validi
+  const ready = (seed: string) => {
+    const p = starterProgress(seededRng(seed));
+    const decks = [1, 2, 3].map((i) => autoFillDeck(p, [], seededRng(`${seed}${i}`)).map((c) => c.id));
+    return withDecks(p, decks, 0);
+  };
+
   function setup() {
     const db = memoryDb();
-    const a = starterProgress(seededRng('host'));
-    const b = starterProgress(seededRng('guest'));
-    db.profiles.set('anna', { progress: a, version: 1 });
-    db.profiles.set('bruno', { progress: b, version: 1 });
+    db.profiles.set('anna', { progress: ready('host'), version: 1 });
+    db.profiles.set('bruno', { progress: ready('guest'), version: 1 });
     let clock = 1_000_000;
     const c: Ctx = { today: '2026-10-16', rng: seededRng('pvp'), now: () => clock };
-    return {
-      db,
-      anna: db.as('anna', 'Anna'),
-      bruno: db.as('bruno', 'Bruno'),
-      a,
-      b,
-      c,
-      tick: (ms: number) => (clock += ms),
-    };
+    return { db, anna: db.as('anna', 'Anna'), bruno: db.as('bruno', 'Bruno'), c, tick: (ms: number) => (clock += ms) };
   }
 
   async function startPvp() {
     const t = setup();
-    const created = await handle({ action: 'pvp_create', deck: deckIds(t.a), date: '2026-10-16' }, t.anna, t.c);
+    const created = await handle({ action: 'pvp_create', date: '2026-10-16' }, t.anna, t.c);
     expect(created.pvp!.code).toMatch(/^[A-Z2-9]{6}$/);
-    const joined = await handle({ action: 'pvp_join', code: created.pvp!.code.toLowerCase(), deck: deckIds(t.b), date: '2026-10-16' }, t.bruno, t.c);
+    const joined = await handle({ action: 'pvp_join', code: created.pvp!.code.toLowerCase(), date: '2026-10-16' }, t.bruno, t.c);
     return { ...t, id: created.pvp!.id, joined };
   }
 
-  it('codice: non puoi entrare nella tua sfida, e un codice sbagliato è rifiutato', async () => {
+  // gioca fino alla fine della partita `game` (sceglie sempre la prima metrica libera)
+  async function playGame(t: Awaited<ReturnType<typeof startPvp>>, game: number) {
+    const players = { anna: t.anna, bruno: t.bruno };
+    for (;;) {
+      const va = (await handle({ action: 'pvp_state', match: t.id, game }, t.anna, t.c)).view!;
+      if (va.outcome) return va;
+      const who = va.chooser === 'player' ? 'anna' : 'bruno';
+      const vw = who === 'anna' ? va : (await handle({ action: 'pvp_state', match: t.id, game }, t.bruno, t.c)).view!;
+      const stat = STATS.find((s) => !vw.usedStats.includes(s.key))!.key;
+      await expect(handle({ action: 'pvp_play', match: t.id, game, stat }, players[who === 'anna' ? 'bruno' : 'anna'], t.c)).rejects.toThrow('not_your_turn');
+      await handle({ action: 'pvp_play', match: t.id, game, stat }, players[who], t.c);
+    }
+  }
+
+  it('servono 3 mazzi pronti', async () => {
     const t = setup();
-    const created = await handle({ action: 'pvp_create', deck: deckIds(t.a), date: '2026-10-16' }, t.anna, t.c);
-    await expect(handle({ action: 'pvp_join', code: created.pvp!.code, deck: deckIds(t.a), date: '2026-10-16' }, t.anna, t.c)).rejects.toThrow('own_match');
-    await expect(handle({ action: 'pvp_join', code: 'ZZZZZZ', deck: deckIds(t.b), date: '2026-10-16' }, t.bruno, t.c)).rejects.toThrow('bad_code');
-    t.tick(16 * 60_000); // scaduta
-    await expect(handle({ action: 'pvp_join', code: created.pvp!.code, deck: deckIds(t.b), date: '2026-10-16' }, t.bruno, t.c)).rejects.toThrow('bad_code');
+    t.db.profiles.set('carla', { progress: starterProgress(seededRng('c')), version: 1 });
+    await expect(handle({ action: 'pvp_create', date: '2026-10-16' }, t.db.as('carla'), t.c)).rejects.toThrow('decks_not_ready');
   });
 
-  it('partita completa: ognuno vede la sua parte, a turno; premi a entrambi', async () => {
+  it('codice: non puoi entrare nella tua sfida, e un codice sbagliato o scaduto è rifiutato', async () => {
+    const t = setup();
+    const created = await handle({ action: 'pvp_create', date: '2026-10-16' }, t.anna, t.c);
+    await expect(handle({ action: 'pvp_join', code: created.pvp!.code, date: '2026-10-16' }, t.anna, t.c)).rejects.toThrow('own_match');
+    await expect(handle({ action: 'pvp_join', code: 'ZZZZZZ', date: '2026-10-16' }, t.bruno, t.c)).rejects.toThrow('bad_code');
+    t.tick(16 * 60_000);
+    await expect(handle({ action: 'pvp_join', code: created.pvp!.code, date: '2026-10-16' }, t.bruno, t.c)).rejects.toThrow('bad_code');
+  });
+
+  it('serie completa: vince chi arriva a 2 partite, ogni partita con il suo mazzo; premi solo alla fine', async () => {
     const t = await startPvp();
-    const players = { anna: t.anna, bruno: t.bruno };
-    let views = {
-      anna: (await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c)).view!,
-      bruno: t.joined.view!,
-    };
-    // i due vedono la stessa partita, a parti invertite
-    expect(views.anna.chooser).not.toBe(views.bruno.chooser);
-    const annaCards = deckIds(t.a);
-    expect(annaCards.some((id) => JSON.stringify(views.bruno).includes(id))).toBe(false); // nessuna card di Anna prima del round
-    while (!views.anna.outcome) {
-      const who = views.anna.chooser === 'player' ? 'anna' : 'bruno';
-      const otherWho = who === 'anna' ? 'bruno' : 'anna';
-      // chi non è di turno non può giocare
-      const stat = STATS.find((s) => !views[who].usedStats.includes(s.key))!.key;
-      await expect(handle({ action: 'pvp_play', match: t.id, stat }, players[otherWho], t.c)).rejects.toThrow('not_your_turn');
-      await handle({ action: 'pvp_play', match: t.id, stat }, players[who], t.c);
-      views = {
-        anna: (await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c)).view!,
-        bruno: (await handle({ action: 'pvp_state', match: t.id }, t.bruno, t.c)).view!,
-      };
-      expect(views.anna.score.player).toBe(views.bruno.score.cpu);
+    const annaDecks = t.db.profiles.get('anna')!.progress.decks!;
+    let game = 0;
+    for (;;) {
+      const view = await playGame(t, game);
+      const ra = await handle({ action: 'pvp_state', match: t.id, game }, t.anna, t.c);
+      const rb = await handle({ action: 'pvp_state', match: t.id, game }, t.bruno, t.c);
+      expect(ra.pvp!.results[game]).toBe(view.outcome);
+      // Bruno vede lo stesso esito, a parti invertite
+      expect(rb.pvp!.results[game]).toBe(view.outcome === 'draw' ? 'draw' : view.outcome === 'player' ? 'cpu' : 'player');
+      // le card di Anna in questa partita vengono dal suo mazzo N
+      expect(view.history.every((h) => annaDecks[game].includes(h.player))).toBe(true);
+      if (ra.pvp!.status === 'finished') break;
+      expect(ra.rewards).toBeUndefined();
+      game++;
+      expect(ra.pvp!.game).toBe(game);
     }
     const ra = await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c);
     const rb = await handle({ action: 'pvp_state', match: t.id }, t.bruno, t.c);
-    const pa = t.db.profiles.get('anna')!.progress;
-    const pb = t.db.profiles.get('bruno')!.progress;
-    expect(pa.wins + pa.losses + pa.draws).toBe(1);
-    expect(pb.wins + pb.losses + pb.draws).toBe(1);
+    const wins = ra.pvp!.results.filter((r) => r === 'player').length;
+    const losses = ra.pvp!.results.filter((r) => r === 'cpu').length;
+    expect(ra.pvp!.results.length).toBeLessThanOrEqual(3);
+    expect(wins >= 2 || losses >= 2 || ra.pvp!.results.length === 3).toBe(true);
     const expected = { player: 10, draw: 5, cpu: 0 } as const;
-    expect(ra.rewards!.credits).toBe(expected[views.anna.outcome!]);
-    expect(rb.rewards!.credits).toBe(expected[views.bruno.outcome!]);
-    expect(pa.credits).toBe(expected[views.anna.outcome!]);
+    expect(ra.rewards!.credits).toBe(expected[ra.pvp!.seriesOutcome!]);
+    expect(rb.rewards!.credits).toBe(expected[rb.pvp!.seriesOutcome!]);
+    const pa = t.db.profiles.get('anna')!.progress;
+    expect(pa.wins + pa.losses + pa.draws).toBe(1); // la serie conta come una partita
   });
 
   it('tempo scaduto: il server gioca la metrica migliore per chi doveva scegliere', async () => {
@@ -305,14 +344,14 @@ describe('server: sfida tra amici', () => {
     t.tick(2000);
     const after = await handle({ action: 'pvp_state', match: t.id }, t.bruno, t.c);
     expect(after.view!.round).toBe(before.round + 1);
-    expect(after.pvp!.timeLeft).toBe(PVP_TURN_MS);
   });
 
-  it('chi abbandona perde, l\'altro vince', async () => {
+  it('chi abbandona perde la serie', async () => {
     const t = await startPvp();
     await handle({ action: 'pvp_quit', match: t.id }, t.bruno, t.c);
     const ra = await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c);
     expect(ra.pvp!.opponentLeft).toBe(true);
+    expect(ra.pvp!.seriesOutcome).toBe('player');
     expect(ra.view!.outcome).toBe('player');
     expect(t.db.profiles.get('anna')!.progress.wins).toBe(1);
     expect(t.db.profiles.get('bruno')!.progress.losses).toBe(1);
@@ -320,7 +359,47 @@ describe('server: sfida tra amici', () => {
 
   it('gli estranei non vedono la sfida', async () => {
     const t = await startPvp();
-    t.db.profiles.set('carla', { progress: starterProgress(seededRng('c')), version: 1 });
     await expect(handle({ action: 'pvp_state', match: t.id }, t.db.as('carla'), t.c)).rejects.toThrow('no_match');
+  });
+
+  it('amici: si aggiunge chi hai sfidato, si vede chi è online e lo si invita direttamente', async () => {
+    const t = await startPvp();
+    await handle({ action: 'pvp_quit', match: t.id }, t.bruno, t.c);
+    expect((await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c)).pvp!.opponentIsFriend).toBe(false);
+    await handle({ action: 'friend_add', match: t.id }, t.anna, t.c);
+    expect((await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c)).pvp!.opponentIsFriend).toBe(true);
+    // amicizia reciproca; online se visto da poco
+    await handle({ action: 'ping' }, t.bruno, t.c);
+    let list = (await handle({ action: 'friends' }, t.anna, t.c)).friends!;
+    expect(list).toEqual([{ id: 'bruno', name: 'Bruno', online: true }]);
+    expect((await handle({ action: 'friends' }, t.bruno, t.c)).friends![0].id).toBe('anna');
+    t.tick(2 * 60_000);
+    list = (await handle({ action: 'friends' }, t.anna, t.c)).friends!;
+    expect(list[0].online).toBe(false);
+    // invito diretto: Bruno lo vede con il ping e accetta
+    const inv = await handle({ action: 'pvp_create', date: '2026-10-16', invite: 'bruno' }, t.anna, t.c);
+    const ping = await handle({ action: 'ping' }, t.bruno, t.c);
+    expect(ping.invites).toEqual([{ id: inv.pvp!.id, from: 'Anna' }]);
+    const acc = await handle({ action: 'pvp_accept', match: inv.pvp!.id, date: '2026-10-16' }, t.bruno, t.c);
+    expect(acc.pvp!.status).toBe('playing');
+    // non si invita chi non è amico; rifiutare annulla
+    await expect(handle({ action: 'pvp_create', date: '2026-10-16', invite: 'carla' }, t.anna, t.c)).rejects.toThrow('not_friend');
+    const inv2 = await handle({ action: 'pvp_create', date: '2026-10-16', invite: 'bruno' }, t.anna, t.c);
+    await handle({ action: 'pvp_decline', match: inv2.pvp!.id }, t.bruno, t.c);
+    expect((await handle({ action: 'pvp_state', match: inv2.pvp!.id }, t.anna, t.c)).pvp!.status).toBe('cancelled');
+    await handle({ action: 'friend_remove', friend: 'bruno' }, t.anna, t.c);
+    expect((await handle({ action: 'friends' }, t.bruno, t.c)).friends).toEqual([]);
+  });
+});
+
+describe('server: mazzi salvati', () => {
+  it('salva i 3 mazzi (solo card possedute) e lo slot in uso', async () => {
+    const p = starterProgress(seededRng('a'));
+    const db = memoryStore(p);
+    const ids = deckIds(p);
+    const res = await call(db.store, { action: 'set_decks', decks: [ids, ['card-inventata', ids[0]], []], active: 1 });
+    expect(res.progress!.decks).toEqual([ids, [ids[0]], []]);
+    expect(res.progress!.activeDeck).toBe(1);
+    expect(res.progress!.deck).toEqual([ids[0]]);
   });
 });

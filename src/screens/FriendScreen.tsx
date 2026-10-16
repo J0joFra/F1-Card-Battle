@@ -1,31 +1,36 @@
 import { useEffect, useState } from 'react';
-import { Copy, Share2, Users } from 'lucide-react';
+import { Copy, Layers, Share2, Swords, UserMinus, Users } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 import { callGame } from '../lib/api';
-import { FRIEND_DRAW_CREDITS, FRIEND_WIN_CREDITS } from '../game/collection';
+import { DECK_SLOTS, FRIEND_DRAW_CREDITS, FRIEND_WIN_CREDITS, seriesDecks, savedDeck, type Progress } from '../game/collection';
+import { deckProblems } from '../game/deckRules';
 import { DECK_SIZE, TURN_SECONDS } from '../game/engine';
 import type { Account } from '../hooks/useAccount';
-import type { GameResponse, PvpInfo } from '../server/actions';
+import type { Friend, GameResponse, PvpInfo } from '../server/actions';
 import { GoogleIcon } from '../components/GoogleIcon';
 import { TutorialSection } from '../components/TutorialSection';
 import { haptic, sfx } from '../lib/feedback';
 
 const POLL_MS = 2000;
+const FRIENDS_POLL_MS = 15_000;
 
 interface Props {
   account: Account;
-  canPlay: boolean;
+  progress: Progress;
   lobby: PvpInfo | null; // sfida creata, in attesa dell'avversario
-  onCreate: () => void;
+  onCreate: (invite?: Friend) => void; // con un amico: invito diretto; senza: codice da condividere
   onJoin: (code: string) => void;
+  onEditDecks: () => void;
   onStart: (res: GameResponse) => void; // l'avversario è entrato: si gioca
-  onCancel: () => void;
+  onCancel: (declined?: boolean) => void;
 }
 
-export function FriendScreen({ account, canPlay, lobby, onCreate, onJoin, onStart, onCancel }: Props) {
+export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEditDecks, onStart, onCancel }: Props) {
   const { t } = useI18n();
   const [code, setCode] = useState('');
   const [copied, setCopied] = useState(false);
+  const [friends, setFriends] = useState<Friend[] | null>(null);
+  const ready = !!seriesDecks(progress);
 
   // in attesa: si chiede al server ogni 2 secondi se l'amico è entrato
   useEffect(() => {
@@ -40,7 +45,7 @@ export function FriendScreen({ account, canPlay, lobby, onCreate, onJoin, onStar
           sfx('select');
           haptic('success');
           onStart(res);
-        } else if (res.pvp?.status === 'cancelled') onCancel();
+        } else if (res.pvp?.status === 'cancelled') onCancel(true);
       } catch {
         /* rete assente: si riprova al giro dopo */
       }
@@ -50,6 +55,28 @@ export function FriendScreen({ account, canPlay, lobby, onCreate, onJoin, onStar
       clearInterval(id);
     };
   }, [lobby?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // lista amici con il pallino verde di chi è online (aggiornata ogni 15 secondi)
+  useEffect(() => {
+    if (!account.online || lobby) return;
+    let alive = true;
+    const load = () =>
+      callGame({ action: 'friends' })
+        .then((r) => alive && setFriends(r.friends ?? []))
+        .catch(() => alive && setFriends((f) => f ?? []));
+    load();
+    const id = setInterval(load, FRIENDS_POLL_MS);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [account.online, lobby]);
+
+  async function remove(f: Friend) {
+    if (!confirm(t('fr_removeConfirm', { name: f.name ?? t('fr_opponent') }))) return;
+    setFriends((list) => list?.filter((x) => x.id !== f.id) ?? null);
+    await callGame({ action: 'friend_remove', friend: f.id }).catch(() => {});
+  }
 
   async function share() {
     if (!lobby) return;
@@ -102,13 +129,19 @@ export function FriendScreen({ account, canPlay, lobby, onCreate, onJoin, onStar
           <h2>{t('fr_title')}</h2>
         </header>
         <section className="panel">
-          <p className="center">{t('fr_yourCode')}</p>
-          <div className="code-big">{lobby.code}</div>
-          <button className="btn primary big block friend-btn" onClick={share}>
-            {copied ? <Copy size={18} /> : <Share2 size={18} />} {copied ? t('fr_copied') : t('fr_share')}
-          </button>
-          <p className="muted center waiting-dots">{t('fr_waiting')}</p>
-          <button className="btn ghost block" onClick={onCancel}>
+          {lobby.invited ? (
+            <p className="center waiting-dots">{t('fr_waitingFriend', { name: lobby.opponent ?? t('fr_opponent') })}</p>
+          ) : (
+            <>
+              <p className="center">{t('fr_yourCode')}</p>
+              <div className="code-big">{lobby.code}</div>
+              <button className="btn primary big block friend-btn" onClick={share}>
+                {copied ? <Copy size={18} /> : <Share2 size={18} />} {copied ? t('fr_copied') : t('fr_share')}
+              </button>
+              <p className="muted center waiting-dots">{t('fr_waiting')}</p>
+            </>
+          )}
+          <button className="btn ghost block" onClick={() => onCancel()}>
             {t('fr_cancel')}
           </button>
         </section>
@@ -123,13 +156,62 @@ export function FriendScreen({ account, canPlay, lobby, onCreate, onJoin, onStar
         <h2>{t('fr_title')}</h2>
       </header>
       <p className="muted">{t('fr_desc', { w: FRIEND_WIN_CREDITS, d: FRIEND_DRAW_CREDITS })}</p>
+
+      <section className="panel">
+        <div className="decks-ready">
+          <div>
+            <b>{t('fr_decks')}</b>
+            <div className="marks">
+              {Array.from({ length: DECK_SLOTS }, (_, i) => {
+                const d = savedDeck(progress, i);
+                const ok = d.length === DECK_SIZE && !deckProblems(d).length;
+                return (
+                  <span key={i} className={ok ? 'ok' : ''}>
+                    {ok ? '✓' : i + 1}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+          <button className="btn ghost friend-btn" onClick={onEditDecks}>
+            <Layers size={16} /> {t('fr_editDecks')}
+          </button>
+        </div>
+        {!ready && <p className="muted">{t('fr_decksNeeded', { n: DECK_SLOTS })}</p>}
+      </section>
+
+      <section className="panel">
+        <b>{t('fr_friends')}</b>
+        {friends === null ? (
+          <p className="muted">…</p>
+        ) : friends.length === 0 ? (
+          <p className="muted">{t('fr_noFriends')}</p>
+        ) : (
+          <ul className="friend-list">
+            {friends.map((f) => (
+              <li key={f.id}>
+                <span className={`avatar presence ${f.online ? 'online' : ''}`}>{(f.name ?? '?').trim().charAt(0).toUpperCase()}</span>
+                <span className="who">
+                  <b>{f.name ?? t('fr_opponent')}</b>
+                  <small>{f.online ? t('fr_online') : t('fr_offline')}</small>
+                </span>
+                <button className="btn primary friend-btn" onClick={() => onCreate(f)} disabled={!ready}>
+                  <Swords size={16} /> {t('fr_challenge')}
+                </button>
+                <button className="icon-btn" onClick={() => remove(f)} aria-label={t('fr_remove')}>
+                  <UserMinus size={18} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <section className="panel">
         <b>{t('fr_createTitle')}</b>
-        <button className="btn primary big block friend-btn" onClick={onCreate} disabled={!canPlay}>
-          <Users size={20} /> {t('fr_create')}
+        <button className="btn ghost block friend-btn" onClick={() => onCreate()} disabled={!ready}>
+          <Users size={18} /> {t('fr_create')}
         </button>
-      </section>
-      <section className="panel">
         <b>{t('fr_joinTitle')}</b>
         <input
           className="code-input"
@@ -138,15 +220,13 @@ export function FriendScreen({ account, canPlay, lobby, onCreate, onJoin, onStar
           placeholder={t('fr_codePh')}
           autoCapitalize="characters"
           autoComplete="off"
-          inputMode="text"
           maxLength={8}
           aria-label={t('fr_codePh')}
         />
-        <button className="btn primary block" onClick={() => onJoin(clean)} disabled={clean.length !== 6 || !canPlay}>
+        <button className="btn primary block" onClick={() => onJoin(clean)} disabled={clean.length !== 6 || !ready}>
           {t('fr_join')}
         </button>
       </section>
-      {!canPlay && <p className="muted">{t('home_needCards', { n: DECK_SIZE })}</p>}
       {tutorial}
     </div>
   );

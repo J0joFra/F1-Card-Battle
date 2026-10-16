@@ -686,3 +686,43 @@ p { line-height: 1.45; }
 .friend .waiting-dots::after { content: '…'; animation: timer-pulse 1.4s ease-in-out infinite; display: inline-block; }
 .friend .panel { display: grid; gap: 10px; }
 .friend-btn { display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+/* mazzi salvati 1-2-3 */
+.deck-tabs { display: flex; gap: 8px; justify-content: center; }
+.deck-tabs button {
+  min-width: 52px; height: 40px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface);
+  color: inherit; font-weight: 800; font-size: 1.05rem; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+}
+.deck-tabs button.on { border-color: var(--lose); box-shadow: 0 0 0 2px color-mix(in srgb, var(--lose) 35%, transparent); }
+.deck-tabs button svg { color: var(--win); }
+
+/* amici */
+.friend-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.friend-list li { display: flex; align-items: center; gap: 10px; }
+.friend-list .who { flex: 1; min-width: 0; display: grid; }
+.friend-list .who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friend-list .who small { color: var(--muted); }
+.presence { position: relative; }
+.presence::after {
+  content: ''; position: absolute; right: -2px; bottom: -2px; width: 12px; height: 12px; border-radius: 50%;
+  background: #9aa0a6; border: 2px solid var(--surface);
+}
+.presence.online::after { background: #2fbf71; }
+.decks-ready { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.decks-ready .marks { display: flex; gap: 6px; }
+.decks-ready .marks span { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-weight: 800; font-size: 0.8rem; background: var(--surface); border: 1px solid var(--line); }
+.decks-ready .marks span.ok { border-color: var(--win); color: var(--win); }
+
+/* invito a una sfida */
+.invite-backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 0.5); display: grid; place-items: center; padding: 16px; z-index: 50; }
+.invite-card { width: min(360px, 100%); display: grid; gap: 12px; text-align: center; }
+.invite-card .actions { display: flex; gap: 8px; }
+.invite-card .actions .btn { flex: 1; }
+
+/* serie al meglio di 3 */
+.series { display: grid; gap: 6px; justify-items: center; }
+.series-dots { display: flex; gap: 6px; }
+.series-dots span { width: 34px; height: 8px; border-radius: 4px; background: var(--line); }
+.series-dots span.rd-player { background: var(--win); }
+.series-dots span.rd-cpu { background: var(--lose); }
+.series-dots span.rd-draw { background: #9aa0a6; }

@@ -1,29 +1,58 @@
 import { useMemo, useState } from 'react';
 import type { Card, Rarity, StatKey } from '../types';
-import { ArrowLeft, Dices, Play, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, Dices, Play, Save, Trash2 } from 'lucide-react';
 import { STATS, formatStat, rarityLabel, statHint, statLabel, statShort } from '../game/cards';
 import { useI18n } from '../lib/i18n';
 import { TutorialSection } from '../components/TutorialSection';
 import { teamLabel } from '../components/CardView';
-import { autoFillDeck, ownedCards, savedDeck, type Progress } from '../game/collection';
+import { DECK_SLOTS, activeSlot, autoFillDeck, ownedCards, savedDeck, type Progress } from '../game/collection';
 import { DECK_SIZE } from '../game/engine';
 import { MAX_PER_RARITY, canAdd, deckProblems } from '../game/deckRules';
 import { teamColor } from '../game/teamColors';
 
 interface Props {
   progress: Progress;
-  onStart: (deck: Card[]) => void;
+  onStart: (deck: Card[], slot: number) => void;
+  onSave: (decks: string[][], active: number) => void; // salva i 3 mazzi e lo slot in uso
   onBack: () => void;
   banner?: string; // es. sfida del giorno
+  editOnly?: boolean; // solo preparare i mazzi (sfida tra amici): niente "Gioca"
 }
 
 type SortKey = StatKey | 'nome';
 
-export function DeckBuilderScreen({ progress, onStart, onBack, banner }: Props) {
+export function DeckBuilderScreen({ progress, onStart, onSave, onBack, banner, editOnly }: Props) {
   const { t } = useI18n();
-  // se non c'è un mazzo salvato (o è incompleto) lo prepariamo noi: si può giocare subito
-  const [prefilled] = useState(() => savedDeck(progress).length < DECK_SIZE);
-  const [deck, setDeck] = useState<Card[]>(() => autoFillDeck(progress, savedDeck(progress)));
+  // 3 mazzi salvati (stile Clash Royale): si passa dall'uno all'altro con le linguette 1-2-3
+  const [slot, setSlot] = useState(() => activeSlot(progress));
+  // uno slot vuoto (o incompleto) lo completiamo noi la prima volta che lo apri: si può giocare subito
+  const [initial] = useState(() => {
+    const active = activeSlot(progress);
+    const saved = Array.from({ length: DECK_SLOTS }, (_, i) => savedDeck(progress, i));
+    return {
+      drafts: saved.map((d, i) => (i === active && d.length < DECK_SIZE ? autoFillDeck(progress, d) : d)),
+      prefilled: saved.map((d, i) => i === active && d.length < DECK_SIZE),
+    };
+  });
+  const [drafts, setDrafts] = useState<Card[][]>(initial.drafts);
+  const [prefilled, setPrefilled] = useState<boolean[]>(initial.prefilled);
+  const [visited] = useState(() => new Set([activeSlot(progress)]));
+  const deck = drafts[slot];
+  const setDeck = (next: Card[] | ((d: Card[]) => Card[])) =>
+    setDrafts((all) => all.map((d, i) => (i === slot ? (typeof next === 'function' ? next(d) : next) : d)));
+  const ids = () => drafts.map((d) => d.map((c) => c.id));
+
+  function openSlot(i: number) {
+    if (i === slot) return;
+    if (!visited.has(i)) {
+      visited.add(i);
+      if (drafts[i].length < DECK_SIZE) {
+        setDrafts((all) => all.map((d, j) => (j === i ? autoFillDeck(progress, d) : d)));
+        setPrefilled((p) => p.map((v, j) => (j === i ? true : v)));
+      }
+    }
+    setSlot(i);
+  }
   const [sort, setSort] = useState<SortKey>('nome');
   const problems = deckProblems(deck);
 
@@ -52,17 +81,35 @@ export function DeckBuilderScreen({ progress, onStart, onBack, banner }: Props) 
   return (
     <div className="screen builder">
       <header className="screen-head">
-        <button className="icon-btn" onClick={onBack} aria-label={t('back')}>
+        <button
+          className="icon-btn"
+          onClick={() => {
+            onSave(ids(), slot);
+            onBack();
+          }}
+          aria-label={t('back')}
+        >
           <ArrowLeft size={22} />
         </button>
         <h2>{t('deck_title')}</h2>
       </header>
+      <div className="deck-tabs" role="tablist" aria-label={t('deck_slots')}>
+        {drafts.map((d, i) => {
+          const ok = d.length === DECK_SIZE && !deckProblems(d).length;
+          return (
+            <button key={i} role="tab" aria-selected={i === slot} className={i === slot ? 'on' : ''} onClick={() => openSlot(i)}>
+              {i + 1}
+              {ok && <Check size={12} />}
+            </button>
+          );
+        })}
+      </div>
       <p className="muted intro">
         {t('deck_intro', { n: DECK_SIZE })} {t('deck_limits', { limits })}
       </p>
 
       {banner && <p className="daily-banner">{banner}</p>}
-      {prefilled && <p className="prefilled">{t('deck_prefilled')}</p>}
+      {prefilled[slot] && <p className="prefilled">{t('deck_prefilled')}</p>}
 
       <div className="deck-bar">
         <div className="deck-slots">
@@ -107,9 +154,28 @@ export function DeckBuilderScreen({ progress, onStart, onBack, banner }: Props) 
           <button className="btn ghost" onClick={() => setDeck([])} disabled={!deck.length}>
             <Trash2 size={16} /> {t('deck_clear')}
           </button>
-          <button className="btn primary big grow" onClick={() => onStart(deck)} disabled={problems.length > 0}>
-            <Play size={18} fill="currentColor" /> {t('deck_start')}
-          </button>
+          {editOnly ? (
+            <button
+              className="btn primary big grow"
+              onClick={() => {
+                onSave(ids(), slot);
+                onBack();
+              }}
+            >
+              <Save size={18} /> {t('deck_save')}
+            </button>
+          ) : (
+            <button
+              className="btn primary big grow"
+              onClick={() => {
+                onSave(ids(), slot);
+                onStart(deck, slot);
+              }}
+              disabled={problems.length > 0}
+            >
+              <Play size={18} fill="currentColor" /> {t('deck_start')}
+            </button>
+          )}
         </div>
       </div>
 
@@ -158,7 +224,7 @@ export function DeckBuilderScreen({ progress, onStart, onBack, banner }: Props) 
       </div>
 
       <TutorialSection
-        items={['tut_deck_1', 'tut_deck_2', 'tut_deck_3']}
+        items={['tut_deck_1', 'tut_deck_2', 'tut_deck_3', 'tut_deck_4']}
         params={{ leg: MAX_PER_RARITY.leggendaria ?? 0, gold: MAX_PER_RARITY.oro ?? 0 }}
       />
     </div>

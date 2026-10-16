@@ -1,7 +1,7 @@
 import type { Card, Rarity } from '../types';
 import { ALL_CARDS, CARD_BY_ID, careerCardOf, cardsOfRarity, teamCardsOfDriver } from './cards';
 import { DECK_SIZE, shuffle, type Rng } from './engine';
-import { canAdd } from './deckRules';
+import { canAdd, deckProblems } from './deckRules';
 import { emptyDaily, type DailyState, type MissionsState } from './daily';
 
 export const WINS_PER_PACK = 10;
@@ -28,7 +28,9 @@ export const CARD_PRICE: Record<Rarity, number> = { bronzo: 15, argento: 40, oro
 
 export interface Progress {
   owned: Record<string, number>; // id card → copie ottenute (doppioni inclusi)
-  deck: string[]; // card scelte per le partite
+  deck: string[]; // mazzo in uso (copia dello slot attivo, per compatibilità)
+  decks?: string[][]; // mazzi salvati, uno per slot (stile Clash Royale)
+  activeDeck?: number; // slot in uso
   credits: number;
   wins: number;
   losses: number;
@@ -66,9 +68,34 @@ export function starterProgress(rng: Rng = Math.random): Progress {
 export const ownedCards = (p: Progress): Card[] =>
   Object.keys(p.owned).map((id) => CARD_BY_ID.get(id)).filter((c): c is Card => !!c);
 
-// Ultimo mazzo usato, limitato alle card ancora possedute.
-export const savedDeck = (p: Progress): Card[] =>
-  p.deck.map((id) => CARD_BY_ID.get(id)).filter((c): c is Card => !!c && !!p.owned[c.id]).slice(0, DECK_SIZE);
+// Mazzi salvati: 3 slot. Nella sfida tra amici (al meglio di 3) la partita N si gioca con il mazzo N.
+export const DECK_SLOTS = 3;
+
+export const deckSlots = (p: Progress): string[][] =>
+  Array.from({ length: DECK_SLOTS }, (_, i) => p.decks?.[i] ?? (i === (p.activeDeck ?? 0) ? p.deck : []));
+
+export const activeSlot = (p: Progress) => Math.min(DECK_SLOTS - 1, Math.max(0, p.activeDeck ?? 0));
+
+const toCards = (p: Progress, ids: string[]) =>
+  ids.map((id) => CARD_BY_ID.get(id)).filter((c): c is Card => !!c && !!p.owned[c.id]).slice(0, DECK_SIZE);
+
+// Mazzo salvato in uno slot (di default quello in uso), limitato alle card ancora possedute.
+export const savedDeck = (p: Progress, slot = activeSlot(p)): Card[] => toCards(p, deckSlots(p)[slot] ?? []);
+
+// Salva i mazzi e lo slot in uso.
+export function withDecks(p: Progress, decks: string[][], active: number): Progress {
+  const clean = Array.from({ length: DECK_SLOTS }, (_, i) =>
+    (Array.isArray(decks[i]) ? decks[i] : []).filter((id, j, all) => typeof id === 'string' && !!p.owned[id] && all.indexOf(id) === j).slice(0, DECK_SIZE),
+  );
+  const slot = Number.isInteger(active) ? Math.min(DECK_SLOTS - 1, Math.max(0, active)) : 0;
+  return { ...p, decks: clean, activeDeck: slot, deck: clean[slot] };
+}
+
+// I 3 mazzi della sfida tra amici, solo se sono tutti completi e validi.
+export function seriesDecks(p: Progress): Card[][] | null {
+  const decks = deckSlots(p).map((ids) => toCards(p, ids));
+  return decks.every((d) => d.length === DECK_SIZE && !deckProblems(d).length) ? decks : null;
+}
 
 // Completa il mazzo con card casuali della collezione, rispettando i limiti di rarità.
 export function autoFillDeck(p: Progress, deck: Card[], rng: Rng = Math.random): Card[] {
@@ -224,6 +251,7 @@ export function normalizeProgress(raw: Partial<Progress>): Progress {
   // scarta card non più presenti dopo un aggiornamento dei dati
   p.owned = Object.fromEntries(Object.entries(p.owned).filter(([id]) => CARD_BY_ID.has(id)));
   p.deck = p.deck.filter((id) => CARD_BY_ID.has(id));
+  if (Array.isArray(p.decks)) p.decks = p.decks.map((d) => (Array.isArray(d) ? d.filter((id) => CARD_BY_ID.has(id)) : []));
   p.jolly ??= 0;
   p.daily ??= emptyDaily();
   p.updatedAt ??= 0;
@@ -242,6 +270,8 @@ export function mergeProgress(account: Progress, device: Progress): Progress {
   return {
     owned,
     deck: account.deck.length ? account.deck : device.deck,
+    decks: account.decks ?? device.decks,
+    activeDeck: account.decks ? account.activeDeck : device.activeDeck,
     credits: Math.max(account.credits, device.credits),
     wins: Math.max(account.wins, device.wins),
     losses: Math.max(account.losses, device.losses),
