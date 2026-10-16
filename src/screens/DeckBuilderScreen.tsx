@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react';
 import type { Card, Rarity, StatKey } from '../types';
-import { ArrowLeft, Check, Dices, Play, Save, Trash2 } from 'lucide-react';
-import { STATS, formatStat, rarityLabel, statHint, statLabel, statShort } from '../game/cards';
+import { ArrowLeft, Check, Dices, Minus, Play, Plus, Save, Trash2, X } from 'lucide-react';
+import { STATS, formatStat, rarityLabel, statLabel, statShort } from '../game/cards';
 import { useI18n } from '../lib/i18n';
 import { TutorialSection } from '../components/TutorialSection';
-import { teamLabel } from '../components/CardView';
+import { CardView } from '../components/CardView';
+import { FlipCard } from '../components/FlipCard';
 import { DECK_SLOTS, activeSlot, autoFillDeck, ownedCards, savedDeck, type Progress } from '../game/collection';
 import { DECK_SIZE } from '../game/engine';
 import { MAX_PER_RARITY, canAdd, deckProblems } from '../game/deckRules';
-import { teamColor } from '../game/teamColors';
 
 interface Props {
   progress: Progress;
@@ -19,7 +19,9 @@ interface Props {
   editOnly?: boolean; // solo preparare i mazzi (sfida tra amici): niente "Gioca"
 }
 
-type SortKey = StatKey | 'nome';
+type SortKey = StatKey | 'rarita';
+
+const RARITY_RANK: Record<Rarity, number> = { leggendaria: 3, oro: 2, argento: 1, bronzo: 0 };
 
 export function DeckBuilderScreen({ progress, onStart, onSave, onBack, banner, editOnly }: Props) {
   const { t } = useI18n();
@@ -53,14 +55,16 @@ export function DeckBuilderScreen({ progress, onStart, onSave, onBack, banner, e
     }
     setSlot(i);
   }
-  const [sort, setSort] = useState<SortKey>('nome');
+  const [sort, setSort] = useState<SortKey>('rarita');
   const problems = deckProblems(deck);
 
+  // ordina per rarità (dalla più rara) o per una metrica (dal valore migliore)
   const rows = useMemo(() => {
     const cards = ownedCards(progress);
-    if (sort === 'nome') return cards.sort((a, b) => a.driver.lastName.localeCompare(b.driver.lastName) || a.firstYear - b.firstYear);
+    const byName = (a: Card, b: Card) => a.driver.lastName.localeCompare(b.driver.lastName) || a.firstYear - b.firstYear;
+    if (sort === 'rarita') return cards.sort((a, b) => RARITY_RANK[b.rarity] - RARITY_RANK[a.rarity] || byName(a, b));
     const def = STATS.find((s) => s.key === sort)!;
-    return cards.sort((a, b) => (def.lowerWins ? a.stats[sort] - b.stats[sort] : b.stats[sort] - a.stats[sort]));
+    return cards.sort((a, b) => (def.lowerWins ? a.stats[sort] - b.stats[sort] : b.stats[sort] - a.stats[sort]) || byName(a, b));
   }, [progress, sort]);
 
   const toggle = (c: Card) =>
@@ -112,25 +116,20 @@ export function DeckBuilderScreen({ progress, onStart, onSave, onBack, banner, e
       {prefilled[slot] && <p className="prefilled">{t('deck_prefilled')}</p>}
 
       <div className="deck-bar">
-        <div className="deck-slots">
+        <div className="deck-cards">
           {Array.from({ length: DECK_SIZE }, (_, i) => {
             const c = deck[i];
-            return (
-              <button
-                key={i}
-                className={`slot ${c ? `rarity-${c.rarity} filled` : ''}`}
-                onClick={() => c && toggle(c)}
-                title={c ? t('deck_remove', { name: c.driver.name }) : t('deck_emptySlot')}
-              >
-                {c ? (
-                  <>
-                    <b>{c.driver.abbreviation}</b>
-                    <small>{c.kind === 'career' ? '★' : c.team.name}</small>
-                  </>
-                ) : (
-                  i + 1
-                )}
-              </button>
+            return c ? (
+              <div key={c.id} className="mini">
+                <CardView card={c} size="sm" onClick={() => toggle(c)} />
+                <button className="remove" onClick={() => toggle(c)} aria-label={t('deck_remove', { name: c.driver.name })}>
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <div key={`empty-${i}`} className="empty" title={t('deck_emptySlot')}>
+                {i + 1}
+              </div>
             );
           })}
         </div>
@@ -179,48 +178,46 @@ export function DeckBuilderScreen({ progress, onStart, onSave, onBack, banner, e
         </div>
       </div>
 
-      <div className="table-wrap">
-        <table className="stats-table">
-          <thead>
-            <tr>
-              <th className={sort === 'nome' ? 'on' : ''} onClick={() => setSort('nome')}>
-                {t('deck_colCard')}
-              </th>
-              {STATS.map((s) => (
-                <th key={s.key} className={sort === s.key ? 'on' : ''} onClick={() => setSort(s.key)} title={statHint(s.key)}>
-                  {statShort(s.key)}
-                  {s.lowerWins && ' ↓'}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((c) => {
-              const selected = deck.some((x) => x.id === c.id);
-              const blocked = !selected && !canAdd(deck, c);
-              return (
-                <tr
-                  key={c.id}
-                  className={`${selected ? 'selected' : ''} ${blocked ? 'blocked' : ''}`}
-                  onClick={() => toggle(c)}
-                >
-                  <td className="who" style={{ borderLeftColor: c.kind === 'career' ? '#c9a227' : teamColor(c.team.id) }}>
-                    <span className={`dot rarity-${c.rarity}`} />
-                    <b>{c.driver.name}</b>
-                    <small>
-                      {teamLabel(c, t)} · {c.period}
-                    </small>
-                  </td>
-                  {STATS.map((s) => (
-                    <td key={s.key} className={sort === s.key ? 'on' : ''}>
-                      {formatStat(s, c.stats[s.key])}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="pick-head">
+        <b>{t('deck_collection', { n: rows.length })}</b>
+        <label className="muted">
+          {t('deck_sortBy')}{' '}
+          <select className="sort-select" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+            <option value="rarita">{t('deck_sortRarity')}</option>
+            {STATS.map((s) => (
+              <option key={s.key} value={s.key}>
+                {statLabel(s.key)}
+                {s.lowerWins ? ' ↓' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <p className="muted small-text">{t('deck_flipHint')}</p>
+      <div className="pick-grid">
+        {rows.map((c) => {
+          const selected = deck.some((x) => x.id === c.id);
+          const blocked = !selected && !canAdd(deck, c);
+          return (
+            <div key={c.id} className={`${selected ? 'in-deck' : ''} ${blocked ? 'blocked' : ''}`}>
+              <FlipCard
+                card={c}
+                badge={selected ? <span className="pick-badge">{t('deck_inDeck')}</span> : undefined}
+                action={
+                  <button
+                    className={`btn ${selected ? 'ghost' : 'primary'}`}
+                    onClick={() => toggle(c)}
+                    disabled={blocked}
+                    title={blocked ? t(deck.length >= DECK_SIZE ? 'deck_full' : 'deck_rarityFull') : undefined}
+                  >
+                    {selected ? <Minus size={14} /> : <Plus size={14} />}{' '}
+                    {selected ? t('deck_takeOut') : blocked ? t(deck.length >= DECK_SIZE ? 'deck_full' : 'deck_rarityFull') : t('deck_add')}
+                  </button>
+                }
+              />
+            </div>
+          );
+        })}
       </div>
 
       <TutorialSection

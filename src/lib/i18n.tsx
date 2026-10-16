@@ -53,7 +53,7 @@ const it = {
   tut_home_2: 'A ogni round esce una card a caso dal mazzo di ognuno. Il primo round scegli tu la metrica, poi sceglie chi ha vinto il round precedente (in caso di pareggio, l\'altro).',
   tut_home_3: 'Ogni metrica si usa una sola volta per partita. Vince il valore più alto (↓ = vince il più basso) e chi fa più punti vince la partita.',
   tut_home_4: 'Ogni {w} vittorie ricevi un pacchetto. Accedi con Google per salvare la collezione online.',
-  tut_deck_1: 'Tocca le righe della tabella per aggiungere o togliere card. Tocca un\'intestazione per ordinare per quella metrica.',
+  tut_deck_1: 'Tocca una card per girarla: dietro c\'è il diagramma a ragnatela delle metriche (più è largo, più è forte rispetto a tutte le card) e il pulsante «Aggiungi». Usa «Ordina per» per scegliere la metrica.',
   tut_deck_2: 'La riga «migliore del mazzo» mostra il valore più forte che hai per ogni metrica: cerca di non lasciare buchi.',
   tut_deck_3: 'Al massimo {leg} Leggendaria e {gold} Oro: un mazzo equilibrato batte un mazzo di sole stelle.',
   tut_coll_1: 'Qui trovi tutte le card del gioco: quelle grigie non le hai ancora.',
@@ -322,6 +322,15 @@ const it = {
   err_decks_not_ready: 'Prepara prima i tuoi 3 mazzi.',
   err_not_friend: 'Puoi invitare solo i tuoi amici.',
   sr_wonLeft: '🏆 Hai vinto la serie!',
+  deck_add: 'Aggiungi',
+  deck_takeOut: 'Togli',
+  deck_inDeck: 'Nel mazzo',
+  deck_full: 'Mazzo pieno',
+  deck_rarityFull: 'Limite rarità',
+  deck_sortBy: 'Ordina per',
+  deck_sortRarity: 'Rarità',
+  deck_collection: 'La tua collezione ({n})',
+  deck_flipHint: 'Passa sopra o tocca una card per girarla e vedere le metriche.',
 };
 
 export type TKey = keyof typeof it;
@@ -345,7 +354,7 @@ const en: Dict = {
   tut_home_2: 'Each round a random card comes out of each deck. You pick the stat in the first round, then the winner of the previous round picks (on a tie, the other player).',
   tut_home_3: 'Each stat can be used only once per match. The highest value wins (↓ = lowest wins) and whoever scores more points wins the match.',
   tut_home_4: 'Every {w} wins you get a pack. Sign in with Google to save your collection online.',
-  tut_deck_1: 'Tap table rows to add or remove cards. Tap a header to sort by that stat.',
+  tut_deck_1: 'Tap a card to flip it: on the back there’s a spider chart of its stats (the wider, the stronger compared with all cards) and the “Add” button. Use “Sort by” to pick a stat.',
   tut_deck_2: 'The “deck best” row shows your strongest value for each stat: try not to leave gaps.',
   tut_deck_3: 'At most {leg} Legendary and {gold} Gold: a balanced deck beats a deck of stars.',
   tut_coll_1: 'Here you find every card in the game: the grey ones you don’t own yet.',
@@ -491,6 +500,15 @@ const en: Dict = {
   err_decks_not_ready: 'Prepare your 3 decks first.',
   err_not_friend: 'You can only invite your friends.',
   sr_wonLeft: '🏆 You won the series!',
+  deck_add: 'Add',
+  deck_takeOut: 'Remove',
+  deck_inDeck: 'In deck',
+  deck_full: 'Deck full',
+  deck_rarityFull: 'Rarity limit',
+  deck_sortBy: 'Sort by',
+  deck_sortRarity: 'Rarity',
+  deck_collection: 'Your collection ({n})',
+  deck_flipHint: 'Hover or tap a card to flip it and see its stats.',
 };
 
 const fr: Dict = {
@@ -511,7 +529,7 @@ const fr: Dict = {
   tut_home_2: 'À chaque manche, une carte au hasard sort de chaque deck. Tu choisis la stat de la première manche, puis c’est le gagnant de la manche précédente qui choisit (en cas d’égalité, l’autre).',
   tut_home_3: 'Chaque stat ne s’utilise qu’une fois par match. La valeur la plus haute gagne (↓ = la plus basse gagne) et celui qui marque le plus de points gagne.',
   tut_home_4: 'Toutes les {w} victoires, tu reçois un paquet. Connecte-toi avec Google pour sauvegarder ta collection.',
-  tut_deck_1: 'Touche les lignes du tableau pour ajouter ou retirer des cartes. Touche un en-tête pour trier par cette stat.',
+  tut_deck_1: 'Touche une carte pour la retourner : au dos, un diagramme en toile d’araignée de ses stats (plus il est large, plus elle est forte par rapport à toutes les cartes) et le bouton « Ajouter ». Utilise « Trier par » pour choisir une stat.',
   tut_deck_2: 'La ligne « meilleur du deck » montre ta valeur la plus forte pour chaque stat : évite les trous.',
   tut_deck_3: 'Au maximum {leg} Légendaire et {gold} Or : un deck équilibré bat un deck de stars.',
   tut_coll_1: 'Ici se trouvent toutes les cartes du jeu : les grises, tu ne les as pas encore.',
@@ -657,6 +675,15 @@ const fr: Dict = {
   err_decks_not_ready: 'Prépare d’abord tes 3 decks.',
   err_not_friend: 'Tu ne peux inviter que tes amis.',
   sr_wonLeft: '🏆 Tu as gagné la série !',
+  deck_add: 'Ajouter',
+  deck_takeOut: 'Retirer',
+  deck_inDeck: 'Dans le deck',
+  deck_full: 'Deck complet',
+  deck_rarityFull: 'Limite de rareté',
+  deck_sortBy: 'Trier par',
+  deck_sortRarity: 'Rareté',
+  deck_collection: 'Ta collection ({n})',
+  deck_flipHint: 'Survole ou touche une carte pour la retourner et voir ses stats.',
 };
 
 const es: Dict = {
@@ -677,7 +704,7 @@ const es: Dict = {
   tut_home_2: 'En cada ronda sale una carta al azar de cada mazo. En la primera ronda eliges tú la estadística; después elige quien ganó la ronda anterior (en caso de empate, el otro).',
   tut_home_3: 'Cada estadística se usa una sola vez por partida. Gana el valor más alto (↓ = gana el más bajo) y quien suma más puntos gana la partida.',
   tut_home_4: 'Cada {w} victorias recibes un sobre. Inicia sesión con Google para guardar tu colección en línea.',
-  tut_deck_1: 'Toca las filas de la tabla para añadir o quitar cartas. Toca un encabezado para ordenar por esa estadística.',
+  tut_deck_1: 'Toca una carta para girarla: detrás está el gráfico de telaraña de sus estadísticas (cuanto más amplio, más fuerte frente a todas las cartas) y el botón «Añadir». Usa «Ordenar por» para elegir la estadística.',
   tut_deck_2: 'La fila «mejor del mazo» muestra tu valor más fuerte en cada estadística: intenta no dejar huecos.',
   tut_deck_3: 'Como máximo {leg} Legendaria y {gold} Oro: un mazo equilibrado vence a uno de estrellas.',
   tut_coll_1: 'Aquí están todas las cartas del juego: las grises aún no las tienes.',
@@ -823,6 +850,15 @@ const es: Dict = {
   err_decks_not_ready: 'Primero prepara tus 3 mazos.',
   err_not_friend: 'Solo puedes invitar a tus amigos.',
   sr_wonLeft: '🏆 ¡Has ganado la serie!',
+  deck_add: 'Añadir',
+  deck_takeOut: 'Quitar',
+  deck_inDeck: 'En el mazo',
+  deck_full: 'Mazo lleno',
+  deck_rarityFull: 'Límite de rareza',
+  deck_sortBy: 'Ordenar por',
+  deck_sortRarity: 'Rareza',
+  deck_collection: 'Tu colección ({n})',
+  deck_flipHint: 'Pasa el ratón o toca una carta para girarla y ver sus estadísticas.',
 };
 
 const de: Dict = {
@@ -843,7 +879,7 @@ const de: Dict = {
   tut_home_2: 'In jeder Runde kommt aus jedem Deck eine zufällige Karte. In der ersten Runde wählst du den Wert, danach wählt der Gewinner der vorigen Runde (bei Gleichstand der andere).',
   tut_home_3: 'Jeder Wert darf pro Match nur einmal benutzt werden. Der höhere Wert gewinnt (↓ = der niedrigere gewinnt), und wer mehr Punkte holt, gewinnt das Match.',
   tut_home_4: 'Alle {w} Siege bekommst du ein Pack. Melde dich mit Google an, um deine Sammlung online zu speichern.',
-  tut_deck_1: 'Tippe auf Tabellenzeilen, um Karten hinzuzufügen oder zu entfernen. Tippe auf eine Überschrift, um nach diesem Wert zu sortieren.',
+  tut_deck_1: 'Tippe eine Karte an, um sie umzudrehen: Hinten siehst du das Netzdiagramm ihrer Werte (je größer, desto stärker im Vergleich zu allen Karten) und den Button „Hinzufügen“. Mit „Sortieren nach“ wählst du den Wert.',
   tut_deck_2: 'Die Zeile „Bester Wert im Deck“ zeigt deinen stärksten Wert pro Kategorie: Lass keine Lücken.',
   tut_deck_3: 'Höchstens {leg} Legendäre und {gold} Gold: Ein ausgewogenes Deck schlägt ein Deck voller Stars.',
   tut_coll_1: 'Hier findest du alle Karten des Spiels: Die grauen hast du noch nicht.',
@@ -989,6 +1025,15 @@ const de: Dict = {
   err_decks_not_ready: 'Bereite zuerst deine 3 Decks vor.',
   err_not_friend: 'Du kannst nur Freunde einladen.',
   sr_wonLeft: '🏆 Du hast die Serie gewonnen!',
+  deck_add: 'Hinzufügen',
+  deck_takeOut: 'Entfernen',
+  deck_inDeck: 'Im Deck',
+  deck_full: 'Deck voll',
+  deck_rarityFull: 'Seltenheitslimit',
+  deck_sortBy: 'Sortieren nach',
+  deck_sortRarity: 'Seltenheit',
+  deck_collection: 'Deine Sammlung ({n})',
+  deck_flipHint: 'Fahre über eine Karte oder tippe sie an, um sie umzudrehen und die Werte zu sehen.',
 };
 
 const DICT: Record<Lang, Dict> = { it, en, fr, es, de };

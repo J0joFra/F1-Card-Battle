@@ -5,6 +5,7 @@ Gioco di carte F1 in stile **Top Quartetto**: ogni card è un pilota con una scu
 ## Regole
 
 - Hai **3 mazzi salvati** (linguette 1-2-3, stile Clash Royale); contro la CPU giochi con quello selezionato.
+- Nel costruttore del mazzo le card si vedono come card: passandoci sopra (o toccandole) si girano e dietro c'è il **diagramma a ragnatela** delle 7 metriche (percentile rispetto a tutte le card), con il pulsante *Aggiungi* / *Togli*. *Ordina per* rarità o per una delle 7 metriche.
 - Prima di ogni partita crei un **mazzo di 7 card**, una per metrica (massimo 1 Leggendaria e 2 Oro: regole provvisorie in `src/game/deckRules.ts`). Se non hai un mazzo salvato, il gioco te ne prepara uno a caso.
 - La partita dura **7 round**. A ogni round esce una card a caso dal mazzo di ognuno.
 - Il primo round sceglie sempre il giocatore; poi **la metrica la sceglie chi ha vinto il round precedente** (in caso di pareggio il turno passa all'altro).
