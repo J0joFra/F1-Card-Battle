@@ -1,6 +1,7 @@
 # F1 Card Battle
 
 Gioco di carte F1 in stile **Top Quartetto**: ogni card è un pilota con una scuderia, con le statistiche reali ottenute in quella scuderia. Si sfida la CPU, si vincono pacchetti e si completa la collezione.
+https://f1cardbattle.vercel.app/
 
 ## Regole
 
