@@ -724,8 +724,8 @@ p { line-height: 1.45; }
 .radar-value { font-size: 9.5px; font-weight: 600; fill: #9aa0ab; font-variant-numeric: tabular-nums; }
 
 /* costruttore del mazzo: card al posto della tabella */
-.deck-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-@media (min-width: 640px) { .deck-cards { grid-template-columns: repeat(7, 1fr); } }
+.deck-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+@media (min-width: 640px) { .deck-cards { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
 .deck-cards .mini { position: relative; }
 .deck-cards .mini .card-sm { width: 100%; zoom: 0.62; }
 .deck-cards .mini .remove {
@@ -836,8 +836,12 @@ p { line-height: 1.45; }
 /* ============ Leggerezza: meno lavoro per il telefono ============ */
 /* il riflesso che scorre sulle card Oro/Leggendarie: solo sulle card grandi, non nelle griglie */
 .card-sm.rarity-oro::after, .card-sm.rarity-leggendaria::after { animation: none; background-position: 60% 0; }
-/* le card fuori dallo schermo non si disegnano finché non ci si arriva */
-/* (non nelle griglie con card che si girano: lì taglierebbe la card ingrandita) */
-.grid-item, .friend-list li { content-visibility: auto; contain-intrinsic-size: auto 240px; }
-.missions li, .recap li { content-visibility: auto; contain-intrinsic-size: auto 60px; }
+/* gioco mobile: nessuna schermata può essere più larga del telefono */
+html, body { overflow-x: hidden; }
+.content { min-width: 0; overflow-x: clip; }
+/* le colonne non si allargano oltre lo schermo per colpa del contenuto */
+.screen, .screen > *, .deck-bar > * { min-width: 0; }
+.pick-grid, .shop-cards, .grid { grid-template-columns: repeat(auto-fill, minmax(min(150px, 45%), 1fr)); }
 .grid-sentinel { grid-column: 1 / -1; height: 1px; }
+.grid-item { width: 100%; display: flex; justify-content: center; }
+.grid-item .card-sm { width: min(150px, 100%); }
