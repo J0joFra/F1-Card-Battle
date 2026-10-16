@@ -346,18 +346,6 @@ p { line-height: 1.45; }
 .builder .intro { margin: 0; font-size: 14px; }
 .prefilled { margin: 0; padding: 10px 14px; border-radius: 12px; background: color-mix(in srgb, var(--win) 14%, var(--surface)); border: 1px solid color-mix(in srgb, var(--win) 40%, var(--line)); font-size: 14px; }
 .deck-bar { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 12px; display: grid; gap: 8px; box-shadow: var(--shadow); }
-.deck-slots { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
-.slot {
-  min-height: 50px; border-radius: 10px; border: 1px dashed var(--line); background: transparent; color: var(--muted);
-  display: grid; place-content: center; justify-items: center; font-size: 12px; font-weight: 700; padding: 4px 2px; min-width: 0;
-}
-.slot b { color: var(--text); font-size: 14px; font-style: italic; font-weight: 900; }
-.slot small { font-size: 9.5px; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.slot.filled { border-style: solid; border-width: 2px; border-color: var(--rar, var(--line)); background: var(--surface-2); }
-.slot.rarity-bronzo { --rar: var(--bronzo); }
-.slot.rarity-argento { --rar: var(--argento); }
-.slot.rarity-oro { --rar: var(--oro); }
-.slot.rarity-leggendaria { --rar: var(--leggendaria); }
 .deck-best-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); font-weight: 700; }
 .deck-best { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
 .deck-best span { display: grid; justify-items: center; background: var(--surface-2); border-radius: 8px; padding: 4px 2px; min-width: 0; }
@@ -366,21 +354,6 @@ p { line-height: 1.45; }
 .problems { margin: 0; color: var(--tie); font-size: 13px; }
 .actions { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
 .actions.start { justify-content: stretch; }
-.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
-.stats-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
-.stats-table th {
-  position: sticky; top: 0; background: var(--surface-2); color: var(--muted); font-weight: 700; font-size: 12px;
-  padding: 9px 6px; text-align: right; cursor: pointer; white-space: nowrap; user-select: none;
-}
-.stats-table th:first-child { text-align: left; padding-left: 12px; }
-.stats-table th.on { color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
-.stats-table td { padding: 8px 6px; text-align: right; border-top: 1px solid var(--line); white-space: nowrap; }
-.stats-table td.on { font-weight: 900; }
-.stats-table td.who { text-align: left; border-left: 4px solid transparent; padding-left: 8px; display: grid; grid-template-columns: auto 1fr; column-gap: 6px; align-items: center; }
-.stats-table td.who small { grid-column: 2; color: var(--muted); font-size: 11px; }
-.stats-table tbody tr { cursor: pointer; }
-.stats-table tr.selected { background: color-mix(in srgb, var(--accent) 16%, transparent); }
-.stats-table tr.blocked { opacity: 0.4; cursor: not-allowed; }
 
 /* ============ Collezione ============ */
 .col-progress { height: 6px; }
@@ -726,3 +699,54 @@ p { line-height: 1.45; }
 .series-dots span.rd-player { background: var(--win); }
 .series-dots span.rd-cpu { background: var(--lose); }
 .series-dots span.rd-draw { background: #9aa0a6; }
+
+/* card che si gira: davanti la card, dietro il diagramma a ragnatela (giro 2D: si chiude, cambia faccia, si riapre) */
+.flip { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.flip-inner { position: relative; transition: transform 0.14s ease-in-out; }
+.flip.turning .flip-inner { transform: scaleX(0.02); }
+.flip-front { position: relative; }
+.flip.flipped .flip-front { visibility: hidden; } /* resta per dare l'altezza al retro */
+.flip-front .card-sm, .flip-back.card-sm { width: 100%; }
+.flip-back {
+  position: absolute; inset: 0; padding: 4px 4px 5px; gap: 0;
+  justify-content: space-between; background: linear-gradient(170deg, color-mix(in srgb, var(--rar) 22%, #14161c) 0%, #14161c 60%);
+}
+.flip-back-head { display: grid; text-align: center; line-height: 1.15; }
+.flip-back-head b { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.flip-back-head small { font-size: 9.5px; color: #b8bec9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.flip-action { display: flex; }
+.flip-action .btn { flex: 1; min-height: 28px; padding: 3px 8px; font-size: 12px; }
+.stat-radar { width: 100%; flex: 1; min-height: 0; display: block; margin: -2px 0; }
+.radar-ring { fill: none; stroke: rgba(255, 255, 255, 0.16); stroke-width: 1; }
+.radar-ring:last-of-type { stroke: rgba(255, 255, 255, 0.3); }
+.radar-spoke { stroke: rgba(255, 255, 255, 0.12); stroke-width: 1; }
+.radar-area { fill: rgba(225, 6, 0, 0.38); stroke: #ff5a36; stroke-width: 2; stroke-linejoin: round; }
+.radar-dot { fill: #ff8a6b; stroke: #14161c; stroke-width: 1; }
+.radar-label { font-size: 10px; font-weight: 800; fill: #e9ebef; }
+.radar-value { font-size: 9.5px; font-weight: 600; fill: #9aa0ab; font-variant-numeric: tabular-nums; }
+
+/* costruttore del mazzo: card al posto della tabella */
+.deck-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+@media (min-width: 640px) { .deck-cards { grid-template-columns: repeat(7, 1fr); } }
+.deck-cards .mini { position: relative; }
+.deck-cards .mini .card-sm { width: 100%; zoom: 0.62; }
+.deck-cards .mini .remove {
+  position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; border-radius: 50%; border: 0;
+  background: var(--lose); color: #fff; display: grid; place-items: center; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.deck-cards .empty {
+  border: 2px dashed var(--line); border-radius: 12px; display: grid; place-items: center; color: var(--muted);
+  font-weight: 800; aspect-ratio: 3 / 4;
+}
+.pick-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sort-select {
+  border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: 10px; padding: 7px 10px;
+  font: inherit; font-weight: 700;
+}
+.pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.pick-grid .in-deck .card { outline: 3px solid var(--win); outline-offset: 2px; }
+.pick-grid .blocked .flip-front .card { filter: grayscale(0.7) brightness(0.6); }
+.pick-badge {
+  position: absolute; top: 5px; left: 5px; background: var(--win); color: #fff;
+  font-size: 10px; font-weight: 900; padding: 2px 8px; border-radius: 999px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
