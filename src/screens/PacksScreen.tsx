@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Card } from '../types';
 import { CARD_BY_ID, rarityLabel } from '../game/cards';
 import { useI18n } from '../lib/i18n';
-import { TutorialSection } from '../components/TutorialSection';
+import { HelpButton } from '../components/TutorialSection';
 import { WINS_PER_PACK } from '../game/collection';
 import { JOLLY_CHANCE, PACK_ODDS, PACK_PRICE, PACK_SIZE, jollyTargets, type Progress, type UnlockResult } from '../game/collection';
 
@@ -134,7 +134,7 @@ export function PacksScreen({ progress, onOpen, onBuyPack, onUseJolly }: Props) 
     <div className="screen packs">
       <header className="screen-head">
         <h2>{t('p_title')}</h2>
-        <span className="muted">🪙 {progress.credits}</span>
+        <HelpButton items={['tut_packs_1', 'tut_packs_2', 'tut_packs_3', 'tut_packs_4']} params={{ n: PACK_SIZE, j: Math.round(JOLLY_CHANCE * 100) }} />
       </header>
       <div className="pack-hero">
         <button className={`pack ${progress.packs > 0 ? 'ready' : ''} ${tearing ? 'tearing' : ''}`} onClick={open} disabled={progress.packs === 0}>
@@ -147,25 +147,21 @@ export function PacksScreen({ progress, onOpen, onBuyPack, onUseJolly }: Props) 
             {t('p_open')}
           </button>
         ) : (
-          <p className="muted center">{t('p_none', { n: WINS_PER_PACK })}</p>
+          <p className="muted center">🏆 {progress.winsTowardPack}/{WINS_PER_PACK}</p>
         )}
         <button className="btn ghost block" onClick={onBuyPack} disabled={progress.credits < PACK_PRICE}>
-          🪙 {t('p_buy', { n: PACK_PRICE })}
+          {t('p_buyShort')} · 🪙 {PACK_PRICE}
         </button>
       </div>
       {progress.jolly > 0 && <JollyPicker progress={progress} onPick={onUseJolly} />}
-      <section className="panel">
-        <ul className="odds">
-          {PACK_ODDS.map(([r, p]) => (
-            <li key={r}>
-              <span className={`dot rarity-${r}`} /> {rarityLabel(r)} <b>{Math.round(p * 100)}%</b>
-            </li>
-          ))}
-          <li className="muted">{t('p_lastSilver')}</li>
-          <li className="muted">{t('p_jollyOdds', { n: Math.round(JOLLY_CHANCE * 100) })}</li>
-        </ul>
-      </section>
-      <TutorialSection items={['tut_packs_1', 'tut_packs_2', 'tut_packs_3']} params={{ n: PACK_SIZE }} />
+      <ul className="odds-chips" aria-label={t('p_odds')}>
+        {PACK_ODDS.map(([r, p]) => (
+          <li key={r} title={rarityLabel(r)}>
+            <span className={`dot rarity-${r}`} /> {Math.round(p * 100)}%
+          </li>
+        ))}
+        <li title={t('p_jolly')}>🃏 {Math.round(JOLLY_CHANCE * 100)}%</li>
+      </ul>
     </div>
   );
 }

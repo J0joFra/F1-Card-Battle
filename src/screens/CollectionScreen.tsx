@@ -3,7 +3,7 @@ import type { Card, Rarity } from '../types';
 import { Search, X } from 'lucide-react';
 import { ALL_CARDS, RARITIES, careerCardOf, rarityLabel, teamCardsOfDriver } from '../game/cards';
 import { useI18n } from '../lib/i18n';
-import { TutorialSection } from '../components/TutorialSection';
+import { HelpButton } from '../components/TutorialSection';
 import { CARD_PRICE, TOTAL_CARDS, collectionSize, type Progress } from '../game/collection';
 import { CardView } from '../components/CardView';
 
@@ -39,6 +39,7 @@ export function CollectionScreen({ progress, onBuy }: Props) {
       <header className="screen-head">
         <h2>{t('col_title')}</h2>
         <span className="muted">{t('col_count', { a: collectionSize(progress), b: TOTAL_CARDS })}</span>
+        <HelpButton items={['tut_coll_1', 'tut_coll_2', 'tut_coll_3']} />
       </header>
       <div className="col-progress bar">
         <div style={{ width: `${(collectionSize(progress) / TOTAL_CARDS) * 100}%` }} />
@@ -91,7 +92,6 @@ export function CollectionScreen({ progress, onBuy }: Props) {
         />
       )}
 
-      <TutorialSection items={['tut_coll_1', 'tut_coll_2', 'tut_coll_3']} />
     </div>
   );
 }

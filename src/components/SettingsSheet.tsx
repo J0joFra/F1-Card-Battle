@@ -57,7 +57,6 @@ export function SettingsSheet({ theme, onTheme, account, onIntro, onReset, onClo
             </div>
           ) : (
             <>
-              <p className="muted small-text">{t('set_guest')}</p>
               <button className="btn google block" onClick={account.signIn}>
                 <GoogleIcon /> {t('signin_google')}
               </button>
