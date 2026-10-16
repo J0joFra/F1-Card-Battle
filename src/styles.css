@@ -837,6 +837,7 @@ p { line-height: 1.45; }
 /* il riflesso che scorre sulle card Oro/Leggendarie: solo sulle card grandi, non nelle griglie */
 .card-sm.rarity-oro::after, .card-sm.rarity-leggendaria::after { animation: none; background-position: 60% 0; }
 /* le card fuori dallo schermo non si disegnano finché non ci si arriva */
-.grid-item, .pick-grid > div, .shop-card, .friend-list li { content-visibility: auto; contain-intrinsic-size: auto 240px; }
+/* (non nelle griglie con card che si girano: lì taglierebbe la card ingrandita) */
+.grid-item, .friend-list li { content-visibility: auto; contain-intrinsic-size: auto 240px; }
 .missions li, .recap li { content-visibility: auto; contain-intrinsic-size: auto 60px; }
 .grid-sentinel { grid-column: 1 / -1; height: 1px; }

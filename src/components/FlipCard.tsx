@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Card } from '../types';
+import { createPortal } from 'react-dom';
 import { CardView } from './CardView';
 import { StatRadar } from './StatRadar';
 import { reducedMotion } from '../lib/feedback';
@@ -72,11 +73,14 @@ export function FlipCard({ card, action, badge }: { card: Card; action?: ReactNo
           {face === 'back' && back(false)}
         </div>
       </div>
-      {zoom && (
-        <div className="overlay modal-backdrop flip-zoom-backdrop" onClick={() => setZoom(false)}>
-          <div onClick={(e) => e.stopPropagation()}>{back(true)}</div>
-        </div>
-      )}
+      {/* ingrandita sopra tutto lo schermo (fuori dalla griglia, che non deve "contenerla") */}
+      {zoom &&
+        createPortal(
+          <div className="overlay modal-backdrop flip-zoom-backdrop" onClick={() => setZoom(false)}>
+            <div onClick={(e) => e.stopPropagation()}>{back(true)}</div>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
