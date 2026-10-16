@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Card, StatKey } from '../types';
 import { X } from 'lucide-react';
 import { CARD_BY_ID, STATS, STAT_BY_KEY, formatStat, statLabel, statShort } from '../game/cards';
@@ -20,6 +20,8 @@ interface Props {
   title?: string;
   opponent?: string; // sfida tra amici: nome dell'avversario al posto di "CPU"
   autoNextMs?: number; // passa da solo al round successivo (sfida tra amici: il tempo corre per tutti)
+  endExtra?: ReactNode; // a fine partita (es. punteggio della serie al meglio di 3)
+  endButton?: string; // testo del pulsante a fine partita (es. "Partita 2")
   onFinish: () => void;
   onQuit: () => void;
 }
@@ -34,7 +36,7 @@ interface Round {
 
 const cardOf = (id: string) => CARD_BY_ID.get(id)!;
 
-export function MatchScreen({ driver, title, opponent, autoNextMs, onFinish, onQuit }: Props) {
+export function MatchScreen({ driver, title, opponent, autoNextMs, endExtra, endButton, onFinish, onQuit }: Props) {
   const { t: tr } = useI18n();
   // contro un amico i testi "CPU" diventano il suo nome
   const VS_FRIEND: Partial<Record<TKey, TKey>> = {
@@ -292,8 +294,9 @@ export function MatchScreen({ driver, title, opponent, autoNextMs, onFinish, onQ
               );
             })}
           </ol>
+          {endExtra}
           <button className="btn primary big block" onClick={onFinish}>
-            {t('continue')}
+            {endButton ?? t('continue')}
           </button>
         </div>
       ) : showResult && last ? (

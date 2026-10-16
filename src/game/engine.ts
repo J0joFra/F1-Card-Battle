@@ -124,7 +124,7 @@ export function playRound(state: MatchState, stat: StatKey): MatchState {
   return {
     ...state,
     round: state.round + 1,
-    chooser: winner === 'tie' ? state.chooser : winner, // in caso di pareggio sceglie ancora lo stesso
+    chooser: winner === 'tie' ? (state.chooser === 'player' ? 'cpu' : 'player') : winner, // pareggio: il turno passa all'altro
     usedStats: [...state.usedStats, stat],
     score: winner === 'tie' ? state.score : { ...state.score, [winner]: state.score[winner] + 1 },
     history: [...state.history, { stat, chooser: state.chooser, playerCard, cpuCard, winner }],

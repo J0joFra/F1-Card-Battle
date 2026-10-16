@@ -4,9 +4,10 @@ Gioco di carte F1 in stile **Top Quartetto**: ogni card è un pilota con una scu
 
 ## Regole
 
+- Hai **3 mazzi salvati** (linguette 1-2-3, stile Clash Royale); contro la CPU giochi con quello selezionato.
 - Prima di ogni partita crei un **mazzo di 7 card**, una per metrica (massimo 1 Leggendaria e 2 Oro: regole provvisorie in `src/game/deckRules.ts`). Se non hai un mazzo salvato, il gioco te ne prepara uno a caso.
 - La partita dura **7 round**. A ogni round esce una card a caso dal mazzo di ognuno.
-- Il primo round sceglie sempre il giocatore; poi **la metrica la sceglie chi ha vinto il round precedente** (in caso di pareggio sceglie di nuovo lo stesso).
+- Il primo round sceglie sempre il giocatore; poi **la metrica la sceglie chi ha vinto il round precedente** (in caso di pareggio il turno passa all'altro).
 - **Ogni metrica si usa una sola volta per partita**: all'ultimo round resta quella rimasta.
 - Vince il round il valore più alto (↓ = vince il più basso) e prende un punto. Chi fa più punti vince la partita.
 - Per scegliere la metrica hai **30 secondi**: allo scadere il gioco gioca per te la metrica migliore della tua card.
@@ -31,10 +32,12 @@ Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per 
 ## Sfida un amico
 
 - Serve l'accesso con Google: la partita la arbitra il server, così nessuno può barare né vedere le card dell'altro.
-- Uno crea la sfida con il suo mazzo e riceve un **codice di 6 caratteri** da mandare all'amico (pulsante *Condividi*); l'altro lo inserisce, sceglie il suo mazzo e si parte. Il codice scade dopo 15 minuti.
-- Regole come contro la CPU; chi inizia lo decide il caso. Ognuno ha 30 secondi per scegliere: se non lo fa (o chiude l'app), il server gioca la metrica migliore della sua card.
-- Premi: la vittoria conta per il pacchetto (come contro la CPU) e vale **+10 crediti**, il pareggio **+5 crediti**. Chi abbandona perde e l'avversario vince.
-- Il telefono chiede al server ogni 2 secondi se l'avversario ha giocato (tabella `pvp_matches`, chiusa ai telefoni).
+- **Al meglio di 3**: vince la serie chi vince 2 partite. La partita 1 si gioca con il mazzo salvato 1 di ognuno, la 2 con il mazzo 2, la 3 con il mazzo 3: i mazzi si preparano prima (*Prepara mazzi*). Nella partita successiva inizia a scegliere chi ha perso la precedente.
+- **Amici**: a fine sfida si può aggiungere l'avversario agli amici (amicizia reciproca). Nella lista il pallino verde indica chi è online (visto negli ultimi 75 secondi); toccando *Sfida* l'amico riceve un invito (*Accetta* / *Rifiuta*) entro una ventina di secondi.
+- In alternativa si crea una sfida con un **codice di 6 caratteri** da condividere; il codice scade dopo 15 minuti.
+- Ognuno ha 30 secondi per scegliere: se non lo fa (o chiude l'app), il server gioca la metrica migliore della sua card.
+- Premi a fine serie: la vittoria conta per il pacchetto (come contro la CPU) e vale **+10 crediti**, il pareggio **+5 crediti**. Chi abbandona perde la serie.
+- Il telefono chiede al server ogni 2 secondi se l'avversario ha giocato, e ogni 20 secondi se ci sono inviti (è anche il "sono online"). Tabelle `pvp_matches` e `friends`, chiuse ai telefoni.
 
 ## Sfida del giorno e missioni
 

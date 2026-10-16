@@ -92,10 +92,59 @@ function storeFor(userId: string, displayName: string | null): Store {
       if (error) throw error;
       return data ? { id: data.id as string, rec: data.data as PvpRecord, rev: data.rev as number } : null;
     },
+    async invitesForMe() {
+      const { data, error } = await admin.from('pvp_matches').select('id, data').eq('invitee', userId).eq('status', 'waiting');
+      if (error) throw error;
+      return ((data ?? []) as { id: string; data: PvpRecord }[]).map((r) => ({ id: r.id, rec: r.data }));
+    },
+    async touch(now) {
+      const { error } = await admin.from('profiles').update({ last_seen: new Date(now).toISOString() }).eq('id', userId);
+      if (error) throw error;
+    },
+    async listFriends() {
+      const { data: rows, error } = await admin.from('friends').select('friend_id').eq('user_id', userId);
+      if (error) throw error;
+      const ids = ((rows ?? []) as { friend_id: string }[]).map((r) => r.friend_id);
+      if (!ids.length) return [];
+      const { data: profiles, error: e2 } = await admin.from('profiles').select('id, display_name, last_seen').in('id', ids);
+      if (e2) throw e2;
+      type Row = { id: string; display_name: string | null; last_seen: string | null };
+      const byId = new Map(((profiles ?? []) as Row[]).map((p) => [p.id, p]));
+      return ids.map((id: string) => {
+        const p = byId.get(id);
+        return { id, name: p?.display_name ?? null, lastSeen: p?.last_seen ? Date.parse(p.last_seen) : null };
+      });
+    },
+    async isFriend(other) {
+      const { count, error } = await admin
+        .from('friends')
+        .select('friend_id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('friend_id', other);
+      if (error) throw error;
+      return (count ?? 0) > 0;
+    },
+    async addFriend(other) {
+      const { error } = await admin.from('friends').upsert(
+        [
+          { user_id: userId, friend_id: other },
+          { user_id: other, friend_id: userId },
+        ],
+        { onConflict: 'user_id,friend_id', ignoreDuplicates: true },
+      );
+      if (error) throw error;
+    },
+    async removeFriend(other) {
+      const { error } = await admin
+        .from('friends')
+        .delete()
+        .or(`and(user_id.eq.${userId},friend_id.eq.${other}),and(user_id.eq.${other},friend_id.eq.${userId})`);
+      if (error) throw error;
+    },
     async createPvp(rec) {
       const { data, error } = await admin
         .from('pvp_matches')
-        .insert({ code: rec.code, status: rec.status, host: rec.host, data: rec })
+        .insert({ code: rec.code, status: rec.status, host: rec.host, invitee: rec.invitee, data: rec })
         .select('id')
         .single();
       if (error?.code === '23505') return null; // codice già in uso

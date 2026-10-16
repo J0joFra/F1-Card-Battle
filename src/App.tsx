@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App as NativeApp } from '@capacitor/app';
-import { Gift, Layers, Play, Settings } from 'lucide-react';
+import { Gift, Layers, Play, Settings, UserPlus } from 'lucide-react';
 import type { Card } from './types';
 import {
   WINS_PER_PACK,
   buyCard,
   buyPack,
-  collectionSize,
+  DECK_SLOTS,
   loadProgress,
+  seriesDecks,
+  withDecks,
   openPack,
   resetProgress,
   saveProgress,
@@ -30,11 +32,11 @@ import {
   startDaily,
   todayKey,
 } from './game/daily';
-import { DECK_SIZE, buildCpuDeck, newMatch } from './game/engine';
+import { buildCpuDeck, newMatch } from './game/engine';
 import { applyMatchEnd, localDriver, type MatchDriver, type MatchRewards, type MatchView } from './game/match';
 import { CARD_BY_ID } from './game/cards';
 import { ApiError, callGame, errorMessage } from './lib/api';
-import type { GameRequest, GameResponse, PvpInfo } from './server/actions';
+import type { Friend, GameRequest, GameResponse, Invite, PvpInfo } from './server/actions';
 import { themeLabel } from './components/Daily';
 import { MatchScreen } from './screens/MatchScreen';
 import { DeckBuilderScreen } from './screens/DeckBuilderScreen';
@@ -60,10 +62,14 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('home');
   const [driver, setDriver] = useState<MatchDriver | null>(null); // partita in corso
   const [dailyMode, setDailyMode] = useState(false); // la partita in corso è la sfida del giorno
-  // sfida tra amici: mazzo per creare la sfida o per entrare con un codice
-  const [pvpMode, setPvpMode] = useState<{ kind: 'host' } | { kind: 'join'; code: string } | null>(null);
+  // sfida tra amici
+  const [deckEdit, setDeckEdit] = useState(false); // costruttore del mazzo aperto solo per preparare i 3 mazzi
   const [lobby, setLobby] = useState<PvpInfo | null>(null); // sfida creata, in attesa dell'amico
   const [opponent, setOpponent] = useState<string | null>(null); // nome dell'amico durante la partita
+  const [series, setSeries] = useState<PvpInfo | null>(null); // serie al meglio di 3 in corso
+  const [matchGame, setMatchGame] = useState(0); // partita della serie mostrata
+  const [matchKey, setMatchKey] = useState(0); // cambia a ogni nuova partita (ricrea la schermata)
+  const [friendAdded, setFriendAdded] = useState(false);
   // sfida e missioni di oggi (si rigenerano da sole quando cambia il giorno)
   const today = todayKey();
   const challenge = useMemo(() => dailyChallenge(today), [today]);
@@ -121,14 +127,14 @@ export default function App() {
   const rewardsRef = useRef<MatchRewards | null>(null);
   const [starting, setStarting] = useState(false);
 
-  async function startMatch(deck: Card[]) {
+  async function startMatch(deck: Card[], slot: number) {
     const ids = deck.map((c) => c.id);
     const daily = dailyMode;
     rewardsRef.current = null;
     if (account.online) {
       if (starting) return;
       setStarting(true);
-      const res = await server({ action: 'match_start', deck: ids, daily, date: today });
+      const res = await server({ action: 'match_start', deck: ids, daily, date: today, slot });
       setStarting(false);
       if (!res?.match || !res.view) return;
       const id = res.match;
@@ -163,23 +169,24 @@ export default function App() {
     setScreen('match');
   }
 
-  // Sfida tra amici: la partita la arbitra il server, l'avversario gioca dal suo telefono.
-  function pvpDriver(id: string, first: GameResponse): MatchDriver {
+  // Sfida tra amici (al meglio di 3): la partita la arbitra il server, l'avversario gioca dal suo telefono.
+  function pvpDriver(id: string, first: GameResponse, game: number): MatchDriver {
     let last = first.view!;
     let stopped = false;
     const adopt = (r: GameResponse): MatchView => {
       if (r.progress) setProgressRaw(r.progress);
       if (r.rewards) rewardsRef.current = r.rewards;
+      if (r.pvp) setSeries(r.pvp);
       last = { ...r.view!, opponentLeft: r.pvp?.opponentLeft };
       return last;
     };
-    const state = () => account.track(callGame({ action: 'pvp_state', match: id }));
+    const state = () => account.track(callGame({ action: 'pvp_state', match: id, game }));
     return {
       start: adopt(first),
       async play(stat) {
         if (stat) {
           try {
-            return adopt(await account.track(callGame({ action: 'pvp_play', match: id, stat })));
+            return adopt(await account.track(callGame({ action: 'pvp_play', match: id, game, stat })));
           } catch (e) {
             // il tempo era scaduto e il server ha già scelto per te: si riparte dallo stato vero
             if (e instanceof ApiError && ['not_your_turn', 'bad_stat', 'match_finished', 'busy'].includes(e.code)) return adopt(await state());
@@ -207,46 +214,116 @@ export default function App() {
     };
   }
 
-  function startPvp(res: GameResponse) {
-    if (!res.pvp || !res.view) return;
+  function startPvp(res: GameResponse | null, name?: string | null) {
+    if (!res?.pvp || !res.view) return;
     rewardsRef.current = null;
     setLobby(null);
-    setPvpMode(null);
-    setOpponent(res.pvp.opponent ?? t('fr_opponent'));
-    setDriver(pvpDriver(res.pvp.id, res));
+    setInvite(null);
+    setFriendAdded(false);
+    setOpponent(res.pvp.opponent ?? name ?? t('fr_opponent'));
+    setMatchGame(res.pvp.game);
+    setDriver(pvpDriver(res.pvp.id, res, res.pvp.game));
+    setMatchKey((k) => k + 1);
     setScreen('match');
   }
 
-  // "Gioca" nel costruttore del mazzo: partita contro la CPU, oppure sfida tra amici
-  async function startFromBuilder(deck: Card[]) {
-    if (!pvpMode) return startMatch(deck);
+  // crea la sfida con i 3 mazzi salvati: invito diretto a un amico, oppure codice da condividere
+  async function createPvp(friend?: Friend) {
     if (starting) return;
     setStarting(true);
-    const ids = deck.map((c) => c.id);
-    const res =
-      pvpMode.kind === 'host'
-        ? await server({ action: 'pvp_create', deck: ids, date: today })
-        : await server({ action: 'pvp_join', code: pvpMode.code, deck: ids, date: today });
+    const res = await server({ action: 'pvp_create', date: today, invite: friend?.id });
     setStarting(false);
-    if (!res?.pvp) return;
-    if (pvpMode.kind === 'host') {
-      setLobby(res.pvp);
-      setPvpMode(null);
-      setScreen('friend');
-    } else startPvp(res);
+    if (res?.pvp) setLobby({ ...res.pvp, opponent: friend?.name ?? null });
   }
 
-  function cancelLobby() {
-    if (lobby) void callGame({ action: 'pvp_quit', match: lobby.id }).catch(() => {});
+  async function joinPvp(code: string) {
+    if (starting) return;
+    setStarting(true);
+    startPvp(await server({ action: 'pvp_join', code, date: today }));
+    setStarting(false);
+  }
+
+  function cancelLobby(declined = false) {
+    if (declined) setToast(t('fr_declined', { name: lobby?.opponent ?? t('fr_opponent') }));
+    else if (lobby) void callGame({ action: 'pvp_quit', match: lobby.id }).catch(() => {});
     setLobby(null);
   }
 
-  // "Continua" a fine partita: i premi sono già stati assegnati all'ultimo round
-  function finishMatch() {
+  // inviti degli amici: il server li segnala a ogni "ping" (che serve anche per il pallino verde)
+  const [invite, setInvite] = useState<Invite | null>(null);
+  const dismissed = useRef(new Set<string>());
+  const busyRef = useRef(false);
+  busyRef.current = screen === 'match' || !!lobby;
+  useEffect(() => {
+    if (!account.online) return;
+    const ping = () => {
+      if (document.visibilityState !== 'visible') return;
+      callGame({ action: 'ping' })
+        .then((r) => {
+          const next = (r.invites ?? []).find((i) => !dismissed.current.has(i.id));
+          if (next && !busyRef.current) {
+            setInvite((cur) => {
+              if (!cur) {
+                sfx('select');
+                haptic('medium');
+              }
+              return next;
+            });
+          }
+        })
+        .catch(() => {});
+    };
+    ping();
+    const id = setInterval(ping, 20_000);
+    document.addEventListener('visibilitychange', ping);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', ping);
+    };
+  }, [account.online]);
+
+  async function acceptInvite() {
+    if (!invite) return;
+    dismissed.current.add(invite.id);
+    const res = await server({ action: 'pvp_accept', match: invite.id, date: today });
+    if (res) startPvp(res, invite.from);
+    else setInvite(null);
+  }
+
+  function declineInvite() {
+    if (!invite) return;
+    dismissed.current.add(invite.id);
+    void callGame({ action: 'pvp_decline', match: invite.id }).catch(() => {});
+    setInvite(null);
+  }
+
+  async function addFriend() {
+    if (!series) return;
+    if (await server({ action: 'friend_add', match: series.id })) {
+      setFriendAdded(true);
+      setToast(t('fr_added', { name: opponent ?? t('fr_opponent') }));
+    }
+  }
+
+  // i 3 mazzi salvati (stile Clash Royale)
+  function saveDecks(decks: string[][], active: number) {
+    setProgress((p) => withDecks(p, decks, active));
+    if (account.online) void server({ action: 'set_decks', decks, active });
+  }
+
+  // "Continua" a fine partita: i premi sono già stati assegnati all'ultimo round.
+  // Nella sfida tra amici, se la serie non è finita si passa alla partita successiva.
+  async function finishMatch() {
+    if (series && series.status === 'playing' && driver) {
+      const res = await server({ action: 'pvp_state', match: series.id, game: series.game });
+      if (res) startPvp(res, opponent);
+      return;
+    }
     const r = rewardsRef.current;
     setDriver(null);
     setDailyMode(false);
     setOpponent(null);
+    setSeries(null);
     if (r?.credits) setToast(t('toast_friendCredits', { n: r.credits }));
     else if (r?.dailyWon) setToast(t('toast_dailyWon', { c: DAILY_REWARD_CREDITS }));
     else if (r?.missionsCompleted) setToast(t('mis_completed'));
@@ -259,6 +336,7 @@ export default function App() {
     setDriver(null);
     setDailyMode(false);
     setOpponent(null);
+    setSeries(null);
     setScreen('home');
   }
 
@@ -348,6 +426,37 @@ export default function App() {
     setScreen(s);
   };
 
+  // serie al meglio di 3: punteggio, pallini delle partite e "aggiungi agli amici" a fine serie
+  const seriesWins = {
+    me: series?.results.filter((r) => r === 'player').length ?? 0,
+    opp: series?.results.filter((r) => r === 'cpu').length ?? 0,
+  };
+  const seriesExtra = series ? (
+    <div className="series">
+      <div className="series-dots">
+        {[0, 1, 2].map((i) => (
+          <span key={i} className={series.results[i] ? `rd-${series.results[i]}` : ''} />
+        ))}
+      </div>
+      <b>
+        {series.status === 'finished'
+          ? series.opponentLeft
+            ? t('sr_wonLeft')
+            : series.seriesOutcome === 'player'
+            ? t('sr_won', { a: seriesWins.me, b: seriesWins.opp })
+            : series.seriesOutcome === 'cpu'
+              ? t('sr_lost', { name: opponent ?? '', a: seriesWins.me, b: seriesWins.opp })
+              : t('sr_draw', { a: seriesWins.me, b: seriesWins.opp })
+          : t('sr_score', { a: seriesWins.me, b: seriesWins.opp })}
+      </b>
+      {series.status === 'finished' && !series.opponentIsFriend && !friendAdded && (
+        <button className="btn ghost friend-btn" onClick={addFriend}>
+          <UserPlus size={16} /> {t('fr_add', { name: opponent ?? t('fr_opponent') })}
+        </button>
+      )}
+    </div>
+  ) : undefined;
+
   const inMatch = screen === 'match';
   // musica: brano "partita" durante la partita, i due jazz alternati nel resto del gioco
   useEffect(() => setMusicMode(inMatch ? 'match' : 'menu'), [inMatch]);
@@ -390,12 +499,12 @@ export default function App() {
             missions={missions}
             onPlay={() => {
               setDailyMode(false);
-              setPvpMode(null);
+              setDeckEdit(false);
               go('builder');
             }}
             onDaily={() => {
               setDailyMode(true);
-              setPvpMode(null);
+              setDeckEdit(false);
               go('builder');
             }}
             onFriend={() => go('friend')}
@@ -406,13 +515,16 @@ export default function App() {
         {screen === 'builder' && (
           <DeckBuilderScreen
             progress={progress}
-            onStart={startFromBuilder}
-            onBack={() => setScreen(pvpMode ? 'friend' : 'home')}
+            onStart={startMatch}
+            onSave={saveDecks}
+            editOnly={deckEdit}
+            onBack={() => {
+              setScreen(deckEdit ? 'friend' : 'home');
+              setDeckEdit(false);
+            }}
             banner={
-              pvpMode
-                ? pvpMode.kind === 'host'
-                  ? t('fr_builderHost')
-                  : t('fr_builderJoin', { code: pvpMode.code })
+              deckEdit
+                ? t('fr_builderDecks')
                 : dailyMode
                   ? `${t('daily_vs', { theme: themeLabel(challenge.theme, t) })} — ${t('daily_cpuDeck')}`
                   : undefined
@@ -421,12 +533,19 @@ export default function App() {
         )}
         {screen === 'match' && driver && (
           <MatchScreen
+            key={matchKey}
             driver={driver}
             title={
-              opponent ? t('fr_vs', { name: opponent }) : dailyMode ? t('daily_vs', { theme: themeLabel(challenge.theme, t) }) : undefined
+              opponent
+                ? t('sr_title', { name: opponent, n: matchGame + 1, a: seriesWins.me, b: seriesWins.opp })
+                : dailyMode
+                  ? t('daily_vs', { theme: themeLabel(challenge.theme, t) })
+                  : undefined
             }
             opponent={opponent ?? undefined}
             autoNextMs={opponent ? 8000 : undefined}
+            endExtra={seriesExtra}
+            endButton={series && series.status === 'playing' ? t('sr_next', { n: series.game + 1 }) : undefined}
             onFinish={finishMatch}
             onQuit={quitMatch}
           />
@@ -435,19 +554,16 @@ export default function App() {
         {screen === 'friend' && (
           <FriendScreen
             account={account}
-            canPlay={collectionSize(progress) >= DECK_SIZE}
+            progress={progress}
             lobby={lobby}
-            onCreate={() => {
+            onCreate={createPvp}
+            onJoin={joinPvp}
+            onEditDecks={() => {
               setDailyMode(false);
-              setPvpMode({ kind: 'host' });
+              setDeckEdit(true);
               go('builder');
             }}
-            onJoin={(code) => {
-              setDailyMode(false);
-              setPvpMode({ kind: 'join', code });
-              go('builder');
-            }}
-            onStart={startPvp}
+            onStart={(res) => startPvp(res, lobby?.opponent)}
             onCancel={cancelLobby}
           />
         )}
@@ -497,6 +613,23 @@ export default function App() {
         />
       )}
       {intro && <Onboarding onClose={() => setIntro(false)} />}
+      {invite && screen !== 'match' && (
+        <div className="invite-backdrop" role="dialog" aria-modal="true">
+          <section className="panel invite-card pop">
+            <h3>🏁 {t('fr_invited', { name: invite.from ?? t('fr_opponent') })}</h3>
+            <p className="muted">{t('fr_invitedDesc')}</p>
+            {!seriesDecks(progress) && <p className="problems">{t('fr_decksNeeded', { n: DECK_SLOTS })}</p>}
+            <div className="actions">
+              <button className="btn ghost" onClick={declineInvite}>
+                {t('fr_decline')}
+              </button>
+              <button className="btn primary" onClick={acceptInvite} disabled={!seriesDecks(progress) || starting}>
+                {t('fr_accept')}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       {toast && <div className="toast">{toast}</div>}
     </div>
   );

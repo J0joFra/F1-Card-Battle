@@ -111,12 +111,12 @@ describe('motore di gioco', () => {
     expect(availableStats(after)).toHaveLength(ROUNDS - 2);
   });
 
-  it('sceglie chi vince il round; in caso di pareggio sceglie ancora lo stesso', () => {
+  it('sceglie chi vince il round; in caso di pareggio il turno passa all\'altro', () => {
     const won = playRound({ ...newMatch([hamMerc], [hamFerr], seeded()), chooser: 'cpu' }, 'top10');
     expect(won.history[0].chooser).toBe('cpu');
     expect(won.chooser).toBe('player');
     const tie = playRound({ ...newMatch([hamMerc], [{ ...hamMerc, id: 'copia' }], seeded()), chooser: 'cpu' }, 'gare');
-    expect(tie.chooser).toBe('cpu');
+    expect(tie.chooser).toBe('player');
   });
 
   it('contro la CPU il primo round lo sceglie il giocatore', () => {

@@ -39,6 +39,8 @@ const MESSAGES: Record<string, TKey> = {
   no_packs: 'err_no_packs',
   bad_code: 'err_bad_code',
   own_match: 'err_own_match',
+  decks_not_ready: 'err_decks_not_ready',
+  not_friend: 'err_not_friend',
 };
 
 export const errorMessage = (e: unknown) =>
