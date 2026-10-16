@@ -1,4 +1,4 @@
-import { Gift, Play, Users } from 'lucide-react';
+import { Gift, Users } from 'lucide-react';
 import { useMemo } from 'react';
 import { useI18n } from '../lib/i18n';
 import { TOTAL_CARDS, WINS_PER_PACK, collectionSize, ownedCards, type Progress } from '../game/collection';
@@ -44,7 +44,7 @@ export function HomeScreen({ progress, account, challenge, missions, onPlay, onD
         <div className="garage-help">
           <HelpButton items={['tut_home_1', 'tut_home_2', 'tut_home_3', 'tut_home_4', 'tut_home_5']} params={{ n: DECK_SIZE, w: WINS_PER_PACK }} />
         </div>
-        <div className="fan">
+        <div className="fan" onClick={canPlay ? onPlay : undefined} role="button" aria-label={t('home_play')}>
           {showcase.map((c, i) => (
             <div key={c.id} className={`fan-card fan-${i}`}>
               <CardView card={c} size="sm" />
@@ -52,10 +52,6 @@ export function HomeScreen({ progress, account, challenge, missions, onPlay, onD
           ))}
         </div>
         <h1>{t('home_title')}</h1>
-        <button className="play-btn" onClick={onPlay} disabled={!canPlay}>
-          <Play size={28} fill="currentColor" />
-          {t('home_play')}
-        </button>
         <button className="btn ghost block friend-btn" onClick={onFriend}>
           <Users size={18} /> {t('home_friend')}
         </button>

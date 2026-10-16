@@ -45,6 +45,7 @@ import { FriendScreen } from './screens/FriendScreen';
 import { SettingsSheet } from './components/SettingsSheet';
 import { Onboarding, onboardingDone } from './components/Onboarding';
 import { ConfirmHost, askConfirm } from './components/ConfirmDialog';
+import { OpeningIntro } from './components/OpeningIntro';
 import { buyAndOpen, buyFromStore, storeFor, storePrice } from './game/shop';
 
 type Screen = 'home' | 'builder' | 'match' | 'collection' | 'packs' | 'friend';
@@ -82,6 +83,7 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [settings, setSettings] = useState(false);
   const [intro, setIntro] = useState(() => !onboardingDone());
+  const [opening, setOpening] = useState(true); // animazione di apertura, a ogni avvio
   const account = useAccount(progress, setProgressRaw, setToast);
 
   useEffect(() => saveProgress(progress), [progress]);
@@ -497,7 +499,7 @@ export default function App() {
       {!inMatch && (
         <header className="hud">
           <button className="brand" onClick={() => setScreen('home')}>
-            <span className="brand-mark">F1</span>
+            <img className="brand-logo" src="./logo-card.png" alt="F1 Cards" />
             <span className="brand-name">Card Battle</span>
           </button>
           <div className="hud-chips">
@@ -615,7 +617,15 @@ export default function App() {
             <Layers size={22} />
             <span>{t('nav_collection')}</span>
           </button>
-          <button className={`tab-play ${tab === 'home' || screen === 'builder' ? 'on' : ''}`} onClick={() => go('home')}>
+          <button
+            className={`tab-play ${screen === 'builder' ? 'on' : ''}`}
+            onClick={() => {
+              // il pulsante centrale avvia una partita contro la CPU
+              setDailyMode(false);
+              setDeckEdit(false);
+              go('builder');
+            }}
+          >
             <span className="tab-play-icon">
               <Play size={26} fill="currentColor" />
             </span>
@@ -663,6 +673,7 @@ export default function App() {
         </div>
       )}
       <ConfirmHost />
+      {opening && <OpeningIntro onDone={() => setOpening(false)} />}
       {toast && <div className="toast">{toast}</div>}
     </div>
   );

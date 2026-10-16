@@ -350,7 +350,7 @@ const it = {
   shop_confirm: 'Comprare {name}?',
   shop_inShopToday: 'Nel negozio oggi',
   tut_shop_1: 'Premium: niente Bronzo, l\'ultima card è almeno Oro. Scuderia: solo card della scuderia del giorno, per completare i piloti. Si aprono subito.',
-  tut_shop_2: 'Ogni giorno nel negozio ci sono 5 card nuove, soprattutto quelle che ti mancano per completare un pilota (🎯). Cambiano a mezzanotte.',
+  tut_shop_2: 'Ogni giorno nel negozio ci sono 6 card nuove, soprattutto quelle che ti mancano per completare un pilota (🎯). Cambiano a mezzanotte.',
 };
 
 export type TKey = keyof typeof it;
@@ -548,7 +548,7 @@ const en: Dict = {
   shop_confirm: 'Buy {name}?',
   shop_inShopToday: 'In the shop today',
   tut_shop_1: 'Premium: no Bronze, the last card is at least Gold. Team: only cards of the team of the day, to complete drivers. They open right away.',
-  tut_shop_2: 'Every day the shop has 5 new cards, mostly the ones you need to complete a driver (🎯). They change at midnight.',
+  tut_shop_2: 'Every day the shop has 6 new cards, mostly the ones you need to complete a driver (🎯). They change at midnight.',
 };
 
 const fr: Dict = {
@@ -743,7 +743,7 @@ const fr: Dict = {
   shop_confirm: 'Acheter {name} ?',
   shop_inShopToday: 'En boutique aujourd’hui',
   tut_shop_1: 'Premium : pas de Bronze, la dernière carte est au moins Or. Écurie : seulement des cartes de l’écurie du jour, pour compléter les pilotes. Ils s’ouvrent tout de suite.',
-  tut_shop_2: 'Chaque jour, la boutique propose 5 nouvelles cartes, surtout celles qui te manquent pour compléter un pilote (🎯). Elles changent à minuit.',
+  tut_shop_2: 'Chaque jour, la boutique propose 6 nouvelles cartes, surtout celles qui te manquent pour compléter un pilote (🎯). Elles changent à minuit.',
 };
 
 const es: Dict = {
@@ -938,7 +938,7 @@ const es: Dict = {
   shop_confirm: '¿Comprar {name}?',
   shop_inShopToday: 'En la tienda hoy',
   tut_shop_1: 'Premium: sin Bronce, la última carta es al menos Oro. Escudería: solo cartas de la escudería del día, para completar pilotos. Se abren al momento.',
-  tut_shop_2: 'Cada día la tienda tiene 5 cartas nuevas, sobre todo las que te faltan para completar un piloto (🎯). Cambian a medianoche.',
+  tut_shop_2: 'Cada día la tienda tiene 6 cartas nuevas, sobre todo las que te faltan para completar un piloto (🎯). Cambian a medianoche.',
 };
 
 const de: Dict = {
@@ -1133,7 +1133,7 @@ const de: Dict = {
   shop_confirm: '{name} kaufen?',
   shop_inShopToday: 'Heute im Shop',
   tut_shop_1: 'Premium: kein Bronze, die letzte Karte ist mindestens Gold. Team: nur Karten des Teams des Tages, um Fahrer zu vervollständigen. Sie werden sofort geöffnet.',
-  tut_shop_2: 'Jeden Tag hat der Shop 5 neue Karten, vor allem die, die dir zum Vervollständigen eines Fahrers fehlen (🎯). Sie wechseln um Mitternacht.',
+  tut_shop_2: 'Jeden Tag hat der Shop 6 neue Karten, vor allem die, die dir zum Vervollständigen eines Fahrers fehlen (🎯). Sie wechseln um Mitternacht.',
 };
 
 const DICT: Record<Lang, Dict> = { it, en, fr, es, de };

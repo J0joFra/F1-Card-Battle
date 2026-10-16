@@ -92,7 +92,7 @@ export function buyAndOpen(p: Progress, kind: Exclude<PackKind, 'classic'>, date
 
 // ---- Card del giorno ----
 
-export const STORE_SIZE = 5;
+export const STORE_SIZE = 6;
 
 export interface StoreState {
   date: string;
@@ -100,7 +100,7 @@ export interface StoreState {
   bought: string[];
 }
 
-// Le 5 card del giorno: soprattutto card scuderia che ti mancano dei piloti che stai completando,
+// Le 6 card del giorno: soprattutto card scuderia che ti mancano dei piloti che stai completando,
 // poi altre card che non hai. Si scelgono una volta al giorno e restano fisse fino a mezzanotte.
 export function generateStore(owned: Record<string, number>, date: string, salt = ''): StoreState {
   const rng = seededRng(`store:${date}:${salt}`);

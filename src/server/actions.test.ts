@@ -188,11 +188,11 @@ describe('server: collezione', () => {
     expect(team.pack!.added.every((a) => CARD_BY_ID.get(a.card)!.team.id === teamId)).toBe(true);
   });
 
-  it('negozio: 5 card del giorno, fisse per tutto il giorno, comprabili una volta', async () => {
+  it('negozio: 6 card del giorno, fisse per tutto il giorno, comprabili una volta', async () => {
     const db = memoryStore({ ...starterProgress(seededRng('a')), credits: 500 });
     const first = await call(db.store, { action: 'store', date: '2026-10-16' });
     const cards = first.progress!.store!.cards;
-    expect(cards).toHaveLength(5);
+    expect(cards).toHaveLength(6);
     expect(cards.every((id) => !first.progress!.owned[id] && CARD_BY_ID.get(id)!.kind === 'team')).toBe(true);
     // la stessa giornata: stesse card
     expect((await call(db.store, { action: 'store', date: '2026-10-16' })).progress!.store!.cards).toEqual(cards);
