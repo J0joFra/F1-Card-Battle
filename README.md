@@ -30,6 +30,12 @@ Sono scelte perché quasi nessun pilota abbia 0: un mix di totali, che premiano 
 
 Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per la rarità.
 
+## Negozio
+
+- **Pacchetti**: *Classico* (5 card, 🪙 40, va tra i pacchetti da aprire, come quello vinto ogni 10 vittorie), *Premium* (5 card, 🪙 150: niente Bronzo, l'ultima almeno Oro) e *Scuderia* (4 card, 🪙 80: solo card della scuderia del giorno, che cambia ogni giorno ed è uguale per tutti). Premium e Scuderia si aprono subito.
+- **Carte del giorno**: 5 card da comprare con i crediti (Bronzo 15, Argento 40, Oro 120), scelte una volta al giorno e fisse fino a mezzanotte. Soprattutto card scuderia che ti mancano per completare un pilota (🎯 *Ti serve*), poi altre card che non hai (al massimo un Oro). Ogni card si compra una volta. Dalla Collezione non si comprano più card a scelta: solo nel negozio.
+- Toccando una card (nel negozio o nel costruttore del mazzo) si gira e si ingrandisce, con il diagramma a ragnatela.
+
 ## Sfida un amico
 
 - Serve l'accesso con Google: la partita la arbitra il server, così nessuno può barare né vedere le card dell'altro.

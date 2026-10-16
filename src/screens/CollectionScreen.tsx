@@ -4,17 +4,18 @@ import { Search, X } from 'lucide-react';
 import { ALL_CARDS, RARITIES, careerCardOf, rarityLabel, teamCardsOfDriver } from '../game/cards';
 import { useI18n } from '../lib/i18n';
 import { HelpButton } from '../components/TutorialSection';
-import { CARD_PRICE, TOTAL_CARDS, collectionSize, type Progress } from '../game/collection';
+import { TOTAL_CARDS, collectionSize, type Progress } from '../game/collection';
 import { CardView } from '../components/CardView';
 
 interface Props {
   progress: Progress;
-  onBuy: (card: Card) => void;
+  today: string;
+  onShop: () => void; // la card è tra quelle del giorno nel negozio
 }
 
 type OwnedFilter = 'tutte' | 'mie' | 'mancanti';
 
-export function CollectionScreen({ progress, onBuy }: Props) {
+export function CollectionScreen({ progress, today, onShop }: Props) {
   const { t } = useI18n();
   const [query, setQuery] = useState('');
   const [rarity, setRarity] = useState<Rarity | 'tutte'>('tutte');
@@ -87,8 +88,9 @@ export function CollectionScreen({ progress, onBuy }: Props) {
         <CardModal
           card={selected}
           progress={progress}
+          inShop={progress.store?.date === today && progress.store.cards.includes(selected.id)}
           onClose={() => setSelected(null)}
-          onBuy={() => onBuy(selected)}
+          onShop={onShop}
         />
       )}
 
@@ -99,17 +101,18 @@ export function CollectionScreen({ progress, onBuy }: Props) {
 function CardModal({
   card,
   progress,
+  inShop,
   onClose,
-  onBuy,
+  onShop,
 }: {
   card: Card;
   progress: Progress;
+  inShop: boolean;
   onClose: () => void;
-  onBuy: () => void;
+  onShop: () => void;
 }) {
   const { t } = useI18n();
   const owned = !!progress.owned[card.id];
-  const price = CARD_PRICE[card.rarity];
   const teamCards = teamCardsOfDriver(card.driver.id);
   const career = careerCardOf(card.driver.id);
   const ownedTeams = teamCards.filter((c) => progress.owned[c.id]).length;
@@ -128,9 +131,9 @@ function CardModal({
               {progress.owned[career.id] ? t('col_careerUnlocked') : t('col_careerHint')}
             </p>
           )}
-          {!owned && (
-            <button className="btn primary block" onClick={onBuy} disabled={progress.credits < price}>
-              🪙 {t('col_buy', { n: price })}
+          {!owned && inShop && (
+            <button className="btn primary block" onClick={onShop}>
+              🛒 {t('shop_inShopToday')}
             </button>
           )}
         </div>

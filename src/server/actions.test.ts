@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_CARDS, STATS } from '../game/cards';
+import { ALL_CARDS, CARD_BY_ID, STATS } from '../game/cards';
+import { PACK_TYPES, storePrice, teamOfDay } from '../game/shop';
 import { starterProgress, withDecks, type Progress } from '../game/collection';
 import { autoFillDeck } from '../game/collection';
 import { seededRng } from '../game/daily';
@@ -171,9 +172,43 @@ describe('server: collezione', () => {
   it('acquisti: servono i crediti, e le card devono esistere', async () => {
     const db = memoryStore({ ...starterProgress(seededRng('a')), credits: 10 });
     await expect(call(db.store, { action: 'buy_pack' })).rejects.toThrow('not_enough_credits');
-    const target = ALL_CARDS.find((c) => c.rarity === 'bronzo' && !db.profile!.progress.owned[c.id])!;
-    await expect(call(db.store, { action: 'buy_card', card: target.id })).rejects.toThrow('cannot_buy');
-    await expect(call(db.store, { action: 'buy_card', card: 'card-inventata' })).rejects.toThrow('unknown_card');
+    await expect(call(db.store, { action: 'buy_pack', kind: 'premium', date: '2026-10-16' })).rejects.toThrow('not_enough_credits');
+    await expect(call(db.store, { action: 'buy_store', card: 'card-inventata', date: '2026-10-16' })).rejects.toThrow('unknown_card');
+  });
+
+  it('pacchetti Premium (niente Bronzo) e Scuderia (solo la scuderia del giorno): si aprono subito', async () => {
+    const db = memoryStore({ ...starterProgress(seededRng('a')), credits: 1000 });
+    const prem = await call(db.store, { action: 'buy_pack', kind: 'premium', date: '2026-10-16' });
+    expect(prem.pack!.added).toHaveLength(PACK_TYPES.premium.size);
+    expect(prem.pack!.added.every((a) => CARD_BY_ID.get(a.card)!.rarity !== 'bronzo')).toBe(true);
+    expect(prem.progress!.credits).toBe(1000 - PACK_TYPES.premium.price + prem.pack!.added.reduce((n, a) => n + a.credits, 0));
+    const team = await call(db.store, { action: 'buy_pack', kind: 'team', date: '2026-10-16' });
+    const teamId = teamOfDay('2026-10-16').id;
+    expect(team.pack!.added).toHaveLength(PACK_TYPES.team.size);
+    expect(team.pack!.added.every((a) => CARD_BY_ID.get(a.card)!.team.id === teamId)).toBe(true);
+  });
+
+  it('negozio: 5 card del giorno, fisse per tutto il giorno, comprabili una volta', async () => {
+    const db = memoryStore({ ...starterProgress(seededRng('a')), credits: 500 });
+    const first = await call(db.store, { action: 'store', date: '2026-10-16' });
+    const cards = first.progress!.store!.cards;
+    expect(cards).toHaveLength(5);
+    expect(cards.every((id) => !first.progress!.owned[id] && CARD_BY_ID.get(id)!.kind === 'team')).toBe(true);
+    // la stessa giornata: stesse card
+    expect((await call(db.store, { action: 'store', date: '2026-10-16' })).progress!.store!.cards).toEqual(cards);
+    const card = CARD_BY_ID.get(cards[0])!;
+    const res = await call(db.store, { action: 'buy_store', card: card.id, date: '2026-10-16' });
+    expect(res.progress!.owned[card.id]).toBe(1);
+    expect(res.progress!.credits).toBe(500 - storePrice(card));
+    await expect(call(db.store, { action: 'buy_store', card: card.id, date: '2026-10-16' })).rejects.toThrow('cannot_buy');
+    // una card che non è nel negozio di oggi non si compra
+    const notInStore = ALL_CARDS.find((c) => c.kind === 'team' && !cards.includes(c.id) && !res.progress!.owned[c.id])!;
+    await expect(call(db.store, { action: 'buy_store', card: notInStore.id, date: '2026-10-16' })).rejects.toThrow('cannot_buy');
+    // il giorno dopo il negozio cambia
+    const next = await call(db.store, { action: 'store', date: '2026-10-17' });
+    expect(next.progress!.store!.date).toBe('2026-10-17');
+    expect(next.progress!.store!.bought).toEqual([]);
+    await expect(call(db.store, { action: 'store', date: '2026-10-20' })).rejects.toThrow('bad_date');
   });
 
   it('missione: il premio si ritira solo se completata, una volta', async () => {

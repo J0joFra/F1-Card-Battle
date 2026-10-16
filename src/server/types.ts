@@ -2,6 +2,7 @@ import type { StatKey } from '../types';
 import type { Progress } from '../game/collection';
 import type { MatchOutcome, Side } from '../game/engine';
 import type { MatchRewards, MatchView, StoredMatch } from '../game/match';
+import type { PackKind } from '../game/shop';
 
 // Tipi condivisi tra la logica del server, il database (Store) e il telefono.
 
@@ -10,8 +11,9 @@ export type GameRequest =
   | { action: 'set_deck'; deck: string[] }
   | { action: 'set_decks'; decks: string[][]; active: number }
   | { action: 'open_pack'; date?: string }
-  | { action: 'buy_pack' }
-  | { action: 'buy_card'; card: string }
+  | { action: 'buy_pack'; kind?: PackKind; date?: string }
+  | { action: 'store'; date: string }
+  | { action: 'buy_store'; card: string; date: string }
   | { action: 'use_jolly'; card: string }
   | { action: 'claim_mission'; index: number; date: string }
   | { action: 'match_start'; deck: string[]; daily: boolean; date: string; slot?: number }
