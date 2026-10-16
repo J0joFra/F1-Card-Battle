@@ -6,6 +6,7 @@ import { useI18n } from '../lib/i18n';
 import { HelpButton } from '../components/TutorialSection';
 import { CardView } from '../components/CardView';
 import { FlipCard } from '../components/FlipCard';
+import { useProgressive } from '../hooks/useProgressive';
 import { DECK_SLOTS, activeSlot, autoFillDeck, ownedCards, savedDeck, type Progress } from '../game/collection';
 import { DECK_SIZE } from '../game/engine';
 import { MAX_PER_RARITY, canAdd, deckProblems } from '../game/deckRules';
@@ -61,6 +62,7 @@ export function DeckBuilderScreen({ progress, onStart, onSave, onBack, banner, e
     const def = STATS.find((s) => s.key === sort)!;
     return cards.sort((a, b) => (def.lowerWins ? a.stats[sort] - b.stats[sort] : b.stats[sort] - a.stats[sort]) || byName(a, b));
   }, [progress, sort]);
+  const { limit, sentinel } = useProgressive(rows.length, 40, sort);
 
   const toggle = (c: Card) =>
     setDeck((d) => (d.some((x) => x.id === c.id) ? d.filter((x) => x.id !== c.id) : canAdd(d, c) ? [...d, c] : d));
@@ -198,7 +200,7 @@ export function DeckBuilderScreen({ progress, onStart, onSave, onBack, banner, e
         </label>
       </div>
       <div className="pick-grid">
-        {rows.map((c) => {
+        {rows.slice(0, limit).map((c) => {
           const selected = deck.some((x) => x.id === c.id);
           const blocked = !selected && !canAdd(deck, c);
           return (
@@ -221,6 +223,7 @@ export function DeckBuilderScreen({ progress, onStart, onSave, onBack, banner, e
             </div>
           );
         })}
+        {limit < rows.length && <div ref={sentinel} className="grid-sentinel" />}
       </div>
 
     </div>

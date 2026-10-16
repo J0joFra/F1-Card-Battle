@@ -6,6 +6,7 @@ import { useI18n } from '../lib/i18n';
 import { HelpButton } from '../components/TutorialSection';
 import { TOTAL_CARDS, collectionSize, type Progress } from '../game/collection';
 import { CardView } from '../components/CardView';
+import { useProgressive } from '../hooks/useProgressive';
 
 interface Props {
   progress: Progress;
@@ -33,6 +34,7 @@ export function CollectionScreen({ progress, today, onShop }: Props) {
       return true;
     });
   }, [query, rarity, ownedFilter, progress.owned]);
+  const { limit, sentinel } = useProgressive(cards.length, 40, `${query}|${rarity}|${ownedFilter}`);
 
 
   return (
@@ -70,7 +72,7 @@ export function CollectionScreen({ progress, today, onShop }: Props) {
         <p className="muted empty">{t('col_empty')}</p>
       ) : (
         <div className="grid">
-          {cards.map((c) => (
+          {cards.slice(0, limit).map((c) => (
             <div key={c.id} className="grid-item">
               <CardView
                 card={c}
@@ -81,6 +83,7 @@ export function CollectionScreen({ progress, today, onShop }: Props) {
               />
             </div>
           ))}
+          {limit < cards.length && <div ref={sentinel} className="grid-sentinel" />}
         </div>
       )}
 
