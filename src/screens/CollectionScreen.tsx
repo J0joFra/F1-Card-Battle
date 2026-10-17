@@ -59,7 +59,7 @@ export function CollectionScreen({ progress, today, onShop }: Props) {
             </button>
           ))}
           <span className="sep" />
-          {(['tutte', ...RARITIES, 'pioniere'] as const).map((r) => (
+          {(['tutte', ...RARITIES, 'classica', 'pioniere'] as const).map((r) => (
             <button key={r} className={`chip ${rarity === r ? 'on' : ''}`} onClick={() => setRarity(r)}>
               {r === 'tutte' ? t('f_anyRarity') : rarityLabel(r)}
             </button>
@@ -96,10 +96,12 @@ function CardInfo({ card, progress, inShop, onShop }: { card: Card; progress: Pr
   const teamCards = teamCardsOfDriver(card.driver.id);
   const ownedTeams = teamCards.filter((c) => progress.owned[c.id]).length;
   const progressLine = career && card.kind === 'team';
-  if (card.kind === 'pioneer')
+  if (card.kind === 'pioneer' || card.kind === 'classic')
     return (
       <div className="card-info">
-        <small>🏛 {t('card_collectOnly')}</small>
+        <small>
+          {card.kind === 'pioneer' ? '🏛' : '🎞️'} {t('card_collectOnly')}
+        </small>
       </div>
     );
   if (!progressLine && !(inShop && !owned)) return null;

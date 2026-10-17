@@ -40,6 +40,7 @@
   --oro: #e8b931;
   --platino: #7fe3e0;
   --pioniere: #c9a77c;
+  --classica: #9fc4b0;
   --leggendaria: #b46bff;
   --tabbar-h: 70px;
   --safe-top: env(safe-area-inset-top, 0px);
@@ -159,6 +160,7 @@ p { line-height: 1.45; }
 .dot.rarity-oro { background: var(--oro); }
 .dot.rarity-platino { background: var(--platino); }
 .dot.rarity-pioniere { background: var(--pioniere); }
+.dot.rarity-classica { background: var(--classica); }
 .dot.rarity-leggendaria { background: var(--leggendaria); }
 
 /* ============ Home ============ */
@@ -578,6 +580,10 @@ p { line-height: 1.45; }
 .card.rarity-pioniere { --rar: var(--pioniere); }
 .card.rarity-pioniere .card-art { filter: sepia(0.75) saturate(0.8); }
 .burst-pioniere { --burst: var(--pioniere); }
+/* Classiche (1961-1972): colori sbiaditi da pellicola */
+.card.rarity-classica { --rar: var(--classica); }
+.card.rarity-classica .card-art { filter: saturate(0.45) contrast(1.1); }
+.burst-classica { --burst: var(--classica); }
 .daily p { margin: 0; font-size: 14px; }
 .daily-result { font-weight: 700; text-align: center; }
 .daily-result.won { color: var(--win); }

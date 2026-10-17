@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { Card, StatKey } from '../types';
-import { STATS, flagEmoji, formatStat, rarityLabel, statHint, statLabel } from '../game/cards';
+import { STATS, flagEmoji, isCollectOnly, formatStat, rarityLabel, statHint, statLabel } from '../game/cards';
 import { teamColor } from '../game/teamColors';
 import { useI18n, type TFn } from '../lib/i18n';
 import { DriverArt } from './DriverArt';
@@ -46,9 +46,9 @@ export function CardView({ card, size = 'md', onPickStat, lockedStats, highlight
         </span>
         <span className="card-rarity">{rarityLabel(card.rarity)}</span>
         <span className="card-abbr">{card.driver.abbreviation}</span>
-        {card.kind === 'pioneer' ? (
+        {isCollectOnly(card) ? (
           <span className="card-ovr" title={t('card_collectOnly')}>
-            🏛
+            {card.kind === 'pioneer' ? '🏛' : '🎞️'}
           </span>
         ) : (
           <span className="card-ovr" title={t('ovr_hint')}>

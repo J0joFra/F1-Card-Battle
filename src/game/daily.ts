@@ -1,5 +1,5 @@
 import type { Card, Rarity, StatKey } from '../types';
-import { ALL_CARDS, CARD_BY_ID, CARDS_DATA, STATS, decadeOf } from './cards';
+import { ALL_CARDS, CARD_BY_ID, CARDS_DATA, STATS, decadeOf, isCollectOnly } from './cards';
 import { DECK_SIZE, shuffle, type MatchState, type Rng } from './engine';
 import { fitsMode, type MatchMode } from './deckRules';
 
@@ -148,7 +148,7 @@ export function generateMissions(owned: Record<string, number>, date = todayKey(
   const rng = seededRng(`missions:${date}`);
   const mine = Object.keys(owned)
     .map((id) => CARD_BY_ID.get(id))
-    .filter((c): c is Card => !!c && c.kind !== 'pioneer');
+    .filter((c): c is Card => !!c && !isCollectOnly(c));
   const teams = [...new Set(mine.filter((c) => c.kind === 'team').map((c) => c.team.id))].sort();
   const decades = [...new Set(mine.map(decadeOf))].sort();
 

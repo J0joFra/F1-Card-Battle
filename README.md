@@ -66,13 +66,17 @@ Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per 
 ## Collezione
 
 - Si parte con 15 card e un pacchetto di benvenuto.
-- **Ogni 10 vittorie** (contro la CPU o contro un amico) si riceve un pacchetto da 5 card (61% Bronzo, 4% Pioniere, 22% Argento, 9% Oro, 3% Platino, 1% Leggendaria; l'ultima card è sempre almeno Argento).
+- **Ogni 10 vittorie** (contro la CPU o contro un amico) si riceve un pacchetto da 5 card (59% Bronzo, 3% Pioniere, 3% Classica, 22% Argento, 9% Oro, 3% Platino, 1% Leggendaria; l'ultima card è sempre almeno Argento).
 - I doppioni diventano **crediti**, che servono a comprare una card a scelta o un pacchetto.
 - Nel 20% dei pacchetti c'è anche un **Jolly** 🃏: una card scuderia a scelta di un pilota che stai completando (ne devi già avere almeno una).
 - Un pilota ha una card per ogni scuderia (es. Hamilton: McLaren, Mercedes, Ferrari) più una card **Carriera** leggendaria. Completando tutte le card scuderia di un pilota si sblocca la sua Carriera.
-- Rarità: *Leggendaria* = Carriera. Le card scuderia hanno una **valutazione (OVR, 0-100)**, il numero in basso a destra sulla card: è la media dei percentili delle 7 metriche rispetto a tutte le card scuderia (per Best e Griglia vale il valore più basso). Da 86 in su è *Platino*, da 74 *Oro*, da 58 *Argento*, sotto *Bronzo* (soglie in `RARITY_THRESHOLDS`, `src/game/cards.ts`). La valutazione si calcola all'avvio sia nell'app sia sul server, quindi i due sono sempre d'accordo.
-- **Pionieri** 🏛: i piloti con almeno un podio che hanno corso tra il 1950 e il 1979 (prima del periodo delle card giocabili). Una card per pilota con tutta la carriera, in toni seppia. **Si collezionano soltanto**: campionati, regole e numero di gare erano troppo diversi per confrontarli con le card moderne, quindi non entrano nei mazzi. Escono dai pacchetti (4%).
-- Quali piloti ci sono: **tutti** quelli che hanno corso dal 1980 in poi (271), con una card per ogni scuderia con almeno 3 gare (chi ha corso meno ha comunque la card della scuderia con più gare); dal 1950 al 1979 i Pionieri con almeno un podio.
+- Rarità: *Leggendaria* = Carriera. Le card scuderia hanno una **valutazione (OVR, 0-100)**, il numero in basso a destra sulla card: è la media dei percentili delle 7 metriche rispetto a tutte le card scuderia (per Best e Griglia vale il valore più basso). Da 87 in su è *Platino*, da 76 *Oro*, da 61 *Argento*, sotto *Bronzo* (soglie in `RARITY_THRESHOLDS`, `src/game/cards.ts`). La valutazione si calcola all'avvio sia nell'app sia sul server, quindi i due sono sempre d'accordo.
+- **Tre epoche**, decise dai dati (vedi sotto): ogni card ha l'epoca degli anni in cui il pilota ha corso, quindi chi è stato in pista in più epoche ha una card per ognuna (es. Graham Hill: Pioniere, Classica e due card moderne).
+  - 🏛 **Pionieri (1950–1960)**: una card per pilota, in toni seppia. **Solo da collezionare.**
+  - 🎞️ **Classiche (1961–1972)**: una card per pilota, a colori sbiaditi. **Solo da collezionare.**
+  - 🏁 **Moderne (dal 1973)**: una card per ogni scuderia (con almeno 3 gare; chi ha corso meno ha comunque la card della scuderia con più gare) più la Carriera. **Sono le card da giocare.**
+- Ci sono **tutti i 794 piloti** della storia della F1 (1501 card). Pionieri e Classiche escono dai pacchetti (3% ciascuna); se un aggiornamento toglie una card che avevi, diventa la card d'epoca dello stesso pilota.
+- Perché il 1961 e il 1973 (dati F1DB, `scripts/build-cards.mjs`): fino al 1960 contava anche la 500 Miglia di Indianapolis, con 80-100 piloti diversi a stagione, 7-11 gare e quasi nessuno che faceva tutto il campionato. Tra il 1961 e il 1972 le stagioni avevano 8-13 gare. Dal 1973 si corrono 14+ gare con griglie da ~24 partenti, come negli anni '80 e dopo: le statistiche (che sono in parte totali, come Gran Premi e Top 10) diventano confrontabili.
 
 La collezione per ora si salva nel browser (localStorage).
 

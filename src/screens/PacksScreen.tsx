@@ -87,7 +87,7 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
 
   function reveal(i: number) {
     if (!opened || revealed[i]) return;
-    const rare = ['oro', 'platino', 'leggendaria', 'pioniere'].includes(opened.added[i].card.rarity);
+    const rare = ['oro', 'platino', 'leggendaria', 'pioniere', 'classica'].includes(opened.added[i].card.rarity);
     sfx(rare ? 'rare' : 'reveal');
     haptic(rare ? 'success' : 'light');
     setRevealed((r) => r.map((v, j) => (j === i ? true : v)));
@@ -113,7 +113,7 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
         <div className="pack-cards">
           {opened.added.map((a, i) =>
             revealed[i] ? (
-              <div key={i} className={`pack-slot flip-in ${['oro', 'platino', 'leggendaria', 'pioniere'].includes(a.card.rarity) ? `burst burst-${a.card.rarity}` : ''}`}>
+              <div key={i} className={`pack-slot flip-in ${['oro', 'platino', 'leggendaria', 'pioniere', 'classica'].includes(a.card.rarity) ? `burst burst-${a.card.rarity}` : ''}`}>
                 <CardView card={a.card} size="sm" />
                 <span className={`tag ${a.duplicate ? 'dup' : 'new'}`}>
                   {a.duplicate ? t('p_dup', { n: a.credits }) : t('p_new')}
