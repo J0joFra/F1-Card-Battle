@@ -332,18 +332,6 @@ export function MatchScreen({ driver, title, opponent, synced, endExtra, endButt
               <b>{formatStat(STAT_BY_KEY[last.stat], last.cpuCard.stats[last.stat])}</b> {last.cpuCard.driver.abbreviation}
             </span>
           </div>
-          {!synced && (
-            <button
-              className="btn primary big next-btn"
-              disabled={!settled}
-              onClick={() => {
-                sfx('tap');
-                setShowResult(false);
-              }}
-            >
-              {outcome ? t('m_final') : t('m_next')}
-            </button>
-          )}
         </>
       ) : (
         <>
@@ -390,10 +378,25 @@ export function MatchScreen({ driver, title, opponent, synced, endExtra, endButt
         </>
       )}
 
+      {/* in basso: Abbandona e, dopo il round, «Prossimo round» sulla stessa riga (così non si scorre) */}
       {!finished && (
-        <button className="btn ghost quit-btn" onClick={quit}>
-          <Flag size={16} /> {t('m_quit')}
-        </button>
+        <div className="match-actions">
+          <button className="btn ghost quit-btn" onClick={quit}>
+            <Flag size={16} /> {t('m_quit')}
+          </button>
+          {showResult && last && !synced && (
+            <button
+              className="btn primary next-btn"
+              disabled={!settled}
+              onClick={() => {
+                sfx('tap');
+                setShowResult(false);
+              }}
+            >
+              {outcome ? t('m_final') : t('m_next')}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
