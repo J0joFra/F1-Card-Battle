@@ -6,10 +6,16 @@ https://f1cardbattle.vercel.app/
 ## Regole
 
 - Il gioco ha **4 pagine**: *Collezione*, *Mazzi*, *Gioca* e *Negozio*.
-- Hai **3 mazzi salvati** (linguette 1-2-3, stile Clash Royale), che prepari nella pagina *Mazzi* (si salvano da soli). Nella pagina *Gioca* scegli il mazzo e premi ▶ (o tocchi le card a ventaglio) per sfidare la CPU.
+- Hai **3 mazzi salvati** (linguette 1-2-3, stile Clash Royale), che prepari nella pagina *Mazzi* (si salvano da soli).
+- Nella pagina *Gioca* ci sono due pulsanti: **Partita veloce** (contro la CPU) e **Sfida amico**. La partita veloce ha 4 modalità:
+  - *Classica*: giochi con il mazzo scelto (1, 2, 3).
+  - *Rarità*: solo card di una rarità (es. solo Oro), senza limiti di rarità.
+  - *Annata*: solo card di un decennio (dal primo anno della card: anni 2000 = 2000-2009).
+  - *Nazionalità*: solo piloti di una nazione, tra quelle con almeno 7 piloti (Francia, Italia, Regno Unito, Brasile, Germania, Finlandia).
+  Nelle modalità a tema scegli le 7 card tra quelle adatte (il gioco propone le migliori) e la CPU gioca con card dello stesso tema. Servono almeno 7 card adatte.
 - Nella pagina *Mazzi* le card si girano passandoci sopra (o toccandole si ingrandiscono): dietro c'è il **diagramma a ragnatela** delle 7 metriche (percentile rispetto a tutte le card), con il pulsante *Aggiungi* / *Togli*. *Ordina per* rarità, valutazione (OVR) o una delle 7 metriche. Con la vista **Tabella** vedi solo le statistiche di tutte le tue card una sotto l'altra: tocchi l'intestazione per ordinare e la riga per aggiungere o togliere la card.
 - Anche nella *Collezione* le card si girano e mostrano il diagramma a ragnatela.
-- Un mazzo ha **7 card**, una per metrica (massimo 1 Leggendaria, 1 Platino e 2 Oro: regole provvisorie in `src/game/deckRules.ts`). Se il mazzo è incompleto, il gioco lo completa a caso.
+- Un mazzo ha **7 card**, una per metrica. Nella partita classica al massimo 2 Oro e 2 card tra Platino e Leggendaria, con al massimo 1 Leggendaria: quindi 1 Leggendaria + 1 Platino + 2 Oro, oppure 2 Platino + 2 Oro (regole in `src/game/deckRules.ts`). Se il mazzo è incompleto, il gioco lo completa a caso.
 - La partita dura **7 round**. A ogni round esce una card a caso dal mazzo di ognuno.
 - Il primo round sceglie sempre il giocatore; poi **la metrica la sceglie chi ha vinto il round precedente** (in caso di pareggio il turno passa all'altro).
 - **Ogni metrica si usa una sola volta per partita**: all'ultimo round resta quella rimasta.
@@ -51,7 +57,7 @@ Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per 
 
 ## Sfida del giorno e missioni
 
-- **Sfida del giorno**: una sola partita al giorno contro un mazzo CPU a tema (una scuderia o un decennio, 1 Oro + 2 Argento + 4 Bronzo). Vincendo si ottengono 1 pacchetto e 25 crediti; vincerla più giorni di fila fa crescere la serie 🔥. Conta come giocata appena parte, quindi abbandonarla non dà un secondo tentativo.
+- **Sfida del giorno**: una sola partita al giorno contro un mazzo CPU a tema (una scuderia o un decennio, 1 Oro + 2 Argento + 4 Bronzo). Anche tu giochi solo con card del tema: ne servono almeno 7. Vincendo si ottengono 1 pacchetto e 25 crediti; vincerla più giorni di fila fa crescere la serie 🔥. Conta come giocata appena parte, quindi abbandonarla non dà un secondo tentativo.
 - **Missioni del giorno**: tre obiettivi (vinci partite, vinci round con una metrica, vinci con una card di una scuderia o di un decennio, apri un pacchetto, vinci con almeno 5 punti…) che danno crediti da ritirare nella home. Quelle su scuderie e decenni usano solo card che possiedi.
 - Sfida e missioni dipendono dalla data: lo stesso giorno tutti trovano la stessa sfida. Logica e test in `src/game/daily.ts`.
 

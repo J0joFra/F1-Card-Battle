@@ -1,6 +1,6 @@
 import { CARD_BY_ID } from '../game/cards';
 import { normalizeProgress, type Progress } from '../game/collection';
-import { deckProblems } from '../game/deckRules';
+import { deckProblems, type MatchMode } from '../game/deckRules';
 import type { Rng } from '../game/engine';
 import type { Card } from '../types';
 import type { GameResponse, Store } from './types';
@@ -56,11 +56,11 @@ export async function withProfile<T extends GameResponse>(
   throw new GameError('busy', 409);
 }
 
-// mazzo valido: card esistenti, possedute, senza doppioni e nel rispetto dei limiti di rarità
-export function validDeck(ids: unknown, p: Progress): Card[] {
+// mazzo valido: card esistenti, possedute, senza doppioni e nel rispetto delle regole della modalità
+export function validDeck(ids: unknown, p: Progress, mode?: MatchMode): Card[] {
   if (!Array.isArray(ids) || new Set(ids).size !== ids.length) throw new GameError('bad_deck');
   const deck = ids.map(cardOrThrow);
-  if (deck.some((c) => !p.owned[c.id]) || deckProblems(deck).length) throw new GameError('bad_deck');
+  if (deck.some((c) => !p.owned[c.id]) || deckProblems(deck, mode).length) throw new GameError('bad_deck');
   return deck;
 }
 

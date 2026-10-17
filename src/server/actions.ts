@@ -1,4 +1,4 @@
-import { STATS } from '../game/cards';
+import { ALL_CARDS, STATS } from '../game/cards';
 import {
   buyPack,
   mergeProgress,
@@ -10,7 +10,8 @@ import {
   deckSlots,
   type Progress,
 } from '../game/collection';
-import { claimMission, dailyChallenge, dailyPlayed, missionsAfterPack, missionsFor, startDaily } from '../game/daily';
+import { claimMission, dailyChallenge, dailyPlayed, missionsAfterPack, missionsFor, startDaily, themeMode } from '../game/daily';
+import { CLASSIC, fitsMode, parseMode } from '../game/deckRules';
 import { buildCpuDeck, cpuChooseStat, isAvailable, matchOutcome, newMatch, playRound, type Rng } from '../game/engine';
 import { applyMatchEnd, loadMatch, storeMatch, toView, type MatchRewards, type MatchView, type StoredMatch } from '../game/match';
 import type { StatKey } from '../types';
@@ -173,19 +174,26 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       checkDate(req.date, ctx.today);
       let view: MatchView | null = null;
       let stored: StoredMatch | null = null;
+      // Modalità: la manda solo l'app aggiornata. Per la sfida del giorno la decide il server dal tema;
+      // le versioni vecchie dell'app (senza modalità) giocano con le regole classiche.
+      const sent = req.mode !== undefined;
+      const daily = req.daily ? dailyChallenge(req.date) : null;
+      const mode = daily ? (sent ? themeMode(daily.theme) : CLASSIC) : sent ? parseMode(req.mode) : CLASSIC;
+      if (!mode) throw new GameError('bad_mode');
       const res = await withProfile(store, ctx, (p) => {
         const ids = Array.isArray(req.deck) ? req.deck : [];
-        const deck = validDeck(ids, p);
-        if (req.daily && dailyPlayed(p.daily, req.date)) throw new GameError('daily_played');
-        const cpu = req.daily ? dailyChallenge(req.date).cpuDeck : buildCpuDeck(deck, ctx.rng);
+        const deck = validDeck(ids, p, mode);
+        if (daily && dailyPlayed(p.daily, req.date)) throw new GameError('daily_played');
+        const pool = mode.kind === 'classic' ? ALL_CARDS : ALL_CARDS.filter((c) => fitsMode(mode, c));
+        const cpu = daily ? daily.cpuDeck : buildCpuDeck(deck, ctx.rng, pool);
         const state = newMatch(deck, cpu, ctx.rng);
         view = toView(state);
         stored = storeMatch(state); // la partita si crea dopo aver salvato il profilo
+        // il mazzo si ricorda solo nella partita classica (gli altri sono mazzi a tema, da una volta)
+        const slot = req.slot ?? p.activeDeck ?? 0;
+        const decks = mode.kind === 'classic' ? withDecks(p, deckSlots(p).map((d, i) => (i === slot ? ids : d)), slot) : p;
         return {
-          progress: {
-            ...withDecks(p, deckSlots(p).map((d, i) => (i === (req.slot ?? p.activeDeck ?? 0) ? ids : d)), req.slot ?? p.activeDeck ?? 0),
-            daily: req.daily ? startDaily(p.daily, req.date) : p.daily,
-          },
+          progress: { ...decks, daily: daily ? startDaily(p.daily, req.date) : p.daily },
         };
       });
       const matchId = await store.createMatch({ state: stored!, daily: !!req.daily, date: req.date, finished: false });

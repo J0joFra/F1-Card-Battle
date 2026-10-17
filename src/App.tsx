@@ -10,7 +10,7 @@ import {
 } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as NativeApp } from "@capacitor/app";
-import { Gift, Layers, Play, Settings, SquareStack, UserPlus } from "lucide-react";
+import { Gift, Layers, Settings, SquareStack, Swords, UserPlus } from "lucide-react";
 import type { Card } from "./types";
 import {
   WINS_PER_PACK,
@@ -42,6 +42,7 @@ import {
   missionsAfterPack,
   missionsFor,
   startDaily,
+  themeMode,
   todayKey,
 } from "./game/daily";
 import { DECK_SIZE, buildCpuDeck, newMatch } from "./game/engine";
@@ -52,8 +53,15 @@ import {
   type MatchRewards,
   type MatchView,
 } from "./game/match";
-import { CARD_BY_ID } from "./game/cards";
-import { deckProblems } from "./game/deckRules";
+import { ALL_CARDS, CARD_BY_ID } from "./game/cards";
+import {
+  CLASSIC,
+  deckProblems,
+  fitsMode,
+  parseMode,
+  type MatchMode,
+} from "./game/deckRules";
+import { modeLabel } from "./components/ModePicker";
 import { ApiError, callGame, errorMessage } from "./lib/api";
 import type {
   Friend,
@@ -94,7 +102,23 @@ import { Onboarding, onboardingDone } from "./components/Onboarding";
 import { ConfirmHost, askConfirm } from "./components/ConfirmDialog";
 import { buyAndOpen, buyFromStore, storeFor, storePrice } from "./game/shop";
 
-type Screen = "home" | "builder" | "match" | "collection" | "packs" | "friend";
+type Screen =
+  | "home"
+  | "builder"
+  | "pick"
+  | "match"
+  | "collection"
+  | "packs"
+  | "friend";
+
+const MODE_KEY = "f1-card-battle:mode";
+function savedMode(): MatchMode {
+  try {
+    return parseMode(JSON.parse(localStorage.getItem(MODE_KEY) ?? "null")) ?? CLASSIC;
+  } catch {
+    return CLASSIC;
+  }
+}
 type Tab = "home" | "collection" | "packs" | "builder";
 
 export default function App() {
@@ -115,6 +139,18 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>("home");
   const [driver, setDriver] = useState<MatchDriver | null>(null); // partita in corso
   const [dailyMode, setDailyMode] = useState(false); // la partita in corso è la sfida del giorno
+  // modalità della partita veloce (classica, rarità, annata, nazionalità), ricordata sul dispositivo
+  const [mode, setModeRaw] = useState<MatchMode>(savedMode);
+  const setMode = (m: MatchMode) => {
+    setModeRaw(m);
+    try {
+      localStorage.setItem(MODE_KEY, JSON.stringify(m));
+    } catch {
+      /* niente memoria: va bene lo stesso */
+    }
+  };
+  const [matchMode, setMatchMode] = useState<MatchMode>(CLASSIC); // modalità della partita in corso
+  const [pick, setPick] = useState<{ mode: MatchMode; daily: boolean } | null>(null); // scelta delle card a tema
   // sfida tra amici
   const [lobby, setLobby] = useState<PvpInfo | null>(null); // sfida creata, in attesa dell'amico
   const [opponent, setOpponent] = useState<string | null>(null); // nome dell'amico durante la partita
@@ -193,7 +229,14 @@ export default function App() {
   const [starting, setStarting] = useState(false);
 
   // partita contro la CPU con il mazzo in uso: se è incompleto lo completiamo noi, se non è valido si va ai mazzi
+  // Partita veloce: nella classica si gioca subito con il mazzo in uso (se è incompleto lo completiamo noi,
+  // se non è valido si va ai mazzi); nelle partite a tema e nella sfida del giorno prima si scelgono le card adatte.
   function play(daily = false) {
+    if (daily || mode.kind !== "classic") {
+      setPick({ mode: daily ? themeMode(challenge.theme) : mode, daily });
+      go("pick");
+      return;
+    }
     const slot = activeSlot(progress);
     let deck = savedDeck(progress, slot);
     if (deck.length < DECK_SIZE) deck = autoFillDeck(progress, deck);
@@ -203,13 +246,20 @@ export default function App() {
       go("builder");
       return;
     }
-    setDailyMode(daily);
-    void startMatch(deck, slot, daily);
+    void startMatch(deck, slot, false, CLASSIC);
   }
 
-  async function startMatch(deck: Card[], slot: number, daily: boolean) {
+  async function startMatch(
+    deck: Card[],
+    slot: number,
+    daily: boolean,
+    matchMode: MatchMode
+  ) {
     const ids = deck.map((c) => c.id);
+    const classic = matchMode.kind === "classic";
     rewardsRef.current = null;
+    setDailyMode(daily);
+    setMatchMode(matchMode);
     if (account.online) {
       if (starting) return;
       setStarting(true);
@@ -219,6 +269,7 @@ export default function App() {
         daily,
         date: today,
         slot,
+        mode: matchMode,
       });
       setStarting(false);
       if (!res?.match || !res.view) {
@@ -242,13 +293,22 @@ export default function App() {
       });
     } else {
       setProgress((p) => ({
-        ...withDecks(p, deckSlots(p).map((d, i) => (i === slot ? ids : d)), slot), // ricorda il mazzo per la prossima volta
+        // ricorda il mazzo per la prossima volta (solo nella classica: gli altri sono mazzi a tema)
+        ...(classic
+          ? withDecks(p, deckSlots(p).map((d, i) => (i === slot ? ids : d)), slot)
+          : p),
         // la sfida del giorno si considera giocata appena parte: abbandonarla non dà un secondo tentativo
         daily: daily ? startDaily(p.daily, today) : p.daily,
       }));
       const state = newMatch(
         deck,
-        daily ? challenge.cpuDeck : buildCpuDeck(deck)
+        daily
+          ? challenge.cpuDeck
+          : buildCpuDeck(
+              deck,
+              Math.random,
+              classic ? ALL_CARDS : ALL_CARDS.filter((c) => fitsMode(matchMode, c))
+            )
       );
       setDriver(
         localDriver(state, (final) => {
@@ -687,6 +747,8 @@ export default function App() {
     screen === "packs" ||
     screen === "builder"
       ? screen
+      : screen === "pick"
+      ? "home"
       : null;
 
   return (
@@ -731,6 +793,8 @@ export default function App() {
               account={account}
               challenge={challenge}
               missions={missions}
+              mode={mode}
+              onMode={setMode}
               onPlay={() => play()}
               onDeck={(i) =>
                 saveDecks(deckSlots(progress), i)
@@ -743,6 +807,30 @@ export default function App() {
           )}
           {screen === "builder" && (
             <DeckBuilderScreen progress={progress} onSave={saveDecks} />
+          )}
+          {screen === "pick" && pick && (
+            <DeckBuilderScreen
+              key={JSON.stringify(pick)}
+              progress={progress}
+              mode={pick.mode}
+              title={t("mode_pick", { n: DECK_SIZE })}
+              banner={
+                pick.daily
+                  ? `${t("daily_vs", {
+                      theme: themeLabel(challenge.theme, t),
+                    })} — ${t("daily_cpuDeck")}`
+                  : modeLabel(pick.mode, t)
+              }
+              onBack={() => go("home")}
+              onPlay={(deck) =>
+                void startMatch(
+                  deck,
+                  activeSlot(progress),
+                  pick.daily,
+                  pick.mode
+                )
+              }
+            />
           )}
           {screen === "match" && driver && (
             <MatchScreen
@@ -758,6 +846,8 @@ export default function App() {
                     })
                   : dailyMode
                   ? t("daily_vs", { theme: themeLabel(challenge.theme, t) })
+                  : matchMode.kind !== "classic"
+                  ? modeLabel(matchMode, t)
                   : undefined
               }
               opponent={opponent ?? undefined}
@@ -821,16 +911,10 @@ export default function App() {
             <span>{t("nav_decks")}</span>
           </button>
           <button
-            className={`tab-play ${tab === "home" ? "on" : ""}`}
-            onClick={() => {
-              // pulsante Gioca: porta alla pagina Gioca; se ci sei già, avvia la partita contro la CPU
-              if (screen === "home") play();
-              else go("home");
-            }}
+            className={tab === "home" ? "on" : ""}
+            onClick={() => go("home")}
           >
-            <span className="tab-play-icon">
-              <Play size={26} fill="currentColor" />
-            </span>
+            <Swords size={22} />
             <span>{t("nav_play")}</span>
           </button>
           <button

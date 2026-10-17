@@ -1,4 +1,4 @@
-import { Check, Gift, Users } from 'lucide-react';
+import { Gift, Users, Zap } from 'lucide-react';
 import { useMemo } from 'react';
 import { useI18n } from '../lib/i18n';
 import {
@@ -11,22 +11,25 @@ import {
   savedDeck,
   type Progress,
 } from '../game/collection';
-import { deckProblems } from '../game/deckRules';
+import { fitsMode, type MatchMode } from '../game/deckRules';
+import { ModePicker, modeLabel, modeReady } from '../components/ModePicker';
 import { DECK_SIZE } from '../game/engine';
 import type { Account } from '../hooks/useAccount';
 import { CardView } from '../components/CardView';
 import { GoogleIcon } from '../components/GoogleIcon';
 import { HelpButton } from '../components/TutorialSection';
 import { DailyCard, MissionsPanel } from '../components/Daily';
-import type { DailyChallenge, MissionsState } from '../game/daily';
+import { themeMode, type DailyChallenge, type MissionsState } from '../game/daily';
 
 interface Props {
   progress: Progress;
   account: Account;
   challenge: DailyChallenge;
   missions: MissionsState;
-  onPlay: () => void; // partita contro la CPU con il mazzo in uso
-  onDeck: (slot: number) => void; // cambia il mazzo in uso
+  mode: MatchMode; // modalità scelta per la partita veloce
+  onMode: (m: MatchMode) => void;
+  onPlay: () => void; // partita veloce contro la CPU
+  onDeck: (slot: number) => void; // cambia il mazzo in uso (partita classica)
   onDaily: () => void;
   onFriend: () => void;
   onClaim: (i: number) => void;
@@ -38,6 +41,8 @@ export function HomeScreen({
   account,
   challenge,
   missions,
+  mode,
+  onMode,
   onPlay,
   onDeck,
   onDaily,
@@ -52,10 +57,13 @@ export function HomeScreen({
   const slot = activeSlot(progress);
   const decks = useMemo(() => Array.from({ length: DECK_SLOTS }, (_, i) => savedDeck(progress, i)), [progress]);
   // vetrina: le tre card migliori del mazzo in uso (o della collezione, se il mazzo è vuoto), a ventaglio
-  const showcase = useMemo(
-    () => [...(decks[slot].length ? decks[slot] : ownedCards(progress))].sort((a, b) => b.ovr - a.ovr).slice(0, 3),
-    [decks, slot, progress]
-  );
+  const mine = useMemo(() => ownedCards(progress), [progress]);
+  const showcase = useMemo(() => {
+    const base = mode.kind === 'classic' && decks[slot].length ? decks[slot] : mine.filter((c) => fitsMode(mode, c));
+    return [...(base.length ? base : mine)].sort((a, b) => b.ovr - a.ovr).slice(0, 3);
+  }, [decks, slot, mine, mode]);
+  const ready = useMemo(() => modeReady(mode, mine), [mode, mine]);
+  const daily = useMemo(() => modeReady(themeMode(challenge.theme), mine), [challenge, mine]);
 
   return (
     <div className="screen home">
@@ -66,32 +74,37 @@ export function HomeScreen({
             params={{ n: DECK_SIZE, w: WINS_PER_PACK }}
           />
         </div>
-        <div className="fan" onClick={canPlay ? onPlay : undefined} role="button" aria-label={t('home_play')}>
+        <div className="fan" aria-hidden>
           {showcase.map((c, i) => (
             <div key={c.id} className={`fan-card fan-${i}`}>
               <CardView card={c} size="sm" />
             </div>
           ))}
         </div>
-        <h1>{t('home_title')}</h1>
-        {canPlay && (
-          <div className="deck-tabs home-decks" role="tablist" aria-label={t('home_deck')}>
-            <span className="muted">{t('home_deck')}</span>
-            {decks.map((d, i) => (
-              <button key={i} role="tab" aria-selected={i === slot} className={i === slot ? 'on' : ''} onClick={() => onDeck(i)}>
-                {i + 1}
-                {d.length === DECK_SIZE && !deckProblems(d).length && <Check size={12} />}
+        {canPlay ? (
+          <>
+            <ModePicker mode={mode} owned={mine} decks={decks} slot={slot} onMode={onMode} onDeck={onDeck} />
+            <div className="play-buttons">
+              <button className="btn primary big play-quick" onClick={onPlay} disabled={!ready.ok}>
+                <Zap size={20} fill="currentColor" />
+                <span>
+                  {t('home_quick')}
+                  <small>{modeLabel(mode, t)}</small>
+                </span>
               </button>
-            ))}
-          </div>
+              <button className="btn big play-friend" onClick={onFriend}>
+                <Users size={20} />
+                <span>{t('home_friend')}</span>
+              </button>
+            </div>
+            {!ready.ok && <p className="muted small-text">{t('mode_need', { n: DECK_SIZE, m: ready.have })}</p>}
+          </>
+        ) : (
+          <p className="muted">{t('home_needCards', { n: DECK_SIZE })}</p>
         )}
-        <button className="btn ghost block friend-btn" onClick={onFriend}>
-          <Users size={18} /> {t('home_friend')}
-        </button>
-        {!canPlay && <p className="muted">{t('home_needCards', { n: DECK_SIZE })}</p>}
       </section>
 
-      <DailyCard challenge={challenge} state={progress.daily} canPlay={canPlay} onPlay={onDaily} />
+      <DailyCard challenge={challenge} state={progress.daily} canPlay={daily.ok} have={daily.have} onPlay={onDaily} />
       <MissionsPanel missions={missions} onClaim={onClaim} />
 
       <section className="panel pack-progress">

@@ -3,7 +3,8 @@ import { ALL_CARDS, CARD_BY_ID, STATS } from '../game/cards';
 import { PACK_TYPES, storePrice, teamOfDay } from '../game/shop';
 import { starterProgress, withDecks, type Progress } from '../game/collection';
 import { autoFillDeck } from '../game/collection';
-import { seededRng } from '../game/daily';
+import { dailyChallenge, seededRng, themeMode, themePool } from '../game/daily';
+import { CLASSIC, fillDeck } from '../game/deckRules';
 import { PVP_TURN_MS, handle, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type Store } from './actions';
 
 // database finto in memoria, con gli stessi controlli di versione di quello vero; più utenti
@@ -436,5 +437,58 @@ describe('server: mazzi salvati', () => {
     expect(res.progress!.decks).toEqual([ids, [ids[0]], []]);
     expect(res.progress!.activeDeck).toBe(1);
     expect(res.progress!.deck).toEqual([ids[0]]);
+  });
+});
+
+describe('server: modalità di partita', () => {
+  // collezione con tutte le card adatte alla modalità (e qualcuna in più)
+  const owning = (cards: typeof ALL_CARDS): Progress => ({
+    ...starterProgress(seededRng('m')),
+    owned: Object.fromEntries(cards.map((c) => [c.id, 1])),
+  });
+  const ofRarity = (r: string) => ALL_CARDS.filter((c) => c.rarity === r);
+
+  it('solo una rarità: 7 Oro vanno bene, la CPU gioca con card della stessa rarità', async () => {
+    const oro = ofRarity('oro');
+    const db = memoryStore(owning([...oro, ...ofRarity('bronzo').slice(0, 7)]));
+    const deck = oro.slice(0, 7).map((c) => c.id);
+    await expect(call(db.store, { action: 'match_start', deck, daily: false, date: '2026-10-16' })).rejects.toThrow('bad_deck');
+    const start = await call(db.store, { action: 'match_start', deck, daily: false, date: '2026-10-16', mode: { kind: 'rarity', rarity: 'oro' } });
+    const rec = (await db.store.getMatch(start.match!))!;
+    expect(rec.state.cpu.every((id) => CARD_BY_ID.get(id)!.rarity === 'oro')).toBe(true);
+    // il mazzo a tema non sostituisce i mazzi salvati
+    expect(db.profile!.progress.decks?.flat() ?? []).not.toContain(deck[0]);
+    const mixed = [...deck.slice(0, 6), ofRarity('bronzo')[0].id];
+    await expect(
+      call(db.store, { action: 'match_start', deck: mixed, daily: false, date: '2026-10-16', mode: { kind: 'rarity', rarity: 'oro' } }),
+    ).rejects.toThrow('bad_deck');
+  });
+
+  it('nazionalità e annata: solo card adatte, modalità sconosciute rifiutate', async () => {
+    const it = ALL_CARDS.filter((c) => c.driver.country === 'IT' && c.rarity === 'bronzo');
+    const db = memoryStore(owning([...it, ...ofRarity('bronzo').slice(0, 20)]));
+    const deck = it.slice(0, 7).map((c) => c.id);
+    const start = await call(db.store, { action: 'match_start', deck, daily: false, date: '2026-10-16', mode: { kind: 'nation', country: 'IT' } });
+    const rec = (await db.store.getMatch(start.match!))!;
+    expect(rec.state.cpu.every((id) => CARD_BY_ID.get(id)!.driver.country === 'IT')).toBe(true);
+    await expect(
+      call(db.store, { action: 'match_start', deck, daily: false, date: '2026-10-16', mode: { kind: 'nation', country: 'XX' } }),
+    ).rejects.toThrow('bad_mode');
+    await expect(
+      call(db.store, { action: 'match_start', deck, daily: false, date: '2026-10-16', mode: { kind: 'team', team: 'ferrari' } }),
+    ).rejects.toThrow('bad_mode');
+  });
+
+  it('sfida del giorno: con l\'app nuova il mazzo deve rispettare il tema', async () => {
+    const date = '2026-10-16';
+    const theme = dailyChallenge(date).theme;
+    const pool = themePool(theme);
+    const db = memoryStore(owning([...pool, ...ofRarity('bronzo').slice(0, 30)]));
+    const off = ofRarity('bronzo').filter((c) => !pool.includes(c)).slice(0, 7).map((c) => c.id);
+    await expect(call(db.store, { action: 'match_start', deck: off, daily: true, date, mode: CLASSIC })).rejects.toThrow('bad_deck');
+    const p = db.profile!.progress;
+    const deck = fillDeck(pool.filter((c) => p.owned[c.id]), [], themeMode(theme)).map((c) => c.id);
+    expect(deck).toHaveLength(7);
+    await call(db.store, { action: 'match_start', deck, daily: true, date, mode: CLASSIC });
   });
 });

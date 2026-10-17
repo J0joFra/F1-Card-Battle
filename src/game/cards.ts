@@ -98,5 +98,8 @@ export const teamCardsOfDriver = (driverId: string) =>
 
 export const careerCardOf = (driverId: string) => CARD_BY_ID.get(`${driverId}__career`);
 
+// decennio della card (dal primo anno): 2004 → 2000
+export const decadeOf = (c: Card) => Math.floor(c.firstYear / 10) * 10;
+
 export const flagEmoji = (alpha2: string | null) =>
   alpha2 ? String.fromCodePoint(...[...alpha2.toUpperCase()].map((ch) => 0x1f1a5 + ch.charCodeAt(0))) : '🏁';
