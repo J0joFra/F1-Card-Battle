@@ -70,7 +70,7 @@ p { line-height: 1.45; }
 .content {
   flex: 1; padding: 12px 16px calc(var(--tabbar-h) + var(--safe-bottom) + 24px);
 }
-.app.in-match .content { padding: calc(var(--safe-top) + 10px) 12px calc(var(--safe-bottom) + 16px); }
+.app.in-match .content { padding: calc(var(--safe-top) + 8px) 12px calc(var(--safe-bottom) + 8px); }
 .screen { display: grid; gap: 16px; animation: screen-in 0.22s ease-out; }
 @keyframes screen-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
@@ -309,7 +309,7 @@ p { line-height: 1.45; }
 .scoreboard {
   display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; width: 100%; max-width: 560px;
   background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 10px 16px; box-shadow: var(--shadow);
-  margin-left: 52px; width: calc(100% - 52px);
+  width: 100%;
 }
 .scoreboard .side { display: grid; justify-items: center; }
 .scoreboard small { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; }
@@ -986,3 +986,35 @@ p { line-height: 1.45; }
 .invite-actions { display: flex; gap: 8px; }
 .invite-actions .btn { flex: 1; }
 @keyframes drop-in { from { transform: translate(-50%, -140%); } }
+
+/* partita: tutto in una schermata, senza scorrere (le card si adattano all'altezza del telefono) */
+.screen.match { gap: clamp(6px, 1.2dvh, 12px); }
+.match .scoreboard { padding: clamp(4px, 1dvh, 10px) 16px; }
+.match .scoreboard b { font-size: clamp(22px, 3.6dvh, 30px); }
+.match .stat-chip { padding: 2px 8px; }
+.match .banner { padding: clamp(4px, 0.9dvh, 10px) 12px; font-size: clamp(13px, 1.9dvh, 16px); line-height: 1.3; }
+.match .turn-timer { margin-bottom: 0; }
+.duel-stack .card-art { aspect-ratio: auto; height: clamp(56px, 12dvh, 190px); transition: height 0.3s; }
+/* quando l'avversario si rivela conta il confronto delle metriche: l'immagine si accorcia */
+.duel-stack.revealed .card-art { height: clamp(44px, 7dvh, 120px); }
+.duel-stack .card-title { padding: 5px 10px; }
+.duel-stack .card-palmares { display: none; }
+.duel-stack .card-name { font-size: clamp(14px, 2.1dvh, 18px); }
+.duel-stack .card-stats { padding: 6px; gap: clamp(2px, 0.45dvh, 4px); }
+.duel-stack .card-stats li > button, .duel-stack .card-stats .stat-row {
+  padding: clamp(3px, 0.85dvh, 8px) 8px; font-size: clamp(12px, 1.75dvh, 14px);
+}
+.duel-stack .card-stats b { font-size: clamp(13px, 1.9dvh, 15px); }
+.duel-stack:not(.revealed) .duel-opp > .card { min-height: 0; height: 100%; }
+.duel-opp { top: 10px; }
+.duel-stack:not(.revealed) .duel-opp { bottom: 0; }
+.duel-stack.revealed { padding-bottom: 10px; }
+/* la card che perde non diventa trasparente: si vedrebbe quella sotto */
+.duel-stack .card.result-lose { opacity: 1; filter: brightness(0.82); }
+.match .compare { padding: clamp(4px, 0.8dvh, 10px) 14px; }
+.match .compare b { font-size: clamp(18px, 2.6dvh, 22px); }
+.match-actions { display: flex; gap: 10px; justify-content: center; width: min(400px, 100%); }
+.match-actions .next-btn { flex: 1; min-width: 0; min-height: 0; padding-block: clamp(8px, 1.4dvh, 14px); font-size: 16px; }
+.match .quit-btn { margin: 0; padding: 8px 14px; font-size: 14px; }
+.match .stat-chips { gap: 3px; flex-wrap: nowrap; }
+.match .stat-chip { padding: 2px 6px; font-size: clamp(9.5px, 2.8vw, 11px); white-space: nowrap; }
