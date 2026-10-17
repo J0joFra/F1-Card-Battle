@@ -31,6 +31,8 @@ const RARITY_RANK: Record<Rarity, number> = {
   oro: 2,
   argento: 1,
   bronzo: 0,
+  pioniere: -1,
+  classica: -1,
 };
 const VIEW_KEY = 'f1-card-battle:deck-view';
 

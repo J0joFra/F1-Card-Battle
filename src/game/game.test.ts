@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Card } from '../types';
-import { ALL_CARDS, CARD_BY_ID, RARITY_THRESHOLDS, STATS, careerCardOf, teamCardsOfDriver } from './cards';
+import { ALL_CARDS, CARD_BY_ID, PLAYABLE_CARDS, RARITY_THRESHOLDS, STATS, careerCardOf, teamCardsOfDriver } from './cards';
 import {
   DECK_SIZE,
   ROUNDS,
@@ -61,8 +61,9 @@ describe('dati delle card', () => {
 
   it('le metriche di gioco sono quasi sempre diverse da 0', () => {
     for (const s of STATS) {
-      const zeros = ALL_CARDS.filter((c) => c.stats[s.key] === 0).length;
-      expect(zeros / ALL_CARDS.length).toBeLessThan(0.1);
+      // contano le card da giocare; con tutti i piloti (anche chi non è mai arrivato nei 10) top 10 e punti sono 0 per ~1 card su 7
+      const zeros = PLAYABLE_CARDS.filter((c) => c.stats[s.key] === 0).length;
+      expect(zeros / PLAYABLE_CARDS.length).toBeLessThan(0.2);
     }
   });
 
@@ -287,6 +288,8 @@ describe('rarità dalla valutazione', () => {
       expect(c.ovr).toBeGreaterThanOrEqual(0);
       expect(c.ovr).toBeLessThanOrEqual(100);
       if (c.kind === 'career') expect(c.rarity).toBe('leggendaria');
+      else if (c.kind === 'pioneer') expect(c.rarity).toBe('pioniere');
+      else if (c.kind === 'classic') expect(c.rarity).toBe('classica');
       else {
         const [, min] = RARITY_THRESHOLDS.find(([r]) => r === c.rarity)!;
         expect(c.ovr).toBeGreaterThanOrEqual(min);
@@ -319,5 +322,33 @@ describe('regole del mazzo classico', () => {
     const deck = pick('platino', 2);
     expect(canAdd(deck, pick('leggendaria', 1)[0])).toBe(false);
     expect(canAdd(pick('platino', 1), pick('leggendaria', 1)[0])).toBe(true);
+  });
+});
+
+describe('card da collezione: Pioniere e Classiche', () => {
+  const pioneers = ALL_CARDS.filter((c) => c.kind === 'pioneer');
+  const classics = ALL_CARDS.filter((c) => c.kind === 'classic');
+  it('epoche giuste: Pionieri fino al 1960, Classiche 1961-1972, card da giocare dal 1973', () => {
+    expect(pioneers.length).toBeGreaterThan(200);
+    expect(classics.length).toBeGreaterThan(100);
+    expect(pioneers.every((c) => c.firstYear <= 1960 && c.rarity === 'pioniere')).toBe(true);
+    expect(classics.every((c) => c.firstYear >= 1961 && c.firstYear <= 1972 && c.rarity === 'classica')).toBe(true);
+    expect(ALL_CARDS.filter((c) => c.kind === 'team' || c.kind === 'career').every((c) => c.firstYear >= 1973)).toBe(true);
+    // un pilota a cavallo delle epoche ha una card per epoca
+    expect(['graham-hill__pioneer', 'graham-hill__classic', 'graham-hill__lola'].every((id) => CARD_BY_ID.has(id))).toBe(true);
+    expect(canAdd([], classics[0])).toBe(false);
+  });
+  it('ci sono, non si possono mettere nel mazzo', () => {
+    expect(canAdd([], pioneers[0])).toBe(false);
+    const deck = [pioneers[0], ...ALL_CARDS.filter((c) => c.rarity === 'bronzo').slice(0, 6)];
+    expect(deckProblems(deck)).not.toEqual([]);
+  });
+  it('non finiscono nei mazzi completati in automatico', () => {
+    const p = { ...starterProgress(seeded()), owned: Object.fromEntries([...pioneers, ...ALL_CARDS.filter((c) => c.rarity === 'bronzo').slice(0, 10)].map((c) => [c.id, 1])) };
+    expect(autoFillDeck(p, []).some((c) => c.kind === 'pioneer')).toBe(false);
+  });
+  it('una card giocabile che non esiste più diventa la Classica dello stesso pilota', () => {
+    const p = normalizeProgress({ owned: { 'niki-lauda__march': 1, 'niki-lauda__ferrari': 2 } });
+    expect(p.owned).toEqual({ 'niki-lauda__classic': 1, 'niki-lauda__ferrari': 2 });
   });
 });

@@ -53,6 +53,7 @@ export interface PvpRecord {
   games: StoredMatch[]; // le partite della serie; l'ultima è quella in corso
   results: Outcome[]; // esito delle partite finite, dal punto di vista dell'host
   deadline: number | null; // entro quando deve scegliere chi è di turno (ms)
+  movedAt?: number; // quando è stata fatta l'ultima mossa (ms)
   forfeit: Side | null; // chi ha abbandonato
   rewards: { host?: MatchRewards; guest?: MatchRewards };
   createdAt: number;
@@ -69,6 +70,7 @@ export interface PvpInfo {
   results: Outcome[]; // esiti delle partite finite, dal tuo punto di vista
   seriesOutcome: Outcome | null; // esito della serie, quando è finita
   timeLeft: number | null; // ms prima della scelta automatica
+  sinceMove: number | null; // ms dall'ultima mossa: i due telefoni passano alla carta successiva insieme
   opponentLeft: boolean;
   opponentIsFriend: boolean;
 }

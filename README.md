@@ -11,12 +11,13 @@ https://f1cardbattle.vercel.app/
   - *Classica*: giochi con il mazzo scelto (1, 2, 3).
   - *Rarità*: solo card di una rarità (es. solo Oro), senza limiti di rarità.
   - *Annata*: solo card di un decennio (dal primo anno della card: anni 2000 = 2000-2009).
-  - *Nazionalità*: solo piloti di una nazione, tra quelle con almeno 7 piloti (Francia, Italia, Regno Unito, Brasile, Germania, Finlandia).
+  - *Nazionalità*: solo piloti di una nazione, tra quelle con almeno 7 piloti (13 nazioni: Italia, Francia, Regno Unito, Brasile, Germania, Giappone…).
   Nelle modalità a tema scegli le 7 card tra quelle adatte (il gioco propone le migliori) e la CPU gioca con card dello stesso tema. Servono almeno 7 card adatte.
 - Nella pagina *Mazzi* le card si girano passandoci sopra (o toccandole si ingrandiscono): dietro c'è il **diagramma a ragnatela** delle 7 metriche (percentile rispetto a tutte le card), con il pulsante *Aggiungi* / *Togli*. *Ordina per* rarità, valutazione (OVR) o una delle 7 metriche. Con la vista **Tabella** vedi solo le statistiche di tutte le tue card una sotto l'altra: tocchi l'intestazione per ordinare e la riga per aggiungere o togliere la card.
 - Anche nella *Collezione* le card si girano e mostrano il diagramma a ragnatela.
 - Un mazzo ha **7 card**, una per metrica. Nella partita classica al massimo 2 Oro e 2 card tra Platino e Leggendaria, con al massimo 1 Leggendaria: quindi 1 Leggendaria + 1 Platino + 2 Oro, oppure 2 Platino + 2 Oro (regole in `src/game/deckRules.ts`). Se il mazzo è incompleto, il gioco lo completa a caso.
 - La partita dura **7 round**. A ogni round esce una card a caso dal mazzo di ognuno.
+- Sul tavolo la tua card occupa circa 2/3 dello spazio; quella dell'avversario è dietro e sporge per 1/3. Quando si gioca la metrica si gira e viene avanti, e sotto compare il confronto dei due valori. *Abbandona* è in basso al centro.
 - Il primo round sceglie sempre il giocatore; poi **la metrica la sceglie chi ha vinto il round precedente** (in caso di pareggio il turno passa all'altro).
 - **Ogni metrica si usa una sola volta per partita**: all'ultimo round resta quella rimasta.
 - Vince il round il valore più alto (↓ = vince il più basso) e prende un punto. Chi fa più punti vince la partita.
@@ -48,12 +49,13 @@ Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per 
 ## Sfida un amico
 
 - Serve l'accesso con Google: la partita la arbitra il server, così nessuno può barare né vedere le card dell'altro.
-- **Al meglio di 3**: vince la serie chi vince 2 partite. La partita 1 si gioca con il mazzo salvato 1 di ognuno, la 2 con il mazzo 2, la 3 con il mazzo 3: i mazzi si preparano prima (*Prepara mazzi*). Nella partita successiva inizia a scegliere chi ha perso la precedente.
-- **Amici**: a fine sfida si può aggiungere l'avversario agli amici (amicizia reciproca). Nella lista il pallino verde indica chi è online (visto negli ultimi 75 secondi); toccando *Sfida* l'amico riceve un invito (*Accetta* / *Rifiuta*) entro una ventina di secondi.
-- In alternativa si crea una sfida con un **codice di 6 caratteri** da condividere; il codice scade dopo 15 minuti.
+- **Al meglio di 3**: vince la serie chi vince 2 partite. La partita 1 si gioca con il mazzo salvato 1 di ognuno, la 2 con il mazzo 2, la 3 con il mazzo 3 (*Prepara mazzi*; se mancano, il gioco li completa da solo così si entra subito). Nella partita successiva inizia a scegliere chi ha perso la precedente.
+- **Amici**: a fine sfida si può aggiungere l'avversario agli amici (amicizia reciproca). Nella lista il pallino verde indica chi è online (visto negli ultimi 75 secondi); toccando *Sfida* l'amico riceve, entro una ventina di secondi, un invito a tendina in alto che resta finché non risponde: *Accetta* lo porta subito in partita.
+- In alternativa si crea una sfida con un **codice di 6 caratteri**: *Condividi* manda un messaggio con il **link diretto** alla sfida (`…/?sfida=CODICE`). Chi lo apre entra in partita (dopo l'accesso con Google). Il codice scade dopo 15 minuti.
 - Ognuno ha 30 secondi per scegliere: se non lo fa (o chiude l'app), il server gioca la metrica migliore della sua card.
+- **Turni sincronizzati**: appena uno sceglie, i due telefoni mostrano il risultato per 3 secondi e passano insieme alla carta successiva, senza premere *Prossimo round* (il server dice a ognuno da quanto è stata fatta la mossa).
 - Premi a fine serie: la vittoria conta per il pacchetto (come contro la CPU) e vale **+10 crediti**, il pareggio **+5 crediti**. Chi abbandona perde la serie.
-- Il telefono chiede al server ogni 2 secondi se l'avversario ha giocato, e ogni 20 secondi se ci sono inviti (è anche il "sono online"). Tabelle `pvp_matches` e `friends`, chiuse ai telefoni.
+- Il telefono chiede al server ogni secondo se l'avversario ha giocato, e ogni 20 secondi se ci sono inviti (è anche il "sono online"). Tabelle `pvp_matches` e `friends`, chiuse ai telefoni.
 
 ## Sfida del giorno e missioni
 
@@ -64,11 +66,17 @@ Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per 
 ## Collezione
 
 - Si parte con 15 card e un pacchetto di benvenuto.
-- **Ogni 10 vittorie** (contro la CPU o contro un amico) si riceve un pacchetto da 5 card (65% Bronzo, 22% Argento, 9% Oro, 3% Platino, 1% Leggendaria; l'ultima card è sempre almeno Argento).
+- **Ogni 10 vittorie** (contro la CPU o contro un amico) si riceve un pacchetto da 5 card (59% Bronzo, 3% Pioniere, 3% Classica, 22% Argento, 9% Oro, 3% Platino, 1% Leggendaria; l'ultima card è sempre almeno Argento).
 - I doppioni diventano **crediti**, che servono a comprare una card a scelta o un pacchetto.
 - Nel 20% dei pacchetti c'è anche un **Jolly** 🃏: una card scuderia a scelta di un pilota che stai completando (ne devi già avere almeno una).
 - Un pilota ha una card per ogni scuderia (es. Hamilton: McLaren, Mercedes, Ferrari) più una card **Carriera** leggendaria. Completando tutte le card scuderia di un pilota si sblocca la sua Carriera.
-- Rarità: *Leggendaria* = Carriera. Le card scuderia hanno una **valutazione (OVR, 0-100)**, il numero in basso a destra sulla card: è la media dei percentili delle 7 metriche rispetto a tutte le card scuderia (per Best e Griglia vale il valore più basso). Da 82 in su è *Platino*, da 68 *Oro*, da 50 *Argento*, sotto *Bronzo* (soglie in `RARITY_THRESHOLDS`, `src/game/cards.ts`). La valutazione si calcola all'avvio sia nell'app sia sul server, quindi i due sono sempre d'accordo.
+- Rarità: *Leggendaria* = Carriera. Le card scuderia hanno una **valutazione (OVR, 0-100)**, il numero in basso a destra sulla card: è la media dei percentili delle 7 metriche rispetto a tutte le card scuderia (per Best e Griglia vale il valore più basso). Da 87 in su è *Platino*, da 76 *Oro*, da 61 *Argento*, sotto *Bronzo* (soglie in `RARITY_THRESHOLDS`, `src/game/cards.ts`). La valutazione si calcola all'avvio sia nell'app sia sul server, quindi i due sono sempre d'accordo.
+- **Tre epoche**, decise dai dati (vedi sotto): ogni card ha l'epoca degli anni in cui il pilota ha corso, quindi chi è stato in pista in più epoche ha una card per ognuna (es. Graham Hill: Pioniere, Classica e due card moderne).
+  - 🏛 **Pionieri (1950–1960)**: una card per pilota, in toni seppia. **Solo da collezionare.**
+  - 🎞️ **Classiche (1961–1972)**: una card per pilota, a colori sbiaditi. **Solo da collezionare.**
+  - 🏁 **Moderne (dal 1973)**: una card per ogni scuderia (con almeno 3 gare; chi ha corso meno ha comunque la card della scuderia con più gare) più la Carriera. **Sono le card da giocare.**
+- Ci sono **tutti i 794 piloti** della storia della F1 (1501 card). Pionieri e Classiche escono dai pacchetti (3% ciascuna); se un aggiornamento toglie una card che avevi, diventa la card d'epoca dello stesso pilota.
+- Perché il 1961 e il 1973 (dati F1DB, `scripts/build-cards.mjs`): fino al 1960 contava anche la 500 Miglia di Indianapolis, con 80-100 piloti diversi a stagione, 7-11 gare e quasi nessuno che faceva tutto il campionato. Tra il 1961 e il 1972 le stagioni avevano 8-13 gare. Dal 1973 si corrono 14+ gare con griglie da ~24 partenti, come negli anni '80 e dopo: le statistiche (che sono in parte totali, come Gran Premi e Top 10) diventano confrontabili.
 
 La collezione per ora si salva nel browser (localStorage).
 

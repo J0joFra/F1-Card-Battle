@@ -28,6 +28,7 @@ export interface MatchView {
   current: string | null; // la tua card di questo round (quella della CPU resta coperta)
   outcome: MatchOutcome;
   opponentLeft?: boolean; // sfida tra amici: l'avversario ha abbandonato
+  sinceMove?: number; // sfida tra amici: ms passati dall'ultima mossa (per cambiare carta insieme)
 }
 
 export function toView(s: MatchState): MatchView {

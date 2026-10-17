@@ -5,7 +5,7 @@ import { starterProgress, withDecks, type Progress } from '../game/collection';
 import { autoFillDeck } from '../game/collection';
 import { dailyChallenge, seededRng, themeMode, themePool } from '../game/daily';
 import { CLASSIC, fillDeck } from '../game/deckRules';
-import { PVP_TURN_MS, handle, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type Store } from './actions';
+import { PVP_REVEAL_MS, PVP_TURN_MS, handle, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type Store } from './actions';
 
 // database finto in memoria, con gli stessi controlli di versione di quello vero; più utenti
 function memoryDb() {
@@ -380,6 +380,21 @@ describe('server: sfida tra amici (al meglio di 3)', () => {
     t.tick(2000);
     const after = await handle({ action: 'pvp_state', match: t.id }, t.bruno, t.c);
     expect(after.view!.round).toBe(before.round + 1);
+  });
+
+  it('dopo una mossa i due telefoni sanno da quanto è stata fatta, e il turno dopo parte a fine rivelazione', async () => {
+    const t = await startPvp();
+    const first = (await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c)).view!;
+    const mover = first.chooser === 'player' ? t.anna : t.bruno;
+    const stat = STATS.find((x) => !first.usedStats.includes(x.key))!.key;
+    const moved = await handle({ action: 'pvp_play', match: t.id, game: 0, stat }, mover, t.c);
+    expect(moved.pvp!.sinceMove).toBe(0);
+    t.tick(1200);
+    const other = await handle({ action: 'pvp_state', match: t.id }, mover === t.anna ? t.bruno : t.anna, t.c);
+    expect(other.pvp!.sinceMove).toBe(1200);
+    // il tempo del turno successivo comprende la rivelazione: non scade prima
+    t.tick(PVP_REVEAL_MS + PVP_TURN_MS - 2000);
+    expect((await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c)).view!.round).toBe(1);
   });
 
   it('chi abbandona perde la serie', async () => {

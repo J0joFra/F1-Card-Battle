@@ -1,5 +1,5 @@
 import type { Card, Rarity, StatKey } from '../types';
-import { ALL_CARDS, STATS, STAT_BY_KEY, compareStat } from './cards';
+import { PLAYABLE_CARDS, STATS, STAT_BY_KEY, compareStat } from './cards';
 
 export type Rng = () => number;
 export type Side = 'player' | 'cpu';
@@ -19,7 +19,7 @@ export function shuffle<T>(items: T[], rng: Rng = Math.random): T[] {
 
 // Percentile di un valore rispetto a tutte le card (1 = il migliore), già girato per le metriche "↓".
 const sortedByStat = Object.fromEntries(
-  STATS.map((s) => [s.key, ALL_CARDS.map((c) => c.stats[s.key]).sort((a, b) => a - b)]),
+  STATS.map((s) => [s.key, PLAYABLE_CARDS.map((c) => c.stats[s.key]).sort((a, b) => a - b)]),
 ) as Record<StatKey, number[]>;
 
 export function percentile(stat: StatKey, value: number): number {
@@ -47,7 +47,7 @@ const coverage = (deck: Card[]) =>
 export function buildCpuDeck(
   playerDeck: Card[],
   rng: Rng = Math.random,
-  pool: Card[] = ALL_CARDS,
+  pool: Card[] = PLAYABLE_CARDS,
   candidates = 3,
 ): Card[] {
   const playerIds = new Set(playerDeck.map((c) => c.id));

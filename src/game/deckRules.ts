@@ -1,5 +1,5 @@
 import type { Card, Rarity } from '../types';
-import { ALL_CARDS, RARITIES, decadeOf, rarityLabel } from './cards';
+import { ALL_CARDS, RARITIES, decadeOf, isCollectOnly, rarityLabel } from './cards';
 import { translate } from '../lib/i18n';
 import { DECK_SIZE, shuffle, type Rng } from './engine';
 
@@ -38,6 +38,7 @@ export const DECADES = [...new Set(ALL_CARDS.filter((c) => c.kind === 'team').ma
   .sort();
 
 export function fitsMode(mode: MatchMode, c: Card): boolean {
+  if (isCollectOnly(c)) return false; // Pionieri e Classiche si collezionano soltanto
   switch (mode.kind) {
     case 'classic':
       return true;

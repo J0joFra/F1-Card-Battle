@@ -12,9 +12,14 @@ if (!F1DB) {
 const DATA = path.join(F1DB, 'src/data');
 const OUT = path.resolve('src/data/cards.json');
 
-// Selezione piloti: hanno corso dal FROM_YEAR in poi e hanno almeno un podio,
-// oppure sono sulla griglia della stagione più recente.
-const FROM_YEAR = 1980;
+// Tre epoche, decise anno per anno (un pilota può avere card di più epoche):
+// - Pionieri (1950-1960): 7-11 gare l'anno, la 500 Miglia di Indianapolis, 80-100 piloti diversi a stagione.
+// - Classiche (1961-1972): stagioni di 8-13 gare.
+// - Moderne (dal 1973): 14+ gare e griglie da ~24, come oggi. Sono le card da giocare: una per scuderia + Carriera.
+// Pionieri e Classiche sono una card per pilota con le gare di quell'epoca, solo da collezionare.
+const CLASSIC_FROM = 1961;
+const MODERN_FROM = 1973;
+const eraOf = (year) => (year < CLASSIC_FROM ? 'pioneer' : year < MODERN_FROM ? 'classic' : 'modern');
 const MIN_STINT_RACES = 3;
 // Esiti che non contano come gara disputata.
 const NOT_STARTED = new Set(['DNQ', 'DNPQ', 'DNP', 'DNS']);
@@ -49,13 +54,12 @@ const newStint = () => ({
   years: new Set(), numbers: {},
 });
 
-// stints[driverId][constructorId] = statistiche accumulate (vedi newStint)
-const stints = {};
+// stints[epoca][driverId][constructorId] = statistiche accumulate (vedi newStint)
+const stints = { pioneer: {}, classic: {}, modern: {} };
 // racesBySeason[year][driverId][constructorId] = numero di gare (per assegnare i titoli)
 const racesBySeason = {};
 const seasons = readDir(path.join(DATA, 'seasons')).map(Number);
 const latestSeason = Math.max(...seasons);
-const latestGrid = new Set();
 const completeSeasons = new Set();
 
 for (const year of seasons) {
@@ -78,7 +82,7 @@ for (const year of seasons) {
       entries.push(r);
     }
     for (const r of entries) {
-      const s = ((stints[r.driverId] ??= {})[r.constructorId] ??= newStint());
+      const s = ((stints[eraOf(year)][r.driverId] ??= {})[r.constructorId] ??= newStint());
       s.races++;
       s.years.add(year);
       const pos = Number(r.position); // NaN se non classificato (DNF, DSQ, NC…)
@@ -110,7 +114,6 @@ for (const year of seasons) {
       }
       const bySeason = (racesBySeason[year][r.driverId] ??= {});
       bySeason[r.constructorId] = (bySeason[r.constructorId] || 0) + 1;
-      if (year === latestSeason) latestGrid.add(r.driverId);
     }
   }
   if (withResults === rounds.length && rounds.length > 0) completeSeasons.add(year);
@@ -124,7 +127,7 @@ for (const year of completeSeasons) {
   if (!champ) continue;
   const teams = racesBySeason[year][champ.driverId] || {};
   const team = Object.entries(teams).sort((a, b) => b[1] - a[1])[0]?.[0];
-  if (team) stints[champ.driverId][team].titles++;
+  if (team) stints[eraOf(year)][champ.driverId][team].titles++;
 }
 
 const formatYears = (years) => {
@@ -168,26 +171,63 @@ const toStats = (st) => ({
 // Palmarès mostrato sulla card (non si gioca).
 const toPalmares = (st) => ({ vittorie: st.wins, podi: st.podiums, pole: st.poles, mondiali: st.titles });
 
-const cards = [];
-for (const [driverId, byTeam] of Object.entries(stints)) {
-  const all = Object.values(byTeam);
-  const lastYear = Math.max(...all.flatMap((s) => [...s.years]));
-  const podiums = all.reduce((n, s) => n + s.podiums, 0);
-  const eligible = lastYear >= FROM_YEAR && (podiums > 0 || latestGrid.has(driverId));
-  if (!eligible) continue;
+// somma delle statistiche di più scuderie (card Carriera, Classica e Pioniere)
+function sumStints(all) {
+  const total = newStint();
+  for (const s of all) {
+    for (const k of ['races', 'wins', 'podiums', 'poles', 'titles', 'points', 'top10', 'finished',
+      'gridSum', 'gridCount', 'mateWins', 'mateDuels']) total[k] += s[k];
+    total.best = Math.min(total.best, s.best);
+    s.years.forEach((y) => total.years.add(y));
+    for (const [n, k] of Object.entries(s.numbers)) total.numbers[n] = (total.numbers[n] || 0) + k;
+  }
+  return total;
+}
 
+const driverOf = (driverId) => {
   const d = drivers[driverId];
-  const driver = {
+  return {
     id: driverId,
     name: d.name,
     lastName: d.lastName,
     abbreviation: d.abbreviation,
     country: countries[d.nationalityCountryId] ?? null,
   };
+};
+const COLLECT_RARITY = { pioneer: 'pioniere', classic: 'classica' };
 
-  const teamStints = Object.entries(byTeam)
+const cards = [];
+// Pionieri e Classiche: una card per pilota con tutte le gare di quell'epoca
+for (const era of ['pioneer', 'classic']) {
+  for (const [driverId, byTeam] of Object.entries(stints[era])) {
+    const total = sumStints(Object.values(byTeam));
+    const ys = [...total.years];
+    const teamIds = Object.entries(byTeam).sort((a, b) => b[1].races - a[1].races).map(([teamId]) => teamId);
+    cards.push({
+      id: `${driverId}__${era}`,
+      kind: era,
+      driver: driverOf(driverId),
+      team: { id: teamIds[0], name: constructors[teamIds[0]]?.name ?? teamIds[0] }, // la scuderia con più gare
+      number: mainNumber(total.numbers),
+      teams: teamIds,
+      period: formatYears(total.years),
+      firstYear: Math.min(...ys),
+      rarity: COLLECT_RARITY[era],
+      stats: toStats(total),
+      palmares: toPalmares(total),
+    });
+  }
+}
+
+// Moderne (da giocare): una card per scuderia con almeno 3 gare, più la Carriera se le scuderie sono almeno 2
+for (const [driverId, byTeam] of Object.entries(stints.modern)) {
+  const all = Object.values(byTeam);
+  const driver = driverOf(driverId);
+  let teamStints = Object.entries(byTeam)
     .filter(([, s]) => s.races >= MIN_STINT_RACES)
     .sort((a, b) => Math.min(...a[1].years) - Math.min(...b[1].years));
+  // chi ha corso pochissimo ha comunque una card: quella della scuderia con più gare
+  if (!teamStints.length) teamStints = [Object.entries(byTeam).sort((a, b) => b[1].races - a[1].races)[0]];
 
   for (const [teamId, s] of teamStints) {
     cards.push({
@@ -205,21 +245,14 @@ for (const [driverId, byTeam] of Object.entries(stints)) {
   }
 
   if (teamStints.length >= 2) {
-    const total = newStint();
-    for (const s of all) {
-      for (const k of ['races', 'wins', 'podiums', 'poles', 'titles', 'points', 'top10', 'finished',
-        'gridSum', 'gridCount', 'mateWins', 'mateDuels']) total[k] += s[k];
-      total.best = Math.min(total.best, s.best);
-      s.years.forEach((y) => total.years.add(y));
-      for (const [n, k] of Object.entries(s.numbers)) total.numbers[n] = (total.numbers[n] || 0) + k;
-    }
+    const total = sumStints(all);
     const ys = [...total.years];
     cards.push({
       id: `${driverId}__career`,
       kind: 'career',
       driver,
       team: { id: 'career', name: 'Carriera' },
-      number: d.permanentNumber ?? mainNumber(total.numbers),
+      number: drivers[driverId].permanentNumber ?? mainNumber(total.numbers),
       teams: teamStints.map(([teamId]) => teamId),
       period: `${Math.min(...ys)}–${Math.max(...ys)}`,
       firstYear: Math.min(...ys),
@@ -233,9 +266,11 @@ for (const [driverId, byTeam] of Object.entries(stints)) {
 cards.sort((a, b) =>
   a.driver.lastName.localeCompare(b.driver.lastName) || a.driver.id.localeCompare(b.driver.id) ||
   (a.kind === 'career') - (b.kind === 'career') || a.firstYear - b.firstYear);
+const KIND_ORDER = { team: 0, career: 0, classic: 1, pioneer: 2 }; // le card da collezione in fondo
+cards.sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
 
 const teams = {};
-for (const c of cards) if (c.kind === 'team') teams[c.team.id] = c.team.name;
+for (const c of cards) if (c.kind !== 'career') teams[c.team.id] = c.team.name;
 
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, JSON.stringify({

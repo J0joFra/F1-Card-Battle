@@ -1,5 +1,5 @@
 import type { Card, Rarity } from '../types';
-import { ALL_CARDS, CARD_BY_ID, careerCardOf, cardsOfRarity, teamCardsOfDriver } from './cards';
+import { ALL_CARDS, CARD_BY_ID, careerCardOf, cardsOfRarity, teamCardsOfDriver, isCollectOnly } from './cards';
 import { DECK_SIZE, shuffle, type Rng } from './engine';
 import { deckProblems, fillDeck } from './deckRules';
 import { emptyDaily, type DailyState, type MissionsState } from './daily';
@@ -15,8 +15,11 @@ export const PACK_PRICE = 40;
 export const JOLLY_CHANCE = 0.2;
 
 // Probabilità di rarità per ogni card del pacchetto.
+// I Pionieri escono solo dai pacchetti (non dal negozio né dal pacchetto Scuderia).
 export const PACK_ODDS: [Rarity, number][] = [
-  ['bronzo', 0.65],
+  ['bronzo', 0.59],
+  ['pioniere', 0.03],
+  ['classica', 0.03],
   ['argento', 0.22],
   ['oro', 0.09],
   ['platino', 0.03],
@@ -24,8 +27,8 @@ export const PACK_ODDS: [Rarity, number][] = [
 ];
 
 // Crediti ricevuti per un doppione e prezzo per comprare una card a scelta.
-export const DUPLICATE_CREDITS: Record<Rarity, number> = { bronzo: 2, argento: 5, oro: 15, platino: 25, leggendaria: 40 };
-export const CARD_PRICE: Record<Rarity, number> = { bronzo: 15, argento: 40, oro: 120, platino: 200, leggendaria: 300 };
+export const DUPLICATE_CREDITS: Record<Rarity, number> = { bronzo: 2, argento: 5, oro: 15, platino: 25, leggendaria: 40, pioniere: 10, classica: 10 };
+export const CARD_PRICE: Record<Rarity, number> = { bronzo: 15, argento: 40, oro: 120, platino: 200, leggendaria: 300, pioniere: 100, classica: 100 };
 
 export interface Progress {
   owned: Record<string, number>; // id card → copie ottenute (doppioni inclusi)
@@ -67,8 +70,11 @@ export function starterProgress(rng: Rng = Math.random): Progress {
   };
 }
 
+// card possedute che si possono giocare (i Pionieri si collezionano soltanto)
 export const ownedCards = (p: Progress): Card[] =>
-  Object.keys(p.owned).map((id) => CARD_BY_ID.get(id)).filter((c): c is Card => !!c);
+  Object.keys(p.owned)
+    .map((id) => CARD_BY_ID.get(id))
+    .filter((c): c is Card => !!c && !isCollectOnly(c));
 
 // Mazzi salvati: 3 slot. Nella sfida tra amici (al meglio di 3) la partita N si gioca con il mazzo N.
 export const DECK_SLOTS = 3;
@@ -119,7 +125,9 @@ export function drawPack(rng: Rng = Math.random): Card[] {
     let rarity = rollRarity(rng);
     // l'ultima card del pacchetto è almeno Argento
     if (i === PACK_SIZE - 1 && rarity === 'bronzo') rarity = 'argento';
-    const pool = cardsOfRarity(rarity).filter((c) => !cards.includes(c));
+    let pool = cardsOfRarity(rarity).filter((c) => !cards.includes(c));
+    // catalogo senza card di questa rarità (es. Pionieri non ancora pubblicati): si prende un Bronzo
+    if (!pool.length) pool = cardsOfRarity('bronzo').filter((c) => !cards.includes(c));
     cards.push(pool[Math.floor(rng() * pool.length)]);
   }
   return cards;
@@ -245,8 +253,15 @@ export function loadProgress(): Progress | null {
 export function normalizeProgress(raw: Partial<Progress>): Progress {
   const base = starterProgress();
   const p = { ...base, ...raw, owned: raw.owned ?? {}, deck: raw.deck ?? [] };
-  // scarta card non più presenti dopo un aggiornamento dei dati
-  p.owned = Object.fromEntries(Object.entries(p.owned).filter(([id]) => CARD_BY_ID.has(id)));
+  // card non più presenti dopo un aggiornamento dei dati: diventano la card d'epoca dello stesso pilota
+  // (es. una scuderia degli anni '70 prima del 1973 → la sua Classica), altrimenti si scartano
+  const owned: Record<string, number> = {};
+  for (const [id, n] of Object.entries(p.owned)) {
+    const driver = id.split('__')[0];
+    const to = CARD_BY_ID.has(id) ? id : [`${driver}__classic`, `${driver}__pioneer`].find((x) => CARD_BY_ID.has(x));
+    if (to) owned[to] = (owned[to] ?? 0) + n;
+  }
+  p.owned = owned;
   p.deck = p.deck.filter((id) => CARD_BY_ID.has(id));
   if (Array.isArray(p.decks)) p.decks = p.decks.map((d) => (Array.isArray(d) ? d.filter((id) => CARD_BY_ID.has(id)) : []));
   p.jolly ??= 0;

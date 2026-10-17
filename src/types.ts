@@ -1,4 +1,5 @@
-export type Rarity = 'bronzo' | 'argento' | 'oro' | 'platino' | 'leggendaria';
+// 'pioniere' (1950-1960) e 'classica' (1961-1972): card solo da collezionare (non si giocano)
+export type Rarity = 'bronzo' | 'argento' | 'oro' | 'platino' | 'leggendaria' | 'pioniere' | 'classica';
 
 export type StatKey =
   | 'gare'
@@ -26,7 +27,7 @@ export interface Driver {
 
 export interface Card {
   id: string;
-  kind: 'team' | 'career';
+  kind: 'team' | 'career' | 'pioneer' | 'classic';
   driver: Driver;
   team: { id: string; name: string };
   number: number | null;
