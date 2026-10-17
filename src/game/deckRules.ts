@@ -7,6 +7,7 @@ import { DECK_SIZE } from './engine';
 // Da rifinire: basta cambiare questi numeri.
 export const MAX_PER_RARITY: Partial<Record<Rarity, number>> = {
   leggendaria: 1,
+  platino: 1,
   oro: 2,
 };
 

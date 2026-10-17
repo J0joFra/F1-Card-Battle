@@ -35,9 +35,10 @@ export const PACK_TYPES: Record<PackKind, PackType> = {
     price: 150,
     size: PACK_SIZE,
     odds: [
-      ['argento', 0.6],
+      ['argento', 0.5],
       ['oro', 0.32],
-      ['leggendaria', 0.08],
+      ['platino', 0.12],
+      ['leggendaria', 0.06],
     ],
     minLast: 'oro',
   },
@@ -45,7 +46,7 @@ export const PACK_TYPES: Record<PackKind, PackType> = {
   team: { price: 80, size: 4, odds: PACK_ODDS, minLast: 'argento' },
 };
 
-const RANK: Record<Rarity, number> = { bronzo: 0, argento: 1, oro: 2, leggendaria: 3 };
+const RANK: Record<Rarity, number> = { bronzo: 0, argento: 1, oro: 2, platino: 3, leggendaria: 4 };
 
 function roll(odds: [Rarity, number][], rng: Rng): Rarity {
   let r = rng();
@@ -117,10 +118,11 @@ export function generateStore(owned: Record<string, number>, date: string, salt 
     if (picked.length >= 3) break;
     picked.push(c);
   }
-  // le altre: al massimo un Oro, per non rendere il negozio troppo caro
+  // le altre: al massimo un Oro o Platino, per non rendere il negozio troppo caro
   for (const c of others) {
     if (picked.length >= STORE_SIZE) break;
-    if (c.rarity === 'oro' && picked.some((x) => x.rarity === 'oro')) continue;
+    const top = (x: Card) => x.rarity === 'oro' || x.rarity === 'platino';
+    if (top(c) && picked.some(top)) continue;
     picked.push(c);
   }
   return { date, cards: picked.map((c) => c.id), bought: [] };

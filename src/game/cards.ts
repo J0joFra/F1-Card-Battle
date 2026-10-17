@@ -2,7 +2,7 @@ import data from '../data/cards.json';
 import type { Card, CardsData, Rarity, StatKey } from '../types';
 import { getLang, translate, type TKey } from '../lib/i18n';
 
-export const CARDS_DATA = data as CardsData;
+export const CARDS_DATA = data as unknown as CardsData;
 export const ALL_CARDS: Card[] = CARDS_DATA.cards;
 export const CARD_BY_ID = new Map(ALL_CARDS.map((c) => [c.id, c]));
 
@@ -46,7 +46,48 @@ export function formatStat(stat: StatDef, v: number) {
   return stat.position ? `${n}°` : `${n}${stat.suffix ?? ''}`;
 }
 
-export const RARITIES: Rarity[] = ['bronzo', 'argento', 'oro', 'leggendaria'];
+export const RARITIES: Rarity[] = ['bronzo', 'argento', 'oro', 'platino', 'leggendaria'];
+
+/*
+ * Valutazione e rarità delle card.
+ * Per ogni metrica si calcola il percentile della card rispetto a tutte le card scuderia
+ * (1 = la migliore; per Miglior arrivo e Griglia media vince il valore più basso, quindi è girato).
+ * La media dei 7 percentili, da 0 a 100, è la valutazione (OVR) e decide la rarità:
+ * Platino ≥ 82, Oro ≥ 68, Argento ≥ 50, altrimenti Bronzo. Leggendaria: solo le card Carriera.
+ */
+export const RARITY_THRESHOLDS: [Rarity, number][] = [
+  ['platino', 82],
+  ['oro', 68],
+  ['argento', 50],
+  ['bronzo', 0],
+];
+
+function rateCards(cards: Card[]) {
+  const team = cards.filter((c) => c.kind === 'team');
+  const sorted = Object.fromEntries(STATS.map((s) => [s.key, team.map((c) => c.stats[s.key]).sort((a, b) => a - b)])) as Record<
+    StatKey,
+    number[]
+  >;
+  const pct = (s: StatDef, v: number) => {
+    const arr = sorted[s.key];
+    let lo = 0;
+    let hi = arr.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (arr[mid] < v) lo = mid + 1;
+      else hi = mid;
+    }
+    let eq = lo;
+    while (eq < arr.length && arr[eq] === v) eq++;
+    const p = (lo + eq) / 2 / arr.length;
+    return s.lowerWins ? 1 - p : p;
+  };
+  for (const c of cards) {
+    c.ovr = Math.round((100 * STATS.reduce((sum, s) => sum + pct(s, c.stats[s.key]), 0)) / STATS.length);
+    c.rarity = c.kind === 'career' ? 'leggendaria' : RARITY_THRESHOLDS.find(([, min]) => c.ovr >= min)![0];
+  }
+}
+rateCards(ALL_CARDS);
 
 
 export const cardsOfRarity = (rarity: Rarity) => ALL_CARDS.filter((c) => c.rarity === rarity);

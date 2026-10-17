@@ -38,6 +38,7 @@
   --bronzo: #b0754a;
   --argento: #b9c0cb;
   --oro: #e8b931;
+  --platino: #7fe3e0;
   --leggendaria: #b46bff;
   --tabbar-h: 70px;
   --safe-top: env(safe-area-inset-top, 0px);
@@ -92,8 +93,8 @@ p { line-height: 1.45; }
 /* barra in basso */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
-  display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: end;
-  height: calc(var(--tabbar-h) + var(--safe-bottom)); padding: 0 12px var(--safe-bottom);
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end;
+  height: calc(var(--tabbar-h) + var(--safe-bottom)); padding: 0 6px var(--safe-bottom);
   max-width: 720px; margin: 0 auto;
   background: var(--surface);
   border-top: 1px solid var(--line);
@@ -162,6 +163,7 @@ p { line-height: 1.45; }
 .dot.rarity-bronzo { background: var(--bronzo); }
 .dot.rarity-argento { background: var(--argento); }
 .dot.rarity-oro { background: var(--oro); }
+.dot.rarity-platino { background: var(--platino); }
 .dot.rarity-leggendaria { background: var(--leggendaria); }
 
 /* ============ Home ============ */
@@ -222,11 +224,15 @@ p { line-height: 1.45; }
 }
 .card.rarity-argento { --rar: var(--argento); }
 .card.rarity-oro { --rar: var(--oro); }
+.card.rarity-platino {
+  --rar: var(--platino);
+  box-shadow: 0 0 0 1px var(--platino), 0 0 22px color-mix(in srgb, var(--platino) 45%, transparent);
+}
 .card.rarity-leggendaria {
   --rar: var(--leggendaria);
   box-shadow: 0 0 0 1px var(--leggendaria), 0 0 28px color-mix(in srgb, var(--leggendaria) 50%, transparent);
 }
-.card.rarity-oro::after, .card.rarity-leggendaria::after {
+.card.rarity-oro::after, .card.rarity-platino::after, .card.rarity-leggendaria::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
   background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.18) 45%, transparent 60%);
   background-size: 250% 100%; animation: shine 3.5s ease-in-out infinite;
@@ -261,6 +267,11 @@ p { line-height: 1.45; }
   color: #fff; text-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
 }
 .card-sm .card-abbr { font-size: 22px; left: 7px; bottom: 2px; }
+.card-ovr {
+  position: absolute; right: 9px; bottom: 6px; min-width: 30px; padding: 2px 6px; border-radius: 8px; text-align: center;
+  font-size: 18px; font-weight: 900; color: #111; background: var(--rar); box-shadow: 0 2px 8px rgba(0,0,0,.45);
+}
+.card-sm .card-ovr { font-size: 12px; min-width: 22px; padding: 1px 4px; right: 6px; bottom: 4px; border-radius: 6px; }
 .card-title { padding: 8px 12px 9px; border-top: 3px solid var(--team); background: rgba(0, 0, 0, 0.25); }
 .card-sm .card-title { padding: 6px 8px 7px; border-top-width: 2px; }
 .card-name { font-weight: 900; font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -472,6 +483,7 @@ p { line-height: 1.45; }
   .card-md .card-palmares { font-size: 10.5px; }
   .card-md .card-flag { font-size: 16px; }
   .card-md .card-rarity { font-size: 8px; padding: 1px 5px; }
+  .card-md .card-ovr { font-size: 14px; min-width: 24px; }
   .card-md .card-stats { padding: 5px; gap: 3px; }
   .card-md .card-stats li > button, .card-md .card-stats .stat-row { padding: 6px 6px; font-size: 11px; border-radius: 7px; }
   .card-md .card-stats b { font-size: 12.5px; }
@@ -533,6 +545,7 @@ p { line-height: 1.45; }
   animation: burst 1.1s ease-out both;
 }
 .burst-leggendaria { --burst: var(--leggendaria); }
+.burst-platino { --burst: var(--platino); }
 @keyframes burst { 0% { opacity: 0; transform: scale(0.3); } 30% { opacity: 0.9; } 100% { opacity: 0; transform: scale(1.4); } }
 
 /* interruttori nelle impostazioni */
@@ -566,6 +579,7 @@ p { line-height: 1.45; }
 }
 .daily-deck .mini.rarity-argento { --rar: var(--argento); }
 .daily-deck .mini.rarity-oro { --rar: var(--oro); }
+.daily-deck .mini.rarity-platino { --rar: var(--platino); }
 .daily p { margin: 0; font-size: 14px; }
 .daily-result { font-weight: 700; text-align: center; }
 .daily-result.won { color: var(--win); }
@@ -724,8 +738,8 @@ p { line-height: 1.45; }
 .radar-value { font-size: 9.5px; font-weight: 600; fill: #9aa0ab; font-variant-numeric: tabular-nums; }
 
 /* costruttore del mazzo: card al posto della tabella */
-.deck-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-@media (min-width: 640px) { .deck-cards { grid-template-columns: repeat(7, 1fr); } }
+.deck-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+@media (min-width: 640px) { .deck-cards { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
 .deck-cards .mini { position: relative; }
 .deck-cards .mini .card-sm { width: 100%; zoom: 0.62; }
 .deck-cards .mini .remove {
@@ -835,9 +849,68 @@ p { line-height: 1.45; }
 
 /* ============ Leggerezza: meno lavoro per il telefono ============ */
 /* il riflesso che scorre sulle card Oro/Leggendarie: solo sulle card grandi, non nelle griglie */
-.card-sm.rarity-oro::after, .card-sm.rarity-leggendaria::after { animation: none; background-position: 60% 0; }
-/* le card fuori dallo schermo non si disegnano finché non ci si arriva */
-/* (non nelle griglie con card che si girano: lì taglierebbe la card ingrandita) */
-.grid-item, .friend-list li { content-visibility: auto; contain-intrinsic-size: auto 240px; }
-.missions li, .recap li { content-visibility: auto; contain-intrinsic-size: auto 60px; }
+.card-sm.rarity-oro::after, .card-sm.rarity-platino::after, .card-sm.rarity-leggendaria::after { animation: none; background-position: 60% 0; }
+/* gioco mobile: nessuna schermata può essere più larga del telefono */
+html, body { overflow-x: hidden; }
+.content { min-width: 0; overflow-x: clip; }
+/* le colonne non si allargano oltre lo schermo per colpa del contenuto */
+.screen, .screen > *, .deck-bar > * { min-width: 0; }
+.pick-grid, .shop-cards, .grid { grid-template-columns: repeat(auto-fill, minmax(min(150px, 45%), 1fr)); }
 .grid-sentinel { grid-column: 1 / -1; height: 1px; }
+.grid-item { width: 100%; display: flex; justify-content: center; }
+.grid-item .card-sm { width: min(150px, 100%); }
+
+/* 4 pagine: etichette che stanno anche sui telefoni stretti */
+.tabbar > button { font-size: 11px; letter-spacing: 0.2px; min-width: 0; }
+.tabbar > button > span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* pagina Gioca: scelta del mazzo */
+.home-decks { align-items: center; margin: 6px 0 4px; }
+.home-decks > .muted { font-weight: 800; text-transform: uppercase; font-size: 12px; letter-spacing: 0.5px; }
+.home-decks button { min-width: 46px; height: 36px; }
+
+/* collezione: card che si girano */
+.grid-item .flip { width: min(150px, 100%); }
+.grid-item .flip .card-sm { width: 100%; }
+.card-info { display: grid; gap: 4px; width: 100%; text-align: center; }
+.card-info small { color: var(--gold); font-weight: 800; font-size: 11px; }
+.flip-zoom .card-info small { font-size: 14px; }
+
+/* mazzi: carte o tabella */
+.view-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; flex: none; }
+.view-toggle button { background: var(--surface); color: var(--muted); border: 0; padding: 6px 9px; display: grid; place-items: center; }
+.view-toggle button.on { background: var(--accent); color: #fff; }
+.pick-head { flex-wrap: wrap; }
+.stat-table-wrap {
+  overflow-x: auto; max-width: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+  -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
+}
+.stat-table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+.stat-table th, .stat-table td { padding: 8px 7px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+.stat-table th {
+  position: sticky; top: 0; z-index: 2; background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 800;
+  text-transform: uppercase; cursor: pointer; user-select: none;
+}
+.stat-table th.on, .stat-table td.on { color: var(--text); }
+.stat-table th.on { box-shadow: inset 0 -2px 0 var(--accent); }
+.stat-table td.on { background: color-mix(in srgb, var(--accent) 10%, transparent); font-weight: 800; }
+.stat-table .col-name {
+  position: sticky; left: 0; z-index: 1; text-align: left; background: var(--surface); width: 132px; min-width: 132px; max-width: 132px;
+  box-shadow: 1px 0 0 var(--line);
+}
+.stat-table th.col-name { z-index: 3; cursor: default; }
+.stat-table td.col-name .cell { display: flex; align-items: center; gap: 6px; width: 118px; }
+.stat-table .nm { display: grid; min-width: 0; line-height: 1.15; }
+.stat-table .nm b, .stat-table .nm small { overflow: hidden; text-overflow: ellipsis; }
+.stat-table .nm small { color: var(--muted); font-size: 10px; }
+.stat-table td.ovr { font-weight: 900; }
+.stat-table tbody tr { cursor: pointer; }
+.stat-table tr.in-deck td { background: color-mix(in srgb, var(--win) 14%, var(--surface)); }
+.stat-table tr.blocked td { color: var(--muted); cursor: default; }
+.stat-table tr.blocked .nm { opacity: 0.55; }
+.pick-mark {
+  flex: none; width: 20px; height: 20px; border-radius: 6px; border: 1px solid var(--line); display: grid; place-items: center;
+  color: var(--muted); font-size: 12px;
+}
+.pick-mark.on { background: var(--win); border-color: var(--win); color: #fff; }
+.stat-table .dot { flex: none; width: 8px; height: 8px; }
