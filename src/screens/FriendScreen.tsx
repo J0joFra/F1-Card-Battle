@@ -12,9 +12,10 @@ import { HelpButton } from '../components/TutorialSection';
 import { askConfirm } from '../components/ConfirmDialog';
 import { haptic, sfx } from '../lib/feedback';
 import { challengeLink } from '../lib/links';
+import { listen, pvpTopic } from '../lib/live';
 import { Capacitor } from '@capacitor/core';
 
-const POLL_MS = 2000;
+const POLL_MS = 3000; // controllo di riserva: di solito l'ingresso dell'amico arriva subito con il segnale
 const FRIENDS_POLL_MS = 15_000;
 
 interface Props {
@@ -34,27 +35,35 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
   const [copied, setCopied] = useState(false);
   const [friends, setFriends] = useState<Friend[] | null>(null);
 
-  // in attesa: si chiede al server ogni 2 secondi se l'amico è entrato
+  // in attesa: appena l'amico entra il server manda un segnale; in ogni caso si controlla ogni pochi secondi
   useEffect(() => {
     if (!lobby) return;
     let alive = true;
-    const id = setInterval(async () => {
-      try {
-        const res = await callGame({ action: 'pvp_state', match: lobby.id });
+    const live = listen(pvpTopic(lobby.id));
+    void (async () => {
+      while (alive) {
+        await live.wait(POLL_MS);
         if (!alive) return;
-        if (res.pvp?.status === 'playing') {
-          clearInterval(id);
-          sfx('select');
-          haptic('success');
-          onStart(res);
-        } else if (res.pvp?.status === 'cancelled') onCancel(true);
-      } catch {
-        /* rete assente: si riprova al giro dopo */
+        try {
+          const res = await callGame({ action: 'pvp_state', match: lobby.id });
+          if (!alive) return;
+          if (res.pvp?.status === 'playing') {
+            alive = false;
+            sfx('select');
+            haptic('success');
+            onStart(res);
+          } else if (res.pvp?.status === 'cancelled') {
+            alive = false;
+            onCancel(true);
+          }
+        } catch {
+          /* rete assente: si riprova al giro dopo */
+        }
       }
-    }, POLL_MS);
+    })();
     return () => {
       alive = false;
-      clearInterval(id);
+      live.close();
     };
   }, [lobby?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 

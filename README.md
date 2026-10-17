@@ -55,7 +55,8 @@ Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per 
 - Ognuno ha 30 secondi per scegliere: se non lo fa (o chiude l'app), il server gioca la metrica migliore della sua card.
 - **Turni sincronizzati**: appena uno sceglie, i due telefoni mostrano il risultato per 3 secondi e passano insieme alla carta successiva, senza premere *Prossimo round* (il server dice a ognuno da quanto è stata fatta la mossa).
 - Premi a fine serie: la vittoria conta per il pacchetto (come contro la CPU) e vale **+10 crediti**, il pareggio **+5 crediti**. Chi abbandona perde la serie.
-- Il telefono chiede al server ogni secondo se l'avversario ha giocato, e ogni 20 secondi se ci sono inviti (è anche il "sono online"). Tabelle `pvp_matches` e `friends`, chiuse ai telefoni.
+- **Aggiornamenti istantanei** (Supabase Realtime): dopo ogni cambiamento di una sfida (mossa, ingresso, abbandono, invito) il server manda un segnale sul canale della sfida (`pvp-<id>`) o dell'amico invitato (`user-<id>`) e i telefoni rileggono subito lo stato dal server. Il segnale non contiene dati di gioco. Se la connessione Realtime non c'è, i telefoni controllano comunque ogni 3 secondi (partita) e ogni 20 secondi (inviti; è anche il "sono online"). Codice in `src/lib/live.ts` e `server/edge.ts`. Tabelle `pvp_matches` e `friends`, chiuse ai telefoni.
+- Con l'app chiusa non arriva nulla: per le notifiche sul telefono serve Firebase Cloud Messaging (da configurare).
 
 ## Sfida del giorno e missioni
 

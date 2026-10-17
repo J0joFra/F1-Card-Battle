@@ -101,6 +101,7 @@ const SettingsSheet = lazy(() =>
 import { Onboarding, onboardingDone } from "./components/Onboarding";
 import { ConfirmHost, askConfirm } from "./components/ConfirmDialog";
 import { clearChallengeCode, takeChallengeCode } from "./lib/links";
+import { listen, pvpTopic, userTopic, type Live } from "./lib/live";
 import { buyAndOpen, buyFromStore, storeFor, storePrice } from "./game/shop";
 
 type Screen =
@@ -325,6 +326,11 @@ export default function App() {
   }
 
   // Sfida tra amici (al meglio di 3): la partita la arbitra il server, l'avversario gioca dal suo telefono.
+  const liveRef = useRef<{ id: string; live: Live } | null>(null);
+  const closeLive = () => {
+    liveRef.current?.live.close();
+    liveRef.current = null;
+  };
   function pvpDriver(
     id: string,
     first: GameResponse,
@@ -332,6 +338,13 @@ export default function App() {
   ): MatchDriver {
     let last = first.view!;
     let stopped = false;
+    // avvisi istantanei della sfida: la mossa dell'amico arriva subito, senza aspettare il controllo successivo
+    // (le 3 partite della serie usano lo stesso canale)
+    if (liveRef.current?.id !== id) {
+      closeLive();
+      liveRef.current = { id, live: listen(pvpTopic(id)) };
+    }
+    const live = liveRef.current!.live;
     const adopt = (r: GameResponse): MatchView => {
       if (r.progress) setProgressRaw(r.progress);
       if (r.rewards) rewardsRef.current = r.rewards;
@@ -370,7 +383,7 @@ export default function App() {
         // turno dell'amico: si aspetta la sua mossa (o la scelta automatica allo scadere del tempo)
         let failures = 0;
         for (;;) {
-          await new Promise((r) => setTimeout(r, 1000));
+          await live.wait(3000); // segnale dal server, o comunque un controllo ogni 3 secondi
           if (stopped) return last;
           try {
             const r = await state();
@@ -384,6 +397,7 @@ export default function App() {
       },
       quit() {
         stopped = true;
+        closeLive();
         void callGame({ action: "pvp_quit", match: id }).catch(() => {});
       },
     };
@@ -496,9 +510,13 @@ export default function App() {
         .catch(() => {});
     };
     ping();
+    // l'invito di un amico arriva subito (segnale dal server); il ping ogni 20 secondi tiene acceso il pallino verde
+    const uid = account.session?.user.id;
+    const live = uid ? listen(userTopic(uid), ping) : null;
     const id = setInterval(ping, 20_000);
     document.addEventListener("visibilitychange", ping);
     return () => {
+      live?.close();
       clearInterval(id);
       document.removeEventListener("visibilitychange", ping);
     };
@@ -550,6 +568,7 @@ export default function App() {
       return;
     }
     const r = rewardsRef.current;
+    closeLive();
     setDriver(null);
     setDailyMode(false);
     setOpponent(null);
@@ -565,6 +584,7 @@ export default function App() {
 
   function quitMatch() {
     driver?.quit();
+    closeLive();
     setDriver(null);
     setDailyMode(false);
     setOpponent(null);
