@@ -124,7 +124,9 @@ export function drawPack(rng: Rng = Math.random): Card[] {
     let rarity = rollRarity(rng);
     // l'ultima card del pacchetto è almeno Argento
     if (i === PACK_SIZE - 1 && rarity === 'bronzo') rarity = 'argento';
-    const pool = cardsOfRarity(rarity).filter((c) => !cards.includes(c));
+    let pool = cardsOfRarity(rarity).filter((c) => !cards.includes(c));
+    // catalogo senza card di questa rarità (es. Pionieri non ancora pubblicati): si prende un Bronzo
+    if (!pool.length) pool = cardsOfRarity('bronzo').filter((c) => !cards.includes(c));
     cards.push(pool[Math.floor(rng() * pool.length)]);
   }
   return cards;
