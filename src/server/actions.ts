@@ -1,4 +1,4 @@
-import { ALL_CARDS, STATS } from '../game/cards';
+import { PLAYABLE_CARDS, STATS } from '../game/cards';
 import {
   buyPack,
   mergeProgress,
@@ -22,7 +22,7 @@ import type { GameRequest, GameResponse, Store } from './types';
 
 export * from './types';
 export { GameError, type Ctx } from './common';
-export { PVP_TURN_MS, NEXT_GAME_MS, PVP_CODE_TTL_MS, ONLINE_MS, normalizeCode, seriesState } from './pvp';
+export { PVP_TURN_MS, PVP_REVEAL_MS, NEXT_GAME_MS, PVP_CODE_TTL_MS, ONLINE_MS, normalizeCode, seriesState } from './pvp';
 
 /*
  * Logica del server ("arbitro"). È separata dal database (vedi `Store`) così si può provare con i test.
@@ -184,7 +184,7 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
         const ids = Array.isArray(req.deck) ? req.deck : [];
         const deck = validDeck(ids, p, mode);
         if (daily && dailyPlayed(p.daily, req.date)) throw new GameError('daily_played');
-        const pool = mode.kind === 'classic' ? ALL_CARDS : ALL_CARDS.filter((c) => fitsMode(mode, c));
+        const pool = PLAYABLE_CARDS.filter((c) => fitsMode(mode, c));
         const cpu = daily ? daily.cpuDeck : buildCpuDeck(deck, ctx.rng, pool);
         const state = newMatch(deck, cpu, ctx.rng);
         view = toView(state);

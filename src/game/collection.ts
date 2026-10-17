@@ -15,8 +15,10 @@ export const PACK_PRICE = 40;
 export const JOLLY_CHANCE = 0.2;
 
 // Probabilità di rarità per ogni card del pacchetto.
+// I Pionieri escono solo dai pacchetti (non dal negozio né dal pacchetto Scuderia).
 export const PACK_ODDS: [Rarity, number][] = [
-  ['bronzo', 0.65],
+  ['bronzo', 0.61],
+  ['pioniere', 0.04],
   ['argento', 0.22],
   ['oro', 0.09],
   ['platino', 0.03],
@@ -24,8 +26,8 @@ export const PACK_ODDS: [Rarity, number][] = [
 ];
 
 // Crediti ricevuti per un doppione e prezzo per comprare una card a scelta.
-export const DUPLICATE_CREDITS: Record<Rarity, number> = { bronzo: 2, argento: 5, oro: 15, platino: 25, leggendaria: 40 };
-export const CARD_PRICE: Record<Rarity, number> = { bronzo: 15, argento: 40, oro: 120, platino: 200, leggendaria: 300 };
+export const DUPLICATE_CREDITS: Record<Rarity, number> = { bronzo: 2, argento: 5, oro: 15, platino: 25, leggendaria: 40, pioniere: 10 };
+export const CARD_PRICE: Record<Rarity, number> = { bronzo: 15, argento: 40, oro: 120, platino: 200, leggendaria: 300, pioniere: 100 };
 
 export interface Progress {
   owned: Record<string, number>; // id card → copie ottenute (doppioni inclusi)
@@ -67,8 +69,11 @@ export function starterProgress(rng: Rng = Math.random): Progress {
   };
 }
 
+// card possedute che si possono giocare (i Pionieri si collezionano soltanto)
 export const ownedCards = (p: Progress): Card[] =>
-  Object.keys(p.owned).map((id) => CARD_BY_ID.get(id)).filter((c): c is Card => !!c);
+  Object.keys(p.owned)
+    .map((id) => CARD_BY_ID.get(id))
+    .filter((c): c is Card => !!c && c.kind !== 'pioneer');
 
 // Mazzi salvati: 3 slot. Nella sfida tra amici (al meglio di 3) la partita N si gioca con il mazzo N.
 export const DECK_SLOTS = 3;

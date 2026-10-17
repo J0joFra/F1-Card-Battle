@@ -46,6 +46,7 @@ export function formatStat(stat: StatDef, v: number) {
   return stat.position ? `${n}°` : `${n}${stat.suffix ?? ''}`;
 }
 
+// rarità delle card giocabili (i Pionieri hanno la loro, solo da collezione)
 export const RARITIES: Rarity[] = ['bronzo', 'argento', 'oro', 'platino', 'leggendaria'];
 
 /*
@@ -84,10 +85,14 @@ function rateCards(cards: Card[]) {
   };
   for (const c of cards) {
     c.ovr = Math.round((100 * STATS.reduce((sum, s) => sum + pct(s, c.stats[s.key]), 0)) / STATS.length);
-    c.rarity = c.kind === 'career' ? 'leggendaria' : RARITY_THRESHOLDS.find(([, min]) => c.ovr >= min)![0];
+    c.rarity =
+      c.kind === 'career' ? 'leggendaria' : c.kind === 'pioneer' ? 'pioniere' : RARITY_THRESHOLDS.find(([, min]) => c.ovr >= min)![0];
   }
 }
 rateCards(ALL_CARDS);
+
+// card che si possono giocare (tutte tranne i Pionieri)
+export const PLAYABLE_CARDS = ALL_CARDS.filter((c) => c.kind !== 'pioneer');
 
 
 export const cardsOfRarity = (rarity: Rarity) => ALL_CARDS.filter((c) => c.rarity === rarity);

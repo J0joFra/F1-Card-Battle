@@ -287,6 +287,7 @@ describe('rarità dalla valutazione', () => {
       expect(c.ovr).toBeGreaterThanOrEqual(0);
       expect(c.ovr).toBeLessThanOrEqual(100);
       if (c.kind === 'career') expect(c.rarity).toBe('leggendaria');
+      else if (c.kind === 'pioneer') expect(c.rarity).toBe('pioniere');
       else {
         const [, min] = RARITY_THRESHOLDS.find(([r]) => r === c.rarity)!;
         expect(c.ovr).toBeGreaterThanOrEqual(min);
@@ -319,5 +320,20 @@ describe('regole del mazzo classico', () => {
     const deck = pick('platino', 2);
     expect(canAdd(deck, pick('leggendaria', 1)[0])).toBe(false);
     expect(canAdd(pick('platino', 1), pick('leggendaria', 1)[0])).toBe(true);
+  });
+});
+
+describe('card Pioniere', () => {
+  const pioneers = ALL_CARDS.filter((c) => c.kind === 'pioneer');
+  it('ci sono, sono dei piloti fino al 1979 e non si possono mettere nel mazzo', () => {
+    expect(pioneers.length).toBeGreaterThan(50);
+    expect(pioneers.every((c) => c.firstYear < 1980 && c.rarity === 'pioniere')).toBe(true);
+    expect(canAdd([], pioneers[0])).toBe(false);
+    const deck = [pioneers[0], ...ALL_CARDS.filter((c) => c.rarity === 'bronzo').slice(0, 6)];
+    expect(deckProblems(deck)).not.toEqual([]);
+  });
+  it('non finiscono nei mazzi completati in automatico', () => {
+    const p = { ...starterProgress(seeded()), owned: Object.fromEntries([...pioneers, ...ALL_CARDS.filter((c) => c.rarity === 'bronzo').slice(0, 10)].map((c) => [c.id, 1])) };
+    expect(autoFillDeck(p, []).some((c) => c.kind === 'pioneer')).toBe(false);
   });
 });

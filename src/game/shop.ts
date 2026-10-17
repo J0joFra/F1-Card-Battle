@@ -43,10 +43,10 @@ export const PACK_TYPES: Record<PackKind, PackType> = {
     minLast: 'oro',
   },
   // solo card della scuderia del giorno: per completare le scuderie
-  team: { price: 80, size: 4, odds: PACK_ODDS, minLast: 'argento' },
+  team: { price: 80, size: 4, odds: PACK_ODDS.map(([r, p]) => [r === 'pioniere' ? 'bronzo' : r, p]), minLast: 'argento' },
 };
 
-const RANK: Record<Rarity, number> = { bronzo: 0, argento: 1, oro: 2, platino: 3, leggendaria: 4 };
+const RANK: Record<Rarity, number> = { bronzo: 0, argento: 1, pioniere: 1, oro: 2, platino: 3, leggendaria: 4 };
 
 function roll(odds: [Rarity, number][], rng: Rng): Rarity {
   let r = rng();

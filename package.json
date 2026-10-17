@@ -16,6 +16,7 @@
     "@capacitor/app": "^7.1.2",
     "@capacitor/core": "^7.6.9",
     "@capacitor/haptics": "^7.0.5",
+    "@capacitor/share": "^7.0.4",
     "@capgo/capacitor-social-login": "^7.20.0",
     "@fontsource/titillium-web": "^5.3.0",
     "@supabase/supabase-js": "^2.117.3",

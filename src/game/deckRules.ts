@@ -38,6 +38,7 @@ export const DECADES = [...new Set(ALL_CARDS.filter((c) => c.kind === 'team').ma
   .sort();
 
 export function fitsMode(mode: MatchMode, c: Card): boolean {
+  if (c.kind === 'pioneer') return false; // i Pionieri si collezionano soltanto
   switch (mode.kind) {
     case 'classic':
       return true;

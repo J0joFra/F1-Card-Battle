@@ -46,9 +46,15 @@ export function CardView({ card, size = 'md', onPickStat, lockedStats, highlight
         </span>
         <span className="card-rarity">{rarityLabel(card.rarity)}</span>
         <span className="card-abbr">{card.driver.abbreviation}</span>
-        <span className="card-ovr" title={t('ovr_hint')}>
-          {card.ovr}
-        </span>
+        {card.kind === 'pioneer' ? (
+          <span className="card-ovr" title={t('card_collectOnly')}>
+            🏛
+          </span>
+        ) : (
+          <span className="card-ovr" title={t('ovr_hint')}>
+            {card.ovr}
+          </span>
+        )}
       </div>
       <div className="card-title">
         <div className="card-name">{card.driver.name}</div>

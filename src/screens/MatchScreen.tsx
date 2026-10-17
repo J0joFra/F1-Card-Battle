@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Card, StatKey } from '../types';
-import { X } from 'lucide-react';
+import { Flag } from 'lucide-react';
 import { CARD_BY_ID, STATS, STAT_BY_KEY, formatStat, statLabel, statShort } from '../game/cards';
 import { useI18n, type TKey } from '../lib/i18n';
 import { errorMessage } from '../lib/api';
@@ -12,6 +12,8 @@ import { haptic, reducedMotion, sfx } from '../lib/feedback';
 
 // tempo della carta CPU che si gira prima di mostrare il risultato del round
 const REVEAL_MS = 650;
+// sfida tra amici: il risultato del round resta a schermo questo tempo (contato dalla mossa, uguale per i due telefoni)
+const PVP_REVEAL_MS = 3000; // come in server/pvp.ts
 const CPU_THINK_MS = 900;
 const CPU_ANNOUNCE_MS = 1300;
 
@@ -19,7 +21,7 @@ interface Props {
   driver: MatchDriver; // chi arbitra: il telefono (ospite) o il server
   title?: string;
   opponent?: string; // sfida tra amici: nome dell'avversario al posto di "CPU"
-  autoNextMs?: number; // passa da solo al round successivo (sfida tra amici: il tempo corre per tutti)
+  synced?: boolean; // sfida tra amici: dopo ogni mossa si passa da soli alla carta successiva, insieme all'avversario
   endExtra?: ReactNode; // a fine partita (es. punteggio della serie al meglio di 3)
   endButton?: string; // testo del pulsante a fine partita (es. "Partita 2")
   onFinish: () => void;
@@ -36,7 +38,7 @@ interface Round {
 
 const cardOf = (id: string) => CARD_BY_ID.get(id)!;
 
-export function MatchScreen({ driver, title, opponent, autoNextMs, endExtra, endButton, onFinish, onQuit }: Props) {
+export function MatchScreen({ driver, title, opponent, synced, endExtra, endButton, onFinish, onQuit }: Props) {
   const { t: tr } = useI18n();
   // contro un amico i testi "CPU" diventano il suo nome
   const VS_FRIEND: Partial<Record<TKey, TKey>> = {
@@ -60,6 +62,7 @@ export function MatchScreen({ driver, title, opponent, autoNextMs, endExtra, end
   const [busy, setBusy] = useState(false); // round in corso (in attesa dell'arbitro)
   const [error, setError] = useState<string | null>(null);
   const pending = useRef<MatchView | null>(null); // round della CPU già giocato, mostrato dopo l'annuncio
+  const advanceAt = useRef(0); // sfida tra amici: quando passare alla carta successiva
   const alive = useRef(true);
   useEffect(
     () => () => {
@@ -87,6 +90,8 @@ export function MatchScreen({ driver, title, opponent, autoNextMs, endExtra, end
     }
     setView(next);
     setCpuPick(null);
+    // il server dice da quanto è stata fatta la mossa: così i due telefoni cambiano carta insieme
+    advanceAt.current = Date.now() + Math.max(REVEAL_MS + 600, PVP_REVEAL_MS - (next.sinceMove ?? 0));
     setShowResult(true);
     setSettled(false);
     sfx('flip');
@@ -107,7 +112,8 @@ export function MatchScreen({ driver, title, opponent, autoNextMs, endExtra, end
     const started = Date.now();
     driver.play().then((next) => {
       if (!alive.current) return;
-      if (next.history.length <= view.history.length) {
+      // contro un amico la mossa è già avvenuta: si mostra subito, senza far "pensare" l'avversario
+      if (next.history.length <= view.history.length || synced) {
         setBusy(false);
         show(next);
         return;
@@ -152,12 +158,12 @@ export function MatchScreen({ driver, title, opponent, autoNextMs, endExtra, end
     return () => clearInterval(id);
   }, [myTurn, view.round]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // contro un amico il risultato del round resta a schermo per un po', poi si va avanti da soli
+  // contro un amico non si preme «Prossimo round»: si passa da soli alla carta successiva, insieme all'avversario
   useEffect(() => {
-    if (!autoNextMs || !showResult || !settled) return;
-    const tm = setTimeout(() => setShowResult(false), autoNextMs);
+    if (!synced || !showResult || !settled) return;
+    const tm = setTimeout(() => setShowResult(false), Math.max(0, advanceAt.current - Date.now()));
     return () => clearTimeout(tm);
-  }, [autoNextMs, showResult, settled]);
+  }, [synced, showResult, settled]);
 
   pickRef.current = pick;
   function pick(stat: StatKey) {
@@ -225,11 +231,6 @@ export function MatchScreen({ driver, title, opponent, autoNextMs, endExtra, end
 
   return (
     <div className="screen match">
-      {!finished && (
-        <button className="icon-btn match-quit" onClick={quit} aria-label={t('m_quit')}>
-          <X size={22} />
-        </button>
-      )}
       {title && <div className="match-title">{title}</div>}
       <div className="scoreboard">
         <div className="side you">
@@ -305,14 +306,15 @@ export function MatchScreen({ driver, title, opponent, autoNextMs, endExtra, end
           ) : (
             <div className="banner">{statLabel(last.stat)}…</div>
           )}
-          <div className={`duel ${settled ? `clash clash-${last.winner}` : ''}`}>
-            <CardView
-              card={last.playerCard}
-              highlight={last.stat}
-              result={settled ? (last.winner === 'player' ? 'win' : last.winner === 'cpu' ? 'lose' : 'tie') : undefined}
-            />
-            <span className="vs">VS</span>
-            <div className="flip-reveal" key={`cpu-${view.round}`}>
+          <div className={`duel-stack revealed ${settled ? `clash-${last.winner}` : ''}`}>
+            <div className="duel-me">
+              <CardView
+                card={last.playerCard}
+                highlight={last.stat}
+                result={settled ? (last.winner === 'player' ? 'win' : last.winner === 'cpu' ? 'lose' : 'tie') : undefined}
+              />
+            </div>
+            <div className="duel-opp flip-reveal" key={`cpu-${view.round}`}>
               <CardView
                 card={last.cpuCard}
                 highlight={last.stat}
@@ -320,16 +322,28 @@ export function MatchScreen({ driver, title, opponent, autoNextMs, endExtra, end
               />
             </div>
           </div>
-          <button
-            className="btn primary big next-btn"
-            disabled={!settled}
-            onClick={() => {
-              sfx('tap');
-              setShowResult(false);
-            }}
-          >
-            {outcome ? t('m_final') : t('m_next')}
-          </button>
+          {/* la carta dell'avversario copre in parte la tua: il confronto si legge qui */}
+          <div className={`compare ${settled ? `compare-${last.winner}` : ''}`}>
+            <span className="you">
+              {last.playerCard.driver.abbreviation} <b>{formatStat(STAT_BY_KEY[last.stat], last.playerCard.stats[last.stat])}</b>
+            </span>
+            <small>{statShort(last.stat)}</small>
+            <span className="opp">
+              <b>{formatStat(STAT_BY_KEY[last.stat], last.cpuCard.stats[last.stat])}</b> {last.cpuCard.driver.abbreviation}
+            </span>
+          </div>
+          {!synced && (
+            <button
+              className="btn primary big next-btn"
+              disabled={!settled}
+              onClick={() => {
+                sfx('tap');
+                setShowResult(false);
+              }}
+            >
+              {outcome ? t('m_final') : t('m_next')}
+            </button>
+          )}
         </>
       ) : (
         <>
@@ -360,8 +374,8 @@ export function MatchScreen({ driver, title, opponent, autoNextMs, endExtra, end
               )}
             </div>
           )}
-          <div className={`duel ${busy && view.chooser === 'player' ? 'waiting' : ''}`}>
-            <div className="deal-in" key={`me-${view.round}`}>
+          <div className={`duel-stack ${busy && view.chooser === 'player' ? 'waiting' : ''}`}>
+            <div className="duel-me deal-in" key={`me-${view.round}`}>
               <CardView
                 card={current!}
                 onPickStat={view.chooser === 'player' && !busy ? pick : undefined}
@@ -369,14 +383,18 @@ export function MatchScreen({ driver, title, opponent, autoNextMs, endExtra, end
                 highlight={cpuPick ?? undefined}
               />
             </div>
-            <span className="vs">VS</span>
-            <div className="deal-in cpu" key={`back-${view.round}`}>
+            <div className="duel-opp deal-in cpu" key={`back-${view.round}`}>
               <CardBack label={t('m_cpuCard', { a: view.round + 1, b: ROUNDS })} />
             </div>
           </div>
         </>
       )}
 
+      {!finished && (
+        <button className="btn ghost quit-btn" onClick={quit}>
+          <Flag size={16} /> {t('m_quit')}
+        </button>
+      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Copy, Layers, Share2, Swords, UserMinus, Users } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 import { callGame } from '../lib/api';
-import { DECK_SLOTS, FRIEND_DRAW_CREDITS, FRIEND_WIN_CREDITS, seriesDecks, savedDeck, type Progress } from '../game/collection';
+import { DECK_SLOTS, FRIEND_DRAW_CREDITS, FRIEND_WIN_CREDITS, savedDeck, type Progress } from '../game/collection';
 import { deckProblems } from '../game/deckRules';
 import { DECK_SIZE, TURN_SECONDS } from '../game/engine';
 import type { Account } from '../hooks/useAccount';
@@ -11,6 +11,8 @@ import { GoogleIcon } from '../components/GoogleIcon';
 import { HelpButton } from '../components/TutorialSection';
 import { askConfirm } from '../components/ConfirmDialog';
 import { haptic, sfx } from '../lib/feedback';
+import { challengeLink } from '../lib/links';
+import { Capacitor } from '@capacitor/core';
 
 const POLL_MS = 2000;
 const FRIENDS_POLL_MS = 15_000;
@@ -31,7 +33,6 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
   const [code, setCode] = useState('');
   const [copied, setCopied] = useState(false);
   const [friends, setFriends] = useState<Friend[] | null>(null);
-  const ready = !!seriesDecks(progress);
 
   // in attesa: si chiede al server ogni 2 secondi se l'amico è entrato
   useEffect(() => {
@@ -79,19 +80,27 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
     await callGame({ action: 'friend_remove', friend: f.id }).catch(() => {});
   }
 
+  // si condivide un link diretto alla sfida: chi lo apre entra subito in partita
   async function share() {
     if (!lobby) return;
+    const url = challengeLink(lobby.code);
     const text = t('fr_shareText', { code: lobby.code });
     try {
+      if (Capacitor.isNativePlatform()) {
+        // app Android: menu di condivisione del telefono (WhatsApp, Telegram…)
+        const { Share } = await import('@capacitor/share');
+        await Share.share({ title: 'F1 Card Battle', text, url });
+        return;
+      }
       if (navigator.share) {
-        await navigator.share({ text });
+        await navigator.share({ text, url });
         return;
       }
     } catch {
       /* condivisione annullata: si copia e basta */
     }
     try {
-      await navigator.clipboard.writeText(lobby.code);
+      await navigator.clipboard.writeText(`${text}\n${url}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -183,7 +192,6 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
             <Layers size={16} /> {t('fr_editDecks')}
           </button>
         </div>
-        {!ready && <p className="muted">{t('fr_decksNeeded', { n: DECK_SLOTS })}</p>}
       </section>
 
       <section className="panel">
@@ -201,7 +209,7 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
                   <b>{f.name ?? t('fr_opponent')}</b>
                   <small>{f.online ? t('fr_online') : t('fr_offline')}</small>
                 </span>
-                <button className="btn primary friend-btn" onClick={() => onCreate(f)} disabled={!ready}>
+                <button className="btn primary friend-btn" onClick={() => onCreate(f)}>
                   <Swords size={16} /> {t('fr_challenge')}
                 </button>
                 <button className="icon-btn" onClick={() => remove(f)} aria-label={t('fr_remove')}>
@@ -225,11 +233,11 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
             maxLength={8}
             aria-label={t('fr_codePh')}
           />
-          <button className="btn primary" onClick={() => onJoin(clean)} disabled={clean.length !== 6 || !ready}>
+          <button className="btn primary" onClick={() => onJoin(clean)} disabled={clean.length !== 6}>
             {t('fr_join')}
           </button>
         </div>
-        <button className="btn ghost block friend-btn" onClick={() => onCreate()} disabled={!ready}>
+        <button className="btn ghost block friend-btn" onClick={() => onCreate()}>
           <Users size={18} /> {t('fr_create')}
         </button>
       </section>

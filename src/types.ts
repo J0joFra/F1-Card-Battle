@@ -1,4 +1,5 @@
-export type Rarity = 'bronzo' | 'argento' | 'oro' | 'platino' | 'leggendaria';
+// 'pioniere': card dei piloti 1950-1979, solo da collezionare (non si giocano)
+export type Rarity = 'bronzo' | 'argento' | 'oro' | 'platino' | 'leggendaria' | 'pioniere';
 
 export type StatKey =
   | 'gare'
@@ -26,7 +27,7 @@ export interface Driver {
 
 export interface Card {
   id: string;
-  kind: 'team' | 'career';
+  kind: 'team' | 'career' | 'pioneer';
   driver: Driver;
   team: { id: string; name: string };
   number: number | null;

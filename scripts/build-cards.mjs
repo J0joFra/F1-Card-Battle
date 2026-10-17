@@ -14,6 +14,8 @@ const OUT = path.resolve('src/data/cards.json');
 
 // Selezione piloti: hanno corso dal FROM_YEAR in poi e hanno almeno un podio,
 // oppure sono sulla griglia della stagione più recente.
+// I piloti con almeno un podio che hanno smesso prima del FROM_YEAR (dal 1950) diventano card "Pioniere":
+// una sola card con la carriera intera, da collezionare (regole e calendari di allora erano troppo diversi per giocarle).
 const FROM_YEAR = 1980;
 const MIN_STINT_RACES = 3;
 // Esiti che non contano come gara disputata.
@@ -168,13 +170,27 @@ const toStats = (st) => ({
 // Palmarès mostrato sulla card (non si gioca).
 const toPalmares = (st) => ({ vittorie: st.wins, podi: st.podiums, pole: st.poles, mondiali: st.titles });
 
+// somma delle statistiche di più scuderie (card Carriera e Pioniere)
+function sumStints(all) {
+  const total = newStint();
+  for (const s of all) {
+    for (const k of ['races', 'wins', 'podiums', 'poles', 'titles', 'points', 'top10', 'finished',
+      'gridSum', 'gridCount', 'mateWins', 'mateDuels']) total[k] += s[k];
+    total.best = Math.min(total.best, s.best);
+    s.years.forEach((y) => total.years.add(y));
+    for (const [n, k] of Object.entries(s.numbers)) total.numbers[n] = (total.numbers[n] || 0) + k;
+  }
+  return total;
+}
+
 const cards = [];
 for (const [driverId, byTeam] of Object.entries(stints)) {
   const all = Object.values(byTeam);
   const lastYear = Math.max(...all.flatMap((s) => [...s.years]));
   const podiums = all.reduce((n, s) => n + s.podiums, 0);
   const eligible = lastYear >= FROM_YEAR && (podiums > 0 || latestGrid.has(driverId));
-  if (!eligible) continue;
+  const pioneer = lastYear < FROM_YEAR && podiums > 0;
+  if (!eligible && !pioneer) continue;
 
   const d = drivers[driverId];
   const driver = {
@@ -184,6 +200,26 @@ for (const [driverId, byTeam] of Object.entries(stints)) {
     abbreviation: d.abbreviation,
     country: countries[d.nationalityCountryId] ?? null,
   };
+
+  if (pioneer) {
+    const total = sumStints(all);
+    const ys = [...total.years];
+    const teamIds = Object.entries(byTeam).sort((a, b) => b[1].races - a[1].races).map(([teamId]) => teamId);
+    cards.push({
+      id: `${driverId}__pioneer`,
+      kind: 'pioneer',
+      driver,
+      team: { id: teamIds[0], name: constructors[teamIds[0]]?.name ?? teamIds[0] }, // la scuderia con più gare
+      number: mainNumber(total.numbers),
+      teams: teamIds,
+      period: `${Math.min(...ys)}–${Math.max(...ys)}`,
+      firstYear: Math.min(...ys),
+      rarity: 'pioniere',
+      stats: toStats(total),
+      palmares: toPalmares(total),
+    });
+    continue;
+  }
 
   const teamStints = Object.entries(byTeam)
     .filter(([, s]) => s.races >= MIN_STINT_RACES)
@@ -205,14 +241,7 @@ for (const [driverId, byTeam] of Object.entries(stints)) {
   }
 
   if (teamStints.length >= 2) {
-    const total = newStint();
-    for (const s of all) {
-      for (const k of ['races', 'wins', 'podiums', 'poles', 'titles', 'points', 'top10', 'finished',
-        'gridSum', 'gridCount', 'mateWins', 'mateDuels']) total[k] += s[k];
-      total.best = Math.min(total.best, s.best);
-      s.years.forEach((y) => total.years.add(y));
-      for (const [n, k] of Object.entries(s.numbers)) total.numbers[n] = (total.numbers[n] || 0) + k;
-    }
+    const total = sumStints(all);
     const ys = [...total.years];
     cards.push({
       id: `${driverId}__career`,
@@ -233,9 +262,11 @@ for (const [driverId, byTeam] of Object.entries(stints)) {
 cards.sort((a, b) =>
   a.driver.lastName.localeCompare(b.driver.lastName) || a.driver.id.localeCompare(b.driver.id) ||
   (a.kind === 'career') - (b.kind === 'career') || a.firstYear - b.firstYear);
+const KIND_ORDER = { team: 0, career: 0, pioneer: 1 }; // i pionieri in fondo: le card giocabili restano nello stesso ordine
+cards.sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
 
 const teams = {};
-for (const c of cards) if (c.kind === 'team') teams[c.team.id] = c.team.name;
+for (const c of cards) if (c.kind !== 'career') teams[c.team.id] = c.team.name;
 
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, JSON.stringify({

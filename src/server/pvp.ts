@@ -25,6 +25,7 @@ import type { GameRequest, GameResponse, Outcome, PvpInfo, PvpRecord, Store } fr
 // Scaduto, il server gioca la metrica migliore della card di chi doveva scegliere.
 export const PVP_TURN_MS = (TURN_SECONDS + 15) * 1000;
 export const NEXT_GAME_MS = 20_000; // pausa tra una partita e l'altra della serie
+export const PVP_REVEAL_MS = 3000; // dopo una mossa, il risultato resta a schermo (uguale in MatchScreen)
 export const PVP_CODE_TTL_MS = 15 * 60_000; // una sfida non accettata scade dopo 15 minuti
 export const ONLINE_MS = 75_000; // "online" se visto negli ultimi 75 secondi
 export const SERIES_GAMES = 3;
@@ -71,6 +72,7 @@ async function pvpResponse(store: Store, id: string, rec: PvpRecord, now: number
     results: rec.results.map((r) => forSide(r, side)),
     seriesOutcome: finished ? forSide(finalOutcome(rec), side) : null,
     timeLeft: rec.status === 'playing' && rec.deadline ? Math.max(0, rec.deadline - now) : null,
+    sinceMove: rec.movedAt ? Math.max(0, now - rec.movedAt) : null,
     opponentLeft: !!rec.forfeit && rec.forfeit !== side,
     opponentIsFriend: finished && opponentId ? await store.isFriend(opponentId) : false,
   };
@@ -102,7 +104,8 @@ async function advance(store: Store, ctx: Ctx, id: string, rec: PvpRecord, rev: 
     if (gameOver) results.push(gameOver);
   }
   const finished = !!forfeit || seriesState(results).over;
-  let deadline: number | null = finished ? null : now + PVP_TURN_MS;
+  // il tempo del turno successivo parte quando i due telefoni passano alla carta nuova
+  let deadline: number | null = finished ? null : now + PVP_REVEAL_MS + PVP_TURN_MS;
   if (gameOver && !finished) {
     // partita successiva: inizia a scegliere chi ha perso l'ultima (in caso di pareggio, chi non aveva iniziato)
     const g = games.length;
@@ -110,9 +113,17 @@ async function advance(store: Store, ctx: Ctx, id: string, rec: PvpRecord, rev: 
     const chooser: Side = gameOver === 'draw' ? other(firstBefore) : other(gameOver);
     const m = newMatch(rec.hostDecks[g].map(cardOrThrow), rec.guestDecks![g].map(cardOrThrow), ctx.rng, chooser);
     games.push(storeMatch(m));
-    deadline = now + PVP_TURN_MS + NEXT_GAME_MS;
+    deadline = now + PVP_REVEAL_MS + PVP_TURN_MS + NEXT_GAME_MS;
   }
-  const saved: PvpRecord = { ...rec, games, results, forfeit: forfeit ?? rec.forfeit, status: finished ? 'finished' : 'playing', deadline };
+  const saved: PvpRecord = {
+    ...rec,
+    games,
+    results,
+    forfeit: forfeit ?? rec.forfeit,
+    status: finished ? 'finished' : 'playing',
+    deadline,
+    movedAt: next ? now : rec.movedAt,
+  };
   if (!(await store.updatePvp(id, saved, rev))) throw new GameError('busy', 409);
   if (!finished) return saved;
 

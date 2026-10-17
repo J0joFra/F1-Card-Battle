@@ -53,7 +53,7 @@ import {
   type MatchRewards,
   type MatchView,
 } from "./game/match";
-import { ALL_CARDS, CARD_BY_ID } from "./game/cards";
+import { CARD_BY_ID, PLAYABLE_CARDS } from "./game/cards";
 import {
   CLASSIC,
   deckProblems,
@@ -100,6 +100,7 @@ const SettingsSheet = lazy(() =>
 );
 import { Onboarding, onboardingDone } from "./components/Onboarding";
 import { ConfirmHost, askConfirm } from "./components/ConfirmDialog";
+import { clearChallengeCode, takeChallengeCode } from "./lib/links";
 import { buyAndOpen, buyFromStore, storeFor, storePrice } from "./game/shop";
 
 type Screen =
@@ -307,7 +308,7 @@ export default function App() {
           : buildCpuDeck(
               deck,
               Math.random,
-              classic ? ALL_CARDS : ALL_CARDS.filter((c) => fitsMode(matchMode, c))
+              PLAYABLE_CARDS.filter((c) => fitsMode(matchMode, c))
             )
       );
       setDriver(
@@ -335,7 +336,11 @@ export default function App() {
       if (r.progress) setProgressRaw(r.progress);
       if (r.rewards) rewardsRef.current = r.rewards;
       if (r.pvp) setSeries(r.pvp);
-      last = { ...r.view!, opponentLeft: r.pvp?.opponentLeft };
+      last = {
+        ...r.view!,
+        opponentLeft: r.pvp?.opponentLeft,
+        sinceMove: r.pvp?.sinceMove ?? undefined,
+      };
       return last;
     };
     const state = () =>
@@ -365,7 +370,7 @@ export default function App() {
         // turno dell'amico: si aspetta la sua mossa (o la scelta automatica allo scadere del tempo)
         let failures = 0;
         for (;;) {
-          await new Promise((r) => setTimeout(r, 2000));
+          await new Promise((r) => setTimeout(r, 1000));
           if (stopped) return last;
           try {
             const r = await state();
@@ -401,6 +406,10 @@ export default function App() {
   async function createPvp(friend?: Friend) {
     if (starting) return;
     setStarting(true);
+    if (!(await ensureDecks())) {
+      setStarting(false);
+      return;
+    }
     const res = await server({
       action: "pvp_create",
       date: today,
@@ -410,12 +419,47 @@ export default function App() {
     if (res?.pvp) setLobby({ ...res.pvp, opponent: friend?.name ?? null });
   }
 
+  // Per la sfida tra amici servono 3 mazzi validi: se mancano li completiamo noi, così si entra subito in partita.
+  async function ensureDecks(): Promise<boolean> {
+    if (seriesDecks(progress)) return true;
+    const decks = Array.from({ length: DECK_SLOTS }, (_, i) =>
+      autoFillDeck(progress, savedDeck(progress, i))
+    );
+    if (decks.some((d) => d.length < DECK_SIZE || deckProblems(d).length)) {
+      setToast(t("fr_decksNeeded", { n: DECK_SLOTS }));
+      go("builder");
+      return false;
+    }
+    const ids = decks.map((d) => d.map((c) => c.id));
+    setProgress((p) => withDecks(p, ids, activeSlot(p)));
+    return !!(await server({
+      action: "set_decks",
+      decks: ids,
+      active: activeSlot(progress),
+    }));
+  }
+
   async function joinPvp(code: string) {
     if (starting) return;
     setStarting(true);
-    startPvp(await server({ action: "pvp_join", code, date: today }));
+    if (await ensureDecks())
+      startPvp(await server({ action: "pvp_join", code, date: today }));
     setStarting(false);
   }
+
+  // link di una sfida (…/?sfida=CODICE): appena hai fatto l'accesso entri nella partita
+  const [linkCode, setLinkCode] = useState(() => takeChallengeCode());
+  useEffect(() => {
+    if (!linkCode) return;
+    if (!account.session) {
+      setScreen("friend"); // da lì si accede con Google, poi si entra
+      return;
+    }
+    if (account.status !== "saved") return; // prima la collezione dal server
+    setLinkCode(null);
+    clearChallengeCode();
+    void joinPvp(linkCode);
+  }, [linkCode, account.session, account.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function cancelLobby(declined = false) {
     if (declined)
@@ -461,13 +505,13 @@ export default function App() {
   }, [account.online]);
 
   async function acceptInvite() {
-    if (!invite) return;
+    if (!invite || starting) return;
     dismissed.current.add(invite.id);
-    const res = await server({
-      action: "pvp_accept",
-      match: invite.id,
-      date: today,
-    });
+    setStarting(true);
+    const res = (await ensureDecks())
+      ? await server({ action: "pvp_accept", match: invite.id, date: today })
+      : null;
+    setStarting(false);
     if (res) startPvp(res, invite.from);
     else setInvite(null);
   }
@@ -851,7 +895,7 @@ export default function App() {
                   : undefined
               }
               opponent={opponent ?? undefined}
-              autoNextMs={opponent ? 8000 : undefined}
+              synced={!!opponent}
               endExtra={seriesExtra}
               endButton={
                 series && series.status === "playing"
@@ -948,31 +992,27 @@ export default function App() {
         </Suspense>
       )}
       {intro && <Onboarding onClose={() => setIntro(false)} />}
+      {/* invito di un amico: tendina in alto che resta finché non rispondi */}
       {invite && screen !== "match" && (
-        <div className="invite-backdrop" role="dialog" aria-modal="true">
-          <section className="panel invite-card pop">
-            <h3>
+        <div className="invite-drop" role="alertdialog" aria-live="assertive">
+          <div className="invite-text">
+            <b>
               🏁 {t("fr_invited", { name: invite.from ?? t("fr_opponent") })}
-            </h3>
-            <p className="muted">{t("fr_invitedDesc")}</p>
-            {!seriesDecks(progress) && (
-              <p className="problems">
-                {t("fr_decksNeeded", { n: DECK_SLOTS })}
-              </p>
-            )}
-            <div className="actions">
-              <button className="btn ghost" onClick={declineInvite}>
-                {t("fr_decline")}
-              </button>
-              <button
-                className="btn primary"
-                onClick={acceptInvite}
-                disabled={!seriesDecks(progress) || starting}
-              >
-                {t("fr_accept")}
-              </button>
-            </div>
-          </section>
+            </b>
+            <small>{t("fr_invitedDesc")}</small>
+          </div>
+          <div className="invite-actions">
+            <button className="btn ghost" onClick={declineInvite}>
+              {t("fr_decline")}
+            </button>
+            <button
+              className="btn primary"
+              onClick={acceptInvite}
+              disabled={starting}
+            >
+              {t("fr_accept")}
+            </button>
+          </div>
         </div>
       )}
       <ConfirmHost />
