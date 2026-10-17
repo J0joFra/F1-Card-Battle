@@ -62,7 +62,8 @@ describe('dati delle card', () => {
   it('le metriche di gioco sono quasi sempre diverse da 0', () => {
     for (const s of STATS) {
       const zeros = ALL_CARDS.filter((c) => c.stats[s.key] === 0).length;
-      expect(zeros / ALL_CARDS.length).toBeLessThan(0.1);
+      // con tutti i piloti dal 1980 (anche chi non è mai arrivato nei 10) top 10 e punti a gara sono 0 per circa 1 card su 8
+      expect(zeros / ALL_CARDS.length).toBeLessThan(0.2);
     }
   });
 

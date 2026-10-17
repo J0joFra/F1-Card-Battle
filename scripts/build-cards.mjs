@@ -12,8 +12,7 @@ if (!F1DB) {
 const DATA = path.join(F1DB, 'src/data');
 const OUT = path.resolve('src/data/cards.json');
 
-// Selezione piloti: hanno corso dal FROM_YEAR in poi e hanno almeno un podio,
-// oppure sono sulla griglia della stagione più recente.
+// Selezione piloti: tutti quelli che hanno corso dal FROM_YEAR in poi (card da giocare).
 // I piloti con almeno un podio che hanno smesso prima del FROM_YEAR (dal 1950) diventano card "Pioniere":
 // una sola card con la carriera intera, da collezionare (regole e calendari di allora erano troppo diversi per giocarle).
 const FROM_YEAR = 1980;
@@ -57,7 +56,6 @@ const stints = {};
 const racesBySeason = {};
 const seasons = readDir(path.join(DATA, 'seasons')).map(Number);
 const latestSeason = Math.max(...seasons);
-const latestGrid = new Set();
 const completeSeasons = new Set();
 
 for (const year of seasons) {
@@ -112,7 +110,6 @@ for (const year of seasons) {
       }
       const bySeason = (racesBySeason[year][r.driverId] ??= {});
       bySeason[r.constructorId] = (bySeason[r.constructorId] || 0) + 1;
-      if (year === latestSeason) latestGrid.add(r.driverId);
     }
   }
   if (withResults === rounds.length && rounds.length > 0) completeSeasons.add(year);
@@ -188,7 +185,7 @@ for (const [driverId, byTeam] of Object.entries(stints)) {
   const all = Object.values(byTeam);
   const lastYear = Math.max(...all.flatMap((s) => [...s.years]));
   const podiums = all.reduce((n, s) => n + s.podiums, 0);
-  const eligible = lastYear >= FROM_YEAR && (podiums > 0 || latestGrid.has(driverId));
+  const eligible = lastYear >= FROM_YEAR;
   const pioneer = lastYear < FROM_YEAR && podiums > 0;
   if (!eligible && !pioneer) continue;
 
@@ -221,9 +218,11 @@ for (const [driverId, byTeam] of Object.entries(stints)) {
     continue;
   }
 
-  const teamStints = Object.entries(byTeam)
+  let teamStints = Object.entries(byTeam)
     .filter(([, s]) => s.races >= MIN_STINT_RACES)
     .sort((a, b) => Math.min(...a[1].years) - Math.min(...b[1].years));
+  // chi ha corso pochissimo ha comunque una card: quella della scuderia con più gare
+  if (!teamStints.length) teamStints = [Object.entries(byTeam).sort((a, b) => b[1].races - a[1].races)[0]];
 
   for (const [teamId, s] of teamStints) {
     cards.push({

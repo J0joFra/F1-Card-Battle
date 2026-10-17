@@ -54,12 +54,12 @@ export const RARITIES: Rarity[] = ['bronzo', 'argento', 'oro', 'platino', 'legge
  * Per ogni metrica si calcola il percentile della card rispetto a tutte le card scuderia
  * (1 = la migliore; per Miglior arrivo e Griglia media vince il valore più basso, quindi è girato).
  * La media dei 7 percentili, da 0 a 100, è la valutazione (OVR) e decide la rarità:
- * Platino ≥ 82, Oro ≥ 68, Argento ≥ 50, altrimenti Bronzo. Leggendaria: solo le card Carriera.
+ * Platino ≥ 86, Oro ≥ 74, Argento ≥ 58, altrimenti Bronzo (circa 30 Platino, 90 Oro, 150 Argento). Leggendaria: solo le card Carriera.
  */
 export const RARITY_THRESHOLDS: [Rarity, number][] = [
-  ['platino', 82],
-  ['oro', 68],
-  ['argento', 50],
+  ['platino', 86],
+  ['oro', 74],
+  ['argento', 58],
   ['bronzo', 0],
 ];
 

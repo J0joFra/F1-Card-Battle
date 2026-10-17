@@ -11,7 +11,7 @@ https://f1cardbattle.vercel.app/
   - *Classica*: giochi con il mazzo scelto (1, 2, 3).
   - *Rarità*: solo card di una rarità (es. solo Oro), senza limiti di rarità.
   - *Annata*: solo card di un decennio (dal primo anno della card: anni 2000 = 2000-2009).
-  - *Nazionalità*: solo piloti di una nazione, tra quelle con almeno 7 piloti (Francia, Italia, Regno Unito, Brasile, Germania, Finlandia).
+  - *Nazionalità*: solo piloti di una nazione, tra quelle con almeno 7 piloti (13 nazioni: Italia, Francia, Regno Unito, Brasile, Germania, Giappone…).
   Nelle modalità a tema scegli le 7 card tra quelle adatte (il gioco propone le migliori) e la CPU gioca con card dello stesso tema. Servono almeno 7 card adatte.
 - Nella pagina *Mazzi* le card si girano passandoci sopra (o toccandole si ingrandiscono): dietro c'è il **diagramma a ragnatela** delle 7 metriche (percentile rispetto a tutte le card), con il pulsante *Aggiungi* / *Togli*. *Ordina per* rarità, valutazione (OVR) o una delle 7 metriche. Con la vista **Tabella** vedi solo le statistiche di tutte le tue card una sotto l'altra: tocchi l'intestazione per ordinare e la riga per aggiungere o togliere la card.
 - Anche nella *Collezione* le card si girano e mostrano il diagramma a ragnatela.
@@ -70,9 +70,9 @@ Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per 
 - I doppioni diventano **crediti**, che servono a comprare una card a scelta o un pacchetto.
 - Nel 20% dei pacchetti c'è anche un **Jolly** 🃏: una card scuderia a scelta di un pilota che stai completando (ne devi già avere almeno una).
 - Un pilota ha una card per ogni scuderia (es. Hamilton: McLaren, Mercedes, Ferrari) più una card **Carriera** leggendaria. Completando tutte le card scuderia di un pilota si sblocca la sua Carriera.
-- Rarità: *Leggendaria* = Carriera. Le card scuderia hanno una **valutazione (OVR, 0-100)**, il numero in basso a destra sulla card: è la media dei percentili delle 7 metriche rispetto a tutte le card scuderia (per Best e Griglia vale il valore più basso). Da 82 in su è *Platino*, da 68 *Oro*, da 50 *Argento*, sotto *Bronzo* (soglie in `RARITY_THRESHOLDS`, `src/game/cards.ts`). La valutazione si calcola all'avvio sia nell'app sia sul server, quindi i due sono sempre d'accordo.
+- Rarità: *Leggendaria* = Carriera. Le card scuderia hanno una **valutazione (OVR, 0-100)**, il numero in basso a destra sulla card: è la media dei percentili delle 7 metriche rispetto a tutte le card scuderia (per Best e Griglia vale il valore più basso). Da 86 in su è *Platino*, da 74 *Oro*, da 58 *Argento*, sotto *Bronzo* (soglie in `RARITY_THRESHOLDS`, `src/game/cards.ts`). La valutazione si calcola all'avvio sia nell'app sia sul server, quindi i due sono sempre d'accordo.
 - **Pionieri** 🏛: i piloti con almeno un podio che hanno corso tra il 1950 e il 1979 (prima del periodo delle card giocabili). Una card per pilota con tutta la carriera, in toni seppia. **Si collezionano soltanto**: campionati, regole e numero di gare erano troppo diversi per confrontarli con le card moderne, quindi non entrano nei mazzi. Escono dai pacchetti (4%).
-- Quali piloti ci sono: tutti quelli che hanno corso dal 1980 in poi con almeno un podio, più tutti i piloti della griglia dell'ultima stagione (una card per ogni scuderia con almeno 3 gare); dal 1950 al 1979 i Pionieri.
+- Quali piloti ci sono: **tutti** quelli che hanno corso dal 1980 in poi (271), con una card per ogni scuderia con almeno 3 gare (chi ha corso meno ha comunque la card della scuderia con più gare); dal 1950 al 1979 i Pionieri con almeno un podio.
 
 La collezione per ora si salva nel browser (localStorage).
 
