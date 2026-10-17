@@ -1,7 +1,17 @@
-import { Gift, Users } from 'lucide-react';
+import { Check, Gift, Users } from 'lucide-react';
 import { useMemo } from 'react';
 import { useI18n } from '../lib/i18n';
-import { TOTAL_CARDS, WINS_PER_PACK, collectionSize, ownedCards, type Progress } from '../game/collection';
+import {
+  DECK_SLOTS,
+  TOTAL_CARDS,
+  WINS_PER_PACK,
+  activeSlot,
+  collectionSize,
+  ownedCards,
+  savedDeck,
+  type Progress,
+} from '../game/collection';
+import { deckProblems } from '../game/deckRules';
 import { DECK_SIZE } from '../game/engine';
 import type { Account } from '../hooks/useAccount';
 import { CardView } from '../components/CardView';
@@ -10,39 +20,51 @@ import { HelpButton } from '../components/TutorialSection';
 import { DailyCard, MissionsPanel } from '../components/Daily';
 import type { DailyChallenge, MissionsState } from '../game/daily';
 
-const RARITY_RANK = { leggendaria: 3, oro: 2, argento: 1, bronzo: 0 } as const;
-
 interface Props {
   progress: Progress;
   account: Account;
   challenge: DailyChallenge;
   missions: MissionsState;
-  onPlay: () => void;
+  onPlay: () => void; // partita contro la CPU con il mazzo in uso
+  onDeck: (slot: number) => void; // cambia il mazzo in uso
   onDaily: () => void;
   onFriend: () => void;
   onClaim: (i: number) => void;
   onPacks: () => void;
 }
 
-export function HomeScreen({ progress, account, challenge, missions, onPlay, onDaily, onFriend, onClaim, onPacks }: Props) {
+export function HomeScreen({
+  progress,
+  account,
+  challenge,
+  missions,
+  onPlay,
+  onDeck,
+  onDaily,
+  onFriend,
+  onClaim,
+  onPacks,
+}: Props) {
   const { t } = useI18n();
   const owned = collectionSize(progress);
   const canPlay = owned >= DECK_SIZE;
 
-  // vetrina: le tre card più rare della collezione, a ventaglio
+  const slot = activeSlot(progress);
+  const decks = useMemo(() => Array.from({ length: DECK_SLOTS }, (_, i) => savedDeck(progress, i)), [progress]);
+  // vetrina: le tre card migliori del mazzo in uso (o della collezione, se il mazzo è vuoto), a ventaglio
   const showcase = useMemo(
-    () =>
-      ownedCards(progress)
-        .sort((a, b) => RARITY_RANK[b.rarity] - RARITY_RANK[a.rarity] || b.stats.puntiGara - a.stats.puntiGara)
-        .slice(0, 3),
-    [progress],
+    () => [...(decks[slot].length ? decks[slot] : ownedCards(progress))].sort((a, b) => b.ovr - a.ovr).slice(0, 3),
+    [decks, slot, progress]
   );
 
   return (
     <div className="screen home">
       <section className="garage">
         <div className="garage-help">
-          <HelpButton items={['tut_home_1', 'tut_home_2', 'tut_home_3', 'tut_home_4', 'tut_home_5']} params={{ n: DECK_SIZE, w: WINS_PER_PACK }} />
+          <HelpButton
+            items={['tut_home_1', 'tut_home_2', 'tut_home_3', 'tut_home_4', 'tut_home_5']}
+            params={{ n: DECK_SIZE, w: WINS_PER_PACK }}
+          />
         </div>
         <div className="fan" onClick={canPlay ? onPlay : undefined} role="button" aria-label={t('home_play')}>
           {showcase.map((c, i) => (
@@ -52,6 +74,17 @@ export function HomeScreen({ progress, account, challenge, missions, onPlay, onD
           ))}
         </div>
         <h1>{t('home_title')}</h1>
+        {canPlay && (
+          <div className="deck-tabs home-decks" role="tablist" aria-label={t('home_deck')}>
+            <span className="muted">{t('home_deck')}</span>
+            {decks.map((d, i) => (
+              <button key={i} role="tab" aria-selected={i === slot} className={i === slot ? 'on' : ''} onClick={() => onDeck(i)}>
+                {i + 1}
+                {d.length === DECK_SIZE && !deckProblems(d).length && <Check size={12} />}
+              </button>
+            ))}
+          </div>
+        )}
         <button className="btn ghost block friend-btn" onClick={onFriend}>
           <Users size={18} /> {t('home_friend')}
         </button>
@@ -101,7 +134,6 @@ export function HomeScreen({ progress, account, challenge, missions, onPlay, onD
           <GoogleIcon /> {t('home_cloud_t')}
         </button>
       )}
-
     </div>
   );
 }

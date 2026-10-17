@@ -10,13 +10,17 @@ import {
 } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as NativeApp } from "@capacitor/app";
-import { Gift, Layers, Play, Settings, UserPlus } from "lucide-react";
+import { Gift, Layers, Play, Settings, SquareStack, UserPlus } from "lucide-react";
 import type { Card } from "./types";
 import {
   WINS_PER_PACK,
   buyPack,
   DECK_SLOTS,
+  autoFillDeck,
+  deckSlots,
   loadProgress,
+  savedDeck,
+  activeSlot,
   seriesDecks,
   withDecks,
   openPack,
@@ -40,7 +44,7 @@ import {
   startDaily,
   todayKey,
 } from "./game/daily";
-import { buildCpuDeck, newMatch } from "./game/engine";
+import { DECK_SIZE, buildCpuDeck, newMatch } from "./game/engine";
 import {
   applyMatchEnd,
   localDriver,
@@ -49,6 +53,7 @@ import {
   type MatchView,
 } from "./game/match";
 import { CARD_BY_ID } from "./game/cards";
+import { deckProblems } from "./game/deckRules";
 import { ApiError, callGame, errorMessage } from "./lib/api";
 import type {
   Friend,
@@ -90,7 +95,7 @@ import { ConfirmHost, askConfirm } from "./components/ConfirmDialog";
 import { buyAndOpen, buyFromStore, storeFor, storePrice } from "./game/shop";
 
 type Screen = "home" | "builder" | "match" | "collection" | "packs" | "friend";
-type Tab = "home" | "collection" | "packs";
+type Tab = "home" | "collection" | "packs" | "builder";
 
 export default function App() {
   const { t } = useI18n();
@@ -111,7 +116,6 @@ export default function App() {
   const [driver, setDriver] = useState<MatchDriver | null>(null); // partita in corso
   const [dailyMode, setDailyMode] = useState(false); // la partita in corso è la sfida del giorno
   // sfida tra amici
-  const [deckEdit, setDeckEdit] = useState(false); // costruttore del mazzo aperto solo per preparare i 3 mazzi
   const [lobby, setLobby] = useState<PvpInfo | null>(null); // sfida creata, in attesa dell'amico
   const [opponent, setOpponent] = useState<string | null>(null); // nome dell'amico durante la partita
   const [series, setSeries] = useState<PvpInfo | null>(null); // serie al meglio di 3 in corso
@@ -188,9 +192,23 @@ export default function App() {
   const rewardsRef = useRef<MatchRewards | null>(null);
   const [starting, setStarting] = useState(false);
 
-  async function startMatch(deck: Card[], slot: number) {
+  // partita contro la CPU con il mazzo in uso: se è incompleto lo completiamo noi, se non è valido si va ai mazzi
+  function play(daily = false) {
+    const slot = activeSlot(progress);
+    let deck = savedDeck(progress, slot);
+    if (deck.length < DECK_SIZE) deck = autoFillDeck(progress, deck);
+    if (deck.length < DECK_SIZE) return;
+    if (deckProblems(deck).length) {
+      setToast(t("toast_deckInvalid", { n: slot + 1 }));
+      go("builder");
+      return;
+    }
+    setDailyMode(daily);
+    void startMatch(deck, slot, daily);
+  }
+
+  async function startMatch(deck: Card[], slot: number, daily: boolean) {
     const ids = deck.map((c) => c.id);
-    const daily = dailyMode;
     rewardsRef.current = null;
     if (account.online) {
       if (starting) return;
@@ -203,7 +221,10 @@ export default function App() {
         slot,
       });
       setStarting(false);
-      if (!res?.match || !res.view) return;
+      if (!res?.match || !res.view) {
+        setDailyMode(false);
+        return;
+      }
       const id = res.match;
       setDriver({
         start: res.view,
@@ -221,8 +242,7 @@ export default function App() {
       });
     } else {
       setProgress((p) => ({
-        ...p,
-        deck: ids, // ricorda il mazzo per la prossima volta
+        ...withDecks(p, deckSlots(p).map((d, i) => (i === slot ? ids : d)), slot), // ricorda il mazzo per la prossima volta
         // la sfida del giorno si considera giocata appena parte: abbandonarla non dà un secondo tentativo
         daily: daily ? startDaily(p.daily, today) : p.daily,
       }));
@@ -662,7 +682,10 @@ export default function App() {
   // musica: brano "partita" durante la partita, i due jazz alternati nel resto del gioco
   useEffect(() => setMusicMode(inMatch ? "match" : "menu"), [inMatch]);
   const tab: Tab | null =
-    screen === "home" || screen === "collection" || screen === "packs"
+    screen === "home" ||
+    screen === "collection" ||
+    screen === "packs" ||
+    screen === "builder"
       ? screen
       : null;
 
@@ -708,41 +731,18 @@ export default function App() {
               account={account}
               challenge={challenge}
               missions={missions}
-              onPlay={() => {
-                setDailyMode(false);
-                setDeckEdit(false);
-                go("builder");
-              }}
-              onDaily={() => {
-                setDailyMode(true);
-                setDeckEdit(false);
-                go("builder");
-              }}
+              onPlay={() => play()}
+              onDeck={(i) =>
+                saveDecks(deckSlots(progress), i)
+              }
+              onDaily={() => play(true)}
               onFriend={() => go("friend")}
               onClaim={claim}
               onPacks={() => go("packs")}
             />
           )}
           {screen === "builder" && (
-            <DeckBuilderScreen
-              progress={progress}
-              onStart={startMatch}
-              onSave={saveDecks}
-              editOnly={deckEdit}
-              onBack={() => {
-                setScreen(deckEdit ? "friend" : "home");
-                setDeckEdit(false);
-              }}
-              banner={
-                deckEdit
-                  ? t("fr_builderDecks")
-                  : dailyMode
-                  ? `${t("daily_vs", {
-                      theme: themeLabel(challenge.theme, t),
-                    })} — ${t("daily_cpuDeck")}`
-                  : undefined
-              }
-            />
+            <DeckBuilderScreen progress={progress} onSave={saveDecks} />
           )}
           {screen === "match" && driver && (
             <MatchScreen
@@ -786,11 +786,7 @@ export default function App() {
               lobby={lobby}
               onCreate={createPvp}
               onJoin={joinPvp}
-              onEditDecks={() => {
-                setDailyMode(false);
-                setDeckEdit(true);
-                go("builder");
-              }}
+              onEditDecks={() => go("builder")}
               onStart={(res) => startPvp(res, lobby?.opponent)}
               onCancel={cancelLobby}
             />
@@ -818,12 +814,18 @@ export default function App() {
             <span>{t("nav_collection")}</span>
           </button>
           <button
-            className={`tab-play ${screen === "builder" ? "on" : ""}`}
+            className={tab === "builder" ? "on" : ""}
+            onClick={() => go("builder")}
+          >
+            <SquareStack size={22} />
+            <span>{t("nav_decks")}</span>
+          </button>
+          <button
+            className={`tab-play ${tab === "home" ? "on" : ""}`}
             onClick={() => {
-              // il pulsante centrale avvia una partita contro la CPU
-              setDailyMode(false);
-              setDeckEdit(false);
-              go("builder");
+              // pulsante Gioca: porta alla pagina Gioca; se ci sei già, avvia la partita contro la CPU
+              if (screen === "home") play();
+              else go("home");
             }}
           >
             <span className="tab-play-icon">

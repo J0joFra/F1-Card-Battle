@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Card } from '../types';
-import { ALL_CARDS, CARD_BY_ID, STATS, careerCardOf, teamCardsOfDriver } from './cards';
+import { ALL_CARDS, CARD_BY_ID, RARITY_THRESHOLDS, STATS, careerCardOf, teamCardsOfDriver } from './cards';
 import {
   DECK_SIZE,
   ROUNDS,
@@ -280,3 +280,24 @@ describe('salvataggio online', () => {
   });
 });
 
+
+describe('rarità dalla valutazione', () => {
+  it('le card carriera sono leggendarie, le altre seguono la valutazione', () => {
+    for (const c of ALL_CARDS) {
+      expect(c.ovr).toBeGreaterThanOrEqual(0);
+      expect(c.ovr).toBeLessThanOrEqual(100);
+      if (c.kind === 'career') expect(c.rarity).toBe('leggendaria');
+      else {
+        const [, min] = RARITY_THRESHOLDS.find(([r]) => r === c.rarity)!;
+        expect(c.ovr).toBeGreaterThanOrEqual(min);
+      }
+    }
+  });
+  it('ci sono card di ogni rarità, le più rare sono le meno', () => {
+    const n = (r: string) => ALL_CARDS.filter((c) => c.rarity === r).length;
+    expect(n('platino')).toBeGreaterThan(0);
+    expect(n('platino')).toBeLessThan(n('oro'));
+    expect(n('oro')).toBeLessThan(n('argento'));
+    expect(n('argento')).toBeLessThan(n('bronzo'));
+  });
+});

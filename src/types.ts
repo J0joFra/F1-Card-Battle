@@ -1,4 +1,4 @@
-export type Rarity = 'bronzo' | 'argento' | 'oro' | 'leggendaria';
+export type Rarity = 'bronzo' | 'argento' | 'oro' | 'platino' | 'leggendaria';
 
 export type StatKey =
   | 'gare'
@@ -34,6 +34,7 @@ export interface Card {
   period: string;
   firstYear: number;
   rarity: Rarity;
+  ovr: number; // valutazione complessiva 0-100 (media dei percentili delle 7 metriche)
   stats: Record<StatKey, number>;
   palmares: Palmares;
 }

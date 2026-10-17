@@ -16,15 +16,16 @@ export const JOLLY_CHANCE = 0.2;
 
 // Probabilità di rarità per ogni card del pacchetto.
 export const PACK_ODDS: [Rarity, number][] = [
-  ['bronzo', 0.7],
+  ['bronzo', 0.65],
   ['argento', 0.22],
-  ['oro', 0.07],
+  ['oro', 0.09],
+  ['platino', 0.03],
   ['leggendaria', 0.01],
 ];
 
 // Crediti ricevuti per un doppione e prezzo per comprare una card a scelta.
-export const DUPLICATE_CREDITS: Record<Rarity, number> = { bronzo: 2, argento: 5, oro: 15, leggendaria: 40 };
-export const CARD_PRICE: Record<Rarity, number> = { bronzo: 15, argento: 40, oro: 120, leggendaria: 300 };
+export const DUPLICATE_CREDITS: Record<Rarity, number> = { bronzo: 2, argento: 5, oro: 15, platino: 25, leggendaria: 40 };
+export const CARD_PRICE: Record<Rarity, number> = { bronzo: 15, argento: 40, oro: 120, platino: 200, leggendaria: 300 };
 
 export interface Progress {
   owned: Record<string, number>; // id card → copie ottenute (doppioni inclusi)

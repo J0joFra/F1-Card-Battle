@@ -143,6 +143,7 @@ const formatYears = (years) => {
 // numero di gara usato più spesso
 const mainNumber = (numbers) => Number(Object.entries(numbers).sort((a, b) => b[1] - a[1])[0]?.[0]) || null;
 
+// Rarità provvisoria: il gioco la ricalcola all'avvio dalla valutazione delle 7 metriche (rateCards in src/game/cards.ts).
 const rarityOf = (st, kind) => {
   if (kind === 'career') return 'leggendaria';
   const winPct = st.wins / st.races;

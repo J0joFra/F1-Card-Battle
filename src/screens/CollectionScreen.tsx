@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import type { Card, Rarity } from '../types';
-import { Search, X } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { ALL_CARDS, RARITIES, careerCardOf, rarityLabel, teamCardsOfDriver } from '../game/cards';
 import { useI18n } from '../lib/i18n';
 import { HelpButton } from '../components/TutorialSection';
 import { TOTAL_CARDS, collectionSize, type Progress } from '../game/collection';
-import { CardView } from '../components/CardView';
+import { FlipCard } from '../components/FlipCard';
 import { useProgressive } from '../hooks/useProgressive';
 
 interface Props {
@@ -21,7 +21,6 @@ export function CollectionScreen({ progress, today, onShop }: Props) {
   const [query, setQuery] = useState('');
   const [rarity, setRarity] = useState<Rarity | 'tutte'>('tutte');
   const [ownedFilter, setOwnedFilter] = useState<OwnedFilter>('mie');
-  const [selected, setSelected] = useState<Card | null>(null);
 
   const cards = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -34,8 +33,8 @@ export function CollectionScreen({ progress, today, onShop }: Props) {
       return true;
     });
   }, [query, rarity, ownedFilter, progress.owned]);
+  const inShop = (c: Card) => progress.store?.date === today && progress.store.cards.includes(c.id);
   const { limit, sentinel } = useProgressive(cards.length, 40, `${query}|${rarity}|${ownedFilter}`);
-
 
   return (
     <div className="screen collection">
@@ -74,73 +73,46 @@ export function CollectionScreen({ progress, today, onShop }: Props) {
         <div className="grid">
           {cards.slice(0, limit).map((c) => (
             <div key={c.id} className="grid-item">
-              <CardView
+              <FlipCard
                 card={c}
-                size="sm"
                 dimmed={!progress.owned[c.id]}
                 count={progress.owned[c.id]}
-                onClick={() => setSelected(c)}
+                action={<CardInfo card={c} progress={progress} inShop={inShop(c)} onShop={onShop} />}
               />
             </div>
           ))}
           {limit < cards.length && <div ref={sentinel} className="grid-sentinel" />}
         </div>
       )}
-
-      {selected && (
-        <CardModal
-          card={selected}
-          progress={progress}
-          inShop={progress.store?.date === today && progress.store.cards.includes(selected.id)}
-          onClose={() => setSelected(null)}
-          onShop={onShop}
-        />
-      )}
-
     </div>
   );
 }
 
-function CardModal({
-  card,
-  progress,
-  inShop,
-  onClose,
-  onShop,
-}: {
-  card: Card;
-  progress: Progress;
-  inShop: boolean;
-  onClose: () => void;
-  onShop: () => void;
-}) {
+// sul retro della card: avanzamento verso la card carriera e, se manca, il negozio di oggi
+function CardInfo({ card, progress, inShop, onShop }: { card: Card; progress: Progress; inShop: boolean; onShop: () => void }) {
   const { t } = useI18n();
   const owned = !!progress.owned[card.id];
-  const teamCards = teamCardsOfDriver(card.driver.id);
   const career = careerCardOf(card.driver.id);
+  const teamCards = teamCardsOfDriver(card.driver.id);
   const ownedTeams = teamCards.filter((c) => progress.owned[c.id]).length;
-
+  const progressLine = career && card.kind !== 'career';
+  if (!progressLine && !(inShop && !owned)) return null;
   return (
-    <div className="overlay modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <button className="icon-btn modal-close" onClick={onClose} aria-label={t('close')}>
-          <X size={20} />
+    <div className="card-info">
+      {progressLine && (
+        <small
+          title={`${t('col_teamProgress', { name: card.driver.lastName, a: ownedTeams, b: teamCards.length })} ${t(
+            progress.owned[career.id] ? 'col_careerUnlocked' : 'col_careerHint'
+          )}`}
+        >
+          ★ {ownedTeams}/{teamCards.length} {progress.owned[career.id] ? '✓' : ''}
+        </small>
+      )}
+      {!owned && inShop && (
+        <button className="btn primary" onClick={onShop}>
+          🛒 {t('shop_inShopToday')}
         </button>
-        <CardView card={card} dimmed={!owned} />
-        <div className="modal-side">
-          {career && (
-            <p className="muted">
-              {t('col_teamProgress', { name: card.driver.lastName, a: ownedTeams, b: teamCards.length })}{' '}
-              {progress.owned[career.id] ? t('col_careerUnlocked') : t('col_careerHint')}
-            </p>
-          )}
-          {!owned && inShop && (
-            <button className="btn primary block" onClick={onShop}>
-              🛒 {t('shop_inShopToday')}
-            </button>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 }

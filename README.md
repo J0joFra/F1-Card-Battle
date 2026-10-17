@@ -5,9 +5,11 @@ https://f1cardbattle.vercel.app/
 
 ## Regole
 
-- Hai **3 mazzi salvati** (linguette 1-2-3, stile Clash Royale); contro la CPU giochi con quello selezionato.
-- Nel costruttore del mazzo le card si vedono come card: passandoci sopra (o toccandole) si girano e dietro c'è il **diagramma a ragnatela** delle 7 metriche (percentile rispetto a tutte le card), con il pulsante *Aggiungi* / *Togli*. *Ordina per* rarità o per una delle 7 metriche.
-- Prima di ogni partita crei un **mazzo di 7 card**, una per metrica (massimo 1 Leggendaria e 2 Oro: regole provvisorie in `src/game/deckRules.ts`). Se non hai un mazzo salvato, il gioco te ne prepara uno a caso.
+- Il gioco ha **4 pagine**: *Collezione*, *Mazzi*, *Gioca* e *Negozio*.
+- Hai **3 mazzi salvati** (linguette 1-2-3, stile Clash Royale), che prepari nella pagina *Mazzi* (si salvano da soli). Nella pagina *Gioca* scegli il mazzo e premi ▶ (o tocchi le card a ventaglio) per sfidare la CPU.
+- Nella pagina *Mazzi* le card si girano passandoci sopra (o toccandole si ingrandiscono): dietro c'è il **diagramma a ragnatela** delle 7 metriche (percentile rispetto a tutte le card), con il pulsante *Aggiungi* / *Togli*. *Ordina per* rarità, valutazione (OVR) o una delle 7 metriche. Con la vista **Tabella** vedi solo le statistiche di tutte le tue card una sotto l'altra: tocchi l'intestazione per ordinare e la riga per aggiungere o togliere la card.
+- Anche nella *Collezione* le card si girano e mostrano il diagramma a ragnatela.
+- Un mazzo ha **7 card**, una per metrica (massimo 1 Leggendaria, 1 Platino e 2 Oro: regole provvisorie in `src/game/deckRules.ts`). Se il mazzo è incompleto, il gioco lo completa a caso.
 - La partita dura **7 round**. A ogni round esce una card a caso dal mazzo di ognuno.
 - Il primo round sceglie sempre il giocatore; poi **la metrica la sceglie chi ha vinto il round precedente** (in caso di pareggio il turno passa all'altro).
 - **Ogni metrica si usa una sola volta per partita**: all'ultimo round resta quella rimasta.
@@ -34,7 +36,7 @@ Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per 
 ## Negozio
 
 - **Pacchetti**: *Classico* (5 card, 🪙 40, va tra i pacchetti da aprire, come quello vinto ogni 10 vittorie), *Premium* (5 card, 🪙 150: niente Bronzo, l'ultima almeno Oro) e *Scuderia* (4 card, 🪙 80: solo card della scuderia del giorno, che cambia ogni giorno ed è uguale per tutti). Premium e Scuderia si aprono subito.
-- **Carte del giorno**: 6 card da comprare con i crediti (Bronzo 15, Argento 40, Oro 120), scelte una volta al giorno e fisse fino a mezzanotte. Soprattutto card scuderia che ti mancano per completare un pilota (🎯 *Ti serve*), poi altre card che non hai (al massimo un Oro). Ogni card si compra una volta. Dalla Collezione non si comprano più card a scelta: solo nel negozio.
+- **Carte del giorno**: 6 card da comprare con i crediti (Bronzo 15, Argento 40, Oro 120, Platino 200), scelte una volta al giorno e fisse fino a mezzanotte. Soprattutto card scuderia che ti mancano per completare un pilota (🎯 *Ti serve*), poi altre card che non hai (al massimo un Oro o Platino). Ogni card si compra una volta. Dalla Collezione non si comprano più card a scelta: solo nel negozio.
 - Toccando una card (nel negozio o nel costruttore del mazzo) si gira e si ingrandisce, con il diagramma a ragnatela.
 
 ## Sfida un amico
@@ -56,11 +58,11 @@ Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per 
 ## Collezione
 
 - Si parte con 15 card e un pacchetto di benvenuto.
-- **Ogni 10 vittorie** (contro la CPU o contro un amico) si riceve un pacchetto da 5 card (70% Bronzo, 22% Argento, 7% Oro, 1% Leggendaria; l'ultima card è sempre almeno Argento).
+- **Ogni 10 vittorie** (contro la CPU o contro un amico) si riceve un pacchetto da 5 card (65% Bronzo, 22% Argento, 9% Oro, 3% Platino, 1% Leggendaria; l'ultima card è sempre almeno Argento).
 - I doppioni diventano **crediti**, che servono a comprare una card a scelta o un pacchetto.
 - Nel 20% dei pacchetti c'è anche un **Jolly** 🃏: una card scuderia a scelta di un pilota che stai completando (ne devi già avere almeno una).
 - Un pilota ha una card per ogni scuderia (es. Hamilton: McLaren, Mercedes, Ferrari) più una card **Carriera** leggendaria. Completando tutte le card scuderia di un pilota si sblocca la sua Carriera.
-- Rarità: *Leggendaria* = Carriera; *Oro* = mondiale vinto con quella scuderia o almeno 10 vittorie con il 25% di successi; *Argento* = almeno una vittoria o 5 podi; *Bronzo* = tutte le altre.
+- Rarità: *Leggendaria* = Carriera. Le card scuderia hanno una **valutazione (OVR, 0-100)**, il numero in basso a destra sulla card: è la media dei percentili delle 7 metriche rispetto a tutte le card scuderia (per Best e Griglia vale il valore più basso). Da 82 in su è *Platino*, da 68 *Oro*, da 50 *Argento*, sotto *Bronzo* (soglie in `RARITY_THRESHOLDS`, `src/game/cards.ts`). La valutazione si calcola all'avvio sia nell'app sia sul server, quindi i due sono sempre d'accordo.
 
 La collezione per ora si salva nel browser (localStorage).
 

@@ -13,7 +13,19 @@ const HALF_MS = 140; // metà giro: la card si "chiude", cambia faccia e si riap
  * Il retro può avere un'azione (es. "Aggiungi").
  * Il giro è un'animazione 2D (non una rotazione 3D): così i tocchi sul retro arrivano sempre al pulsante giusto.
  */
-export function FlipCard({ card, action, badge }: { card: Card; action?: ReactNode; badge?: ReactNode }) {
+export function FlipCard({
+  card,
+  action,
+  badge,
+  dimmed,
+  count,
+}: {
+  card: Card;
+  action?: ReactNode;
+  badge?: ReactNode;
+  dimmed?: boolean; // card non posseduta (collezione)
+  count?: number; // copie possedute
+}) {
   const [face, setFace] = useState<'front' | 'back'>('front');
   const [turning, setTurning] = useState(false);
   const target = useRef<'front' | 'back'>('front');
@@ -67,7 +79,7 @@ export function FlipCard({ card, action, badge }: { card: Card; action?: ReactNo
       >
         <div className="flip-inner">
           <div className="flip-face flip-front" aria-hidden={face === 'back'}>
-            <CardView card={card} size="sm" />
+            <CardView card={card} size="sm" dimmed={dimmed} count={count} />
             {badge}
           </div>
           {face === 'back' && back(false)}
@@ -79,7 +91,7 @@ export function FlipCard({ card, action, badge }: { card: Card; action?: ReactNo
           <div className="overlay modal-backdrop flip-zoom-backdrop" onClick={() => setZoom(false)}>
             <div onClick={(e) => e.stopPropagation()}>{back(true)}</div>
           </div>,
-          document.body,
+          document.body
         )}
     </>
   );
