@@ -1,3 +1,4 @@
+import type { MatchMode } from '../game/deckRules';
 import type { StatKey } from '../types';
 import type { Progress } from '../game/collection';
 import type { MatchOutcome, Side } from '../game/engine';
@@ -16,7 +17,7 @@ export type GameRequest =
   | { action: 'buy_store'; card: string; date: string }
   | { action: 'use_jolly'; card: string }
   | { action: 'claim_mission'; index: number; date: string }
-  | { action: 'match_start'; deck: string[]; daily: boolean; date: string; slot?: number }
+  | { action: 'match_start'; deck: string[]; daily: boolean; date: string; slot?: number; mode?: MatchMode }
   | { action: 'match_play'; match: string; stat?: StatKey }
   | { action: 'match_quit'; match: string }
   // sfida tra amici (al meglio di 3, con i 3 mazzi salvati)

@@ -1,6 +1,7 @@
 import type { Card, Rarity, StatKey } from '../types';
-import { ALL_CARDS, CARD_BY_ID, CARDS_DATA, STATS } from './cards';
+import { ALL_CARDS, CARD_BY_ID, CARDS_DATA, STATS, decadeOf } from './cards';
 import { DECK_SIZE, shuffle, type MatchState, type Rng } from './engine';
+import { fitsMode, type MatchMode } from './deckRules';
 
 /*
  * Sfida del giorno e missioni giornaliere.
@@ -60,13 +61,11 @@ export const TEAM_THEMES = Object.entries(
   .sort();
 const DECADES = [1970, 1980, 1990, 2000, 2010, 2020];
 
-const decadeOf = (c: Card) => Math.floor(c.firstYear / 10) * 10;
+// la sfida del giorno come modalità: si gioca solo con card del tema
+export const themeMode = (theme: DailyTheme): MatchMode =>
+  theme.kind === 'team' ? { kind: 'team', team: theme.team } : { kind: 'decade', decade: theme.decade };
 
-export function themePool(theme: DailyTheme): Card[] {
-  return theme.kind === 'team'
-    ? ALL_CARDS.filter((c) => c.kind === 'team' && c.team.id === theme.team)
-    : ALL_CARDS.filter((c) => c.rarity !== 'leggendaria' && decadeOf(c) === theme.decade);
-}
+export const themePool = (theme: DailyTheme): Card[] => ALL_CARDS.filter((c) => fitsMode(themeMode(theme), c));
 
 // mazzo della CPU: 1 Oro, 2 Argento, 4 Bronzo presi dal tema (se mancano, si prende quello che c'è)
 const DAILY_MIX: Rarity[] = ['oro', 'argento', 'argento', 'bronzo', 'bronzo', 'bronzo', 'bronzo'];

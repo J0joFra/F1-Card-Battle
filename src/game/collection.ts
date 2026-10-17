@@ -1,7 +1,7 @@
 import type { Card, Rarity } from '../types';
 import { ALL_CARDS, CARD_BY_ID, careerCardOf, cardsOfRarity, teamCardsOfDriver } from './cards';
 import { DECK_SIZE, shuffle, type Rng } from './engine';
-import { canAdd, deckProblems } from './deckRules';
+import { deckProblems, fillDeck } from './deckRules';
 import { emptyDaily, type DailyState, type MissionsState } from './daily';
 
 export const WINS_PER_PACK = 10;
@@ -101,12 +101,7 @@ export function seriesDecks(p: Progress): Card[][] | null {
 
 // Completa il mazzo con card casuali della collezione, rispettando i limiti di rarità.
 export function autoFillDeck(p: Progress, deck: Card[], rng: Rng = Math.random): Card[] {
-  const result = [...deck];
-  for (const c of shuffle(ownedCards(p), rng)) {
-    if (result.length >= DECK_SIZE) break;
-    if (canAdd(result, c)) result.push(c);
-  }
-  return result;
+  return fillDeck(ownedCards(p), deck, undefined, rng);
 }
 
 function rollRarity(rng: Rng): Rarity {

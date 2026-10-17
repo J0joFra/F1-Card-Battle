@@ -301,3 +301,23 @@ describe('rarità dalla valutazione', () => {
     expect(n('argento')).toBeLessThan(n('bronzo'));
   });
 });
+
+describe('regole del mazzo classico', () => {
+  const pick = (r: string, n: number) => ALL_CARDS.filter((c) => c.rarity === r).slice(0, n);
+  const deckOf = (...parts: Card[][]) => {
+    const top = parts.flat();
+    return [...top, ...pick('bronzo', 7 - top.length)];
+  };
+  it('1 Leggendaria + 1 Platino + 2 Oro, oppure 2 Platino + 2 Oro', () => {
+    expect(deckProblems(deckOf(pick('leggendaria', 1), pick('platino', 1), pick('oro', 2)))).toEqual([]);
+    expect(deckProblems(deckOf(pick('platino', 2), pick('oro', 2)))).toEqual([]);
+    expect(deckProblems(deckOf(pick('leggendaria', 1), pick('platino', 2)))).not.toEqual([]);
+    expect(deckProblems(deckOf(pick('leggendaria', 2)))).not.toEqual([]);
+    expect(deckProblems(deckOf(pick('oro', 3)))).not.toEqual([]);
+  });
+  it('con 2 Platino non si può aggiungere una Leggendaria', () => {
+    const deck = pick('platino', 2);
+    expect(canAdd(deck, pick('leggendaria', 1)[0])).toBe(false);
+    expect(canAdd(pick('platino', 1), pick('leggendaria', 1)[0])).toBe(true);
+  });
+});

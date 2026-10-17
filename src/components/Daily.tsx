@@ -1,3 +1,4 @@
+import { DECK_SIZE } from '../game/engine';
 import { CalendarDays, Check, Target } from 'lucide-react';
 import { statLabel } from '../game/cards';
 import {
@@ -42,11 +43,12 @@ interface DailyProps {
   challenge: DailyChallenge;
   state: DailyState;
   canPlay: boolean;
+  have?: number; // card del tema che possiedi
   onPlay: () => void;
 }
 
 // Riquadro della sfida del giorno nella home.
-export function DailyCard({ challenge, state, canPlay, onPlay }: DailyProps) {
+export function DailyCard({ challenge, state, canPlay, have, onPlay }: DailyProps) {
   const { t } = useI18n();
   const played = dailyPlayed(state, challenge.date);
   const streak = currentStreak(state, challenge.date);
@@ -78,6 +80,7 @@ export function DailyCard({ challenge, state, canPlay, onPlay }: DailyProps) {
             {t('daily_play')}
             <span className="reward-chip">🎁 +1 · 🪙 +{DAILY_REWARD_CREDITS}</span>
           </button>
+          {!canPlay && have !== undefined && <p className="muted daily-need">{t('daily_need', { n: DECK_SIZE, m: have })}</p>}
         </>
       )}
     </section>
