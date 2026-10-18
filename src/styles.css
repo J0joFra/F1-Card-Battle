@@ -1030,3 +1030,5 @@ p { line-height: 1.45; }
 .driver-photo { display: flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; min-width: 0; }
 .driver-photo img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; object-position: 50% 20%; border: 2px solid var(--rar); flex: none; background: #0003; }
 .driver-photo small { font-size: 10px; color: #b8bec9; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+/* avatar a cartone fatto dalla foto vera (sfondo trasparente) */
+.art-cartoon { position: absolute; left: 50%; bottom: 0; height: 100%; transform: translateX(-50%); object-fit: contain; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45)); }

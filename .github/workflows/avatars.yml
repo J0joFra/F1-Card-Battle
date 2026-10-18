@@ -1,0 +1,43 @@
+# Avatar a cartone dei piloti dalle foto libere di Wikimedia Commons (scripts/make-avatars.py).
+# Parte da sola quando cambia lo script, oppure a mano da Actions → "Avatars" → Run workflow
+# (con "force" rifà anche gli avatar già fatti).
+name: Avatars
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Rifai tutti gli avatar
+        type: boolean
+        default: false
+  push:
+    paths:
+      - scripts/make-avatars.py
+      - .github/workflows/avatars.yml
+
+permissions:
+  contents: write
+
+jobs:
+  avatars:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Dipendenze (PyTorch solo CPU)
+        run: |
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install opencv-python-headless pillow requests "rembg[cpu]"
+      # prova su pochi piloti (da togliere dopo il controllo della qualità)
+      - run: python scripts/make-avatars.py --only lewis-hamilton,michael-schumacher,ayrton-senna,alain-prost,fernando-alonso,niki-lauda,lando-norris,kimi-raikkonen,nigel-mansell,sebastian-vettel,alberto-ascari,jackie-stewart ${{ inputs.force && '--force' || '' }}
+      - name: Salva il risultato
+        run: |
+          git add public/avatars src/data/avatars.json
+          if git diff --cached --quiet; then echo "nessuna novità"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update cartoon driver avatars"
+          git push
