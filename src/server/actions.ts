@@ -10,7 +10,7 @@ import {
   deckSlots,
   type Progress,
 } from '../game/collection';
-import { claimMission, dailyChallenge, dailyPlayed, missionsAfterPack, missionsFor, startDaily, themeMode } from '../game/daily';
+import { claimMission, dailyChallenge, dailyLoanDeck, dailyPlayed, missionsAfterPack, missionsFor, startDaily, themeMode } from '../game/daily';
 import { CLASSIC, fitsMode, parseMode } from '../game/deckRules';
 import { buildCpuDeck, cpuChooseStat, isAvailable, matchOutcome, newMatch, playRound, type Rng } from '../game/engine';
 import { applyMatchEnd, loadMatch, storeMatch, toView, type MatchRewards, type MatchView, type StoredMatch } from '../game/match';
@@ -182,7 +182,8 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       if (!mode) throw new GameError('bad_mode');
       const res = await withProfile(store, ctx, (p) => {
         const ids = Array.isArray(req.deck) ? req.deck : [];
-        const deck = validDeck(ids, p, mode);
+        // sfida del giorno senza abbastanza card del tema: mazzo in prestito, deciso dal server
+        const deck = daily && req.loan ? dailyLoanDeck(daily) : validDeck(ids, p, mode);
         if (daily && dailyPlayed(p.daily, req.date)) throw new GameError('daily_played');
         const pool = PLAYABLE_CARDS.filter((c) => fitsMode(mode, c));
         const cpu = daily ? daily.cpuDeck : buildCpuDeck(deck, ctx.rng, pool);

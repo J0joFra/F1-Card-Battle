@@ -2,7 +2,7 @@ import type { Card, StatKey } from '../types';
 import { CARD_BY_ID } from './cards';
 import { DAILY_REWARD_CREDITS, finishDaily, missionDone, missionsAfterMatch, missionsFor } from './daily';
 import { cpuChooseStat, matchOutcome, playRound, type MatchOutcome, type MatchState, type Side } from './engine';
-import { FRIEND_DRAW_CREDITS, FRIEND_WIN_CREDITS, recordMatch, type Progress } from './collection';
+import { FIRST_WIN_CREDITS, FRIEND_DRAW_CREDITS, FRIEND_WIN_CREDITS, MATCH_CREDITS, recordMatch, type Progress } from './collection';
 
 /*
  * Pezzi condivisi tra il gioco sul telefono e il server:
@@ -102,7 +102,8 @@ export interface MatchRewards {
   packEarned: boolean;
   dailyWon: boolean;
   missionsCompleted: number; // missioni completate da questa partita
-  credits: number; // crediti vinti (sfida tra amici)
+  credits: number; // crediti della partita (prima vittoria del giorno compresa, sfida del giorno esclusa)
+  firstWin?: boolean; // premio "prima vittoria del giorno"
 }
 
 export interface MatchEndOptions {
@@ -130,11 +131,19 @@ export function applyMatchEnd(
     next = { ...next, daily: finishDaily(next.daily, dailyWon, today) };
     if (dailyWon) next = { ...next, packs: next.packs + 1, credits: next.credits + DAILY_REWARD_CREDITS };
   }
-  const credits = opts.friend ? (outcome === 'player' ? FRIEND_WIN_CREDITS : outcome === 'draw' ? FRIEND_DRAW_CREDITS : 0) : 0;
-  next = { ...next, credits: next.credits + credits };
+  const firstWin = outcome === 'player' && p.firstWin !== today;
+  const credits =
+    (opts.friend
+      ? outcome === 'player'
+        ? FRIEND_WIN_CREDITS
+        : outcome === 'draw'
+          ? FRIEND_DRAW_CREDITS
+          : 0
+      : MATCH_CREDITS[outcome]) + (firstWin ? FIRST_WIN_CREDITS : 0);
+  next = { ...next, credits: next.credits + credits, ...(firstWin ? { firstWin: today } : {}) };
   return {
     progress: next,
-    rewards: { packEarned, dailyWon, missionsCompleted: after.list.filter(missionDone).length - before, credits },
+    rewards: { packEarned, dailyWon, missionsCompleted: after.list.filter(missionDone).length - before, credits, firstWin },
   };
 }
 

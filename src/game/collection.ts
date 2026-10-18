@@ -8,6 +8,10 @@ export const WINS_PER_PACK = 10;
 // sfida contro un amico: crediti extra per vittoria e pareggio (oltre alla vittoria che conta per il pacchetto)
 export const FRIEND_WIN_CREDITS = 10;
 export const FRIEND_DRAW_CREDITS = 5;
+// partita contro la CPU giocata fino in fondo: qualche credito anche se perdi (abbandonare non dà nulla)
+export const MATCH_CREDITS = { player: 8, draw: 5, cpu: 3 } as const;
+// prima vittoria della giornata (contro la CPU o un amico)
+export const FIRST_WIN_CREDITS = 25;
 export const PACK_SIZE = 5;
 export const PACK_PRICE = 40;
 // Probabilità che un pacchetto contenga anche un Jolly: una card scuderia a scelta
@@ -45,6 +49,7 @@ export interface Progress {
   daily: DailyState; // sfida del giorno
   missions?: MissionsState; // missioni del giorno (generate al primo uso)
   store?: { date: string; cards: string[]; bought: string[] }; // card del giorno nel negozio
+  firstWin?: string; // giorno dell'ultimo premio "prima vittoria del giorno"
   updatedAt: number; // ultima modifica (ms), per capire quale copia è più recente tra dispositivo e cloud
 }
 
@@ -295,6 +300,7 @@ export function mergeProgress(account: Progress, device: Progress): Progress {
     daily: device.daily.date > account.daily.date ? device.daily : account.daily,
     missions: (device.missions?.date ?? '') > (account.missions?.date ?? '') ? device.missions : account.missions,
     store: (device.store?.date ?? '') > (account.store?.date ?? '') ? device.store : account.store,
+    firstWin: (device.firstWin ?? '') > (account.firstWin ?? '') ? device.firstWin : account.firstWin,
     updatedAt: Date.now(),
   };
 }

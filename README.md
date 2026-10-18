@@ -38,6 +38,8 @@ Sono scelte perché quasi nessun pilota abbia 0: un mix di totali, che premiano 
 | % Gare finite | affidabilità: gare portate al traguardo |
 | % Batte compagno | gare chiuse davanti al compagno di squadra |
 
+Sotto ogni metrica una **barretta colorata** dice quanto è forte rispetto a tutte le card giocabili (percentile): verde forte, gialla media, rossa debole. Nelle prime 5 partite un suggerimento spiega barre e frecce ↓.
+
 Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per la rarità.
 
 ## Negozio
@@ -60,13 +62,14 @@ Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per 
 
 ## Sfida del giorno e missioni
 
-- **Sfida del giorno**: una sola partita al giorno contro un mazzo CPU a tema (una scuderia o un decennio, 1 Oro + 2 Argento + 4 Bronzo). Anche tu giochi solo con card del tema: ne servono almeno 7. Vincendo si ottengono 1 pacchetto e 25 crediti; vincerla più giorni di fila fa crescere la serie 🔥. Conta come giocata appena parte, quindi abbandonarla non dà un secondo tentativo.
+- **Sfida del giorno**: una sola partita al giorno contro un mazzo CPU a tema (una scuderia o un decennio, 1 Oro + 2 Argento + 4 Bronzo). Anche tu giochi solo con card del tema: ne servono almeno 7; chi non ne ha abbastanza gioca con un **mazzo in prestito** (stesso mix di rarità della CPU, uguale per tutti nella giornata, deciso dal server). Vincendo si ottengono 1 pacchetto e 25 crediti; vincerla più giorni di fila fa crescere la serie 🔥. Conta come giocata appena parte, quindi abbandonarla non dà un secondo tentativo.
 - **Missioni del giorno**: tre obiettivi (vinci partite, vinci round con una metrica, vinci con una card di una scuderia o di un decennio, apri un pacchetto, vinci con almeno 5 punti…) che danno crediti da ritirare nella home. Quelle su scuderie e decenni usano solo card che possiedi.
 - Sfida e missioni dipendono dalla data: lo stesso giorno tutti trovano la stessa sfida. Logica e test in `src/game/daily.ts`.
 
 ## Collezione
 
 - Si parte con 15 card e un pacchetto di benvenuto.
+- **Crediti a ogni partita contro la CPU** giocata fino in fondo: vittoria +8, pareggio +5, sconfitta +3 (abbandonare non dà nulla). La **prima vittoria del giorno** vale +25 in più (anche contro un amico). Premi, avanzamento verso il pacchetto e **Rivincita** sono nella schermata di fine partita.
 - **Ogni 10 vittorie** (contro la CPU o contro un amico) si riceve un pacchetto da 5 card (59% Bronzo, 3% Pioniere, 3% Classica, 22% Argento, 9% Oro, 3% Platino, 1% Leggendaria; l'ultima card è sempre almeno Argento).
 - I doppioni diventano **crediti**, che servono a comprare una card a scelta o un pacchetto.
 - Nel 20% dei pacchetti c'è anche un **Jolly** 🃏: una card scuderia a scelta di un pilota che stai completando (ne devi già avere almeno una).

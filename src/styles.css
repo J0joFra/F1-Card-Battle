@@ -1018,3 +1018,37 @@ p { line-height: 1.45; }
 .match .quit-btn { margin: 0; padding: 8px 14px; font-size: 14px; }
 .match .stat-chips { gap: 3px; flex-wrap: nowrap; }
 .match .stat-chip { padding: 2px 6px; font-size: clamp(9.5px, 2.8vw, 11px); white-space: nowrap; }
+
+/* ============ Forza delle metriche, premi di fine partita, aiuto ============ */
+/* barretta sotto ogni metrica: quanto è forte rispetto a tutte le card (verde forte, giallo medio, rosso debole) */
+.card-stats li > button, .card-stats .stat-row { position: relative; overflow: hidden; }
+.card-stats li > button::after, .card-stats .stat-row::after {
+  content: ''; position: absolute; left: 0; bottom: 0; height: 3px;
+  width: calc(var(--p, 0) * 100%); background: var(--st); border-radius: 0 3px 3px 0; opacity: 0.95;
+}
+.card-stats li.st-hi { --st: var(--win); }
+.card-stats li.st-mid { --st: var(--tie); }
+.card-stats li.st-lo { --st: var(--lose); }
+.card-stats li.locked > *::after { opacity: 0.4; }
+.match-hint {
+  margin: 0; max-width: 400px; text-align: center; font-size: 12px; line-height: 1.35; color: var(--muted, #9aa0ab);
+}
+.over-rewards { display: grid; gap: 10px; justify-items: center; margin: 4px 0 2px; }
+.over-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.reward-pill {
+  padding: 6px 12px; border-radius: 999px; font-weight: 800; font-size: 14px;
+  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.14);
+}
+.reward-pill.gold { background: color-mix(in srgb, #e8b931 22%, transparent); border-color: #e8b931; }
+.over-pack { display: grid; gap: 4px; width: min(320px, 100%); text-align: center; }
+b.over-pack { color: #e8b931; }
+.over-actions { display: grid; gap: 10px; width: 100%; }
+.over-actions.two { grid-template-columns: 1fr 1fr; }
+.over-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-transform: uppercase; }
+/* schermi bassi: l'aiuto si stringe, così la partita sta ancora in una schermata */
+@media (max-height: 700px) {
+  .match-hint { font-size: 10px; line-height: 1.2; margin: -4px 0; }
+}
+@media (max-height: 620px) {
+  .match-hint { display: none; }
+}

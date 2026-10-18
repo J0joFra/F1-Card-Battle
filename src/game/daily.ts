@@ -1,7 +1,7 @@
 import type { Card, Rarity, StatKey } from '../types';
 import { ALL_CARDS, CARD_BY_ID, CARDS_DATA, STATS, decadeOf, isCollectOnly } from './cards';
 import { DECK_SIZE, shuffle, type MatchState, type Rng } from './engine';
-import { fitsMode, type MatchMode } from './deckRules';
+import { canAdd, fitsMode, type MatchMode } from './deckRules';
 
 /*
  * Sfida del giorno e missioni giornaliere.
@@ -86,6 +86,28 @@ export function dailyChallenge(date = todayKey()): DailyChallenge {
     if (c) deck.push(c);
   }
   return { date, theme, cpuDeck: deck.slice(0, DECK_SIZE) };
+}
+
+// Mazzo in prestito per chi non ha abbastanza card del tema: stessa forza del mazzo della CPU
+// (stesso mix di rarità), con card diverse. Uguale per tutti nella stessa giornata.
+export function dailyLoanDeck(challenge: DailyChallenge): Card[] {
+  const rng = seededRng(`loan:${challenge.date}`);
+  const mode = themeMode(challenge.theme);
+  const taken = new Set(challenge.cpuDeck.map((c) => c.id));
+  const all = shuffle(themePool(challenge.theme), rng).filter((c) => !isCollectOnly(c));
+  // prima le card che la CPU non usa; se il tema ne ha poche, anche le sue
+  const pool = [...all.filter((c) => !taken.has(c.id)), ...all.filter((c) => taken.has(c.id))];
+  const deck: Card[] = [];
+  for (const rarity of DAILY_MIX) {
+    const c = pool.find((x) => x.rarity === rarity && canAdd(deck, x, mode));
+    if (c) deck.push(c);
+  }
+  // rarità mancanti nel tema: si completa con le card più deboli rimaste
+  for (const c of [...pool].sort((a, b) => a.ovr - b.ovr)) {
+    if (deck.length >= DECK_SIZE) break;
+    if (canAdd(deck, c, mode)) deck.push(c);
+  }
+  return deck;
 }
 
 export interface DailyState {

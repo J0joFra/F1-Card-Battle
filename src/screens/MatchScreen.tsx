@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Card, StatKey } from '../types';
-import { Flag } from 'lucide-react';
+import { Flag, RotateCcw } from 'lucide-react';
 import { CARD_BY_ID, STATS, STAT_BY_KEY, formatStat, statLabel, statShort } from '../game/cards';
 import { useI18n, type TKey } from '../lib/i18n';
 import { errorMessage } from '../lib/api';
 import { ROUNDS, TURN_SECONDS, bestStat, type Side } from '../game/engine';
-import type { MatchDriver, MatchView } from '../game/match';
+import type { MatchDriver, MatchRewards, MatchView } from '../game/match';
+import { FIRST_WIN_CREDITS, WINS_PER_PACK } from '../game/collection';
+import { DAILY_REWARD_CREDITS } from '../game/daily';
 import { CardBack, CardView } from '../components/CardView';
 import { askConfirm } from '../components/ConfirmDialog';
 import { haptic, reducedMotion, sfx } from '../lib/feedback';
@@ -24,6 +26,10 @@ interface Props {
   synced?: boolean; // sfida tra amici: dopo ogni mossa si passa da soli alla carta successiva, insieme all'avversario
   endExtra?: ReactNode; // a fine partita (es. punteggio della serie al meglio di 3)
   endButton?: string; // testo del pulsante a fine partita (es. "Partita 2")
+  rewards?: MatchRewards | null; // premi della partita appena finita
+  packProgress?: number; // vittorie verso il prossimo pacchetto (dopo questa partita)
+  hint?: boolean; // prime partite: spiega barre e frecce delle metriche
+  onRematch?: () => void; // rivincita (solo contro la CPU)
   onFinish: () => void;
   onQuit: () => void;
 }
@@ -38,7 +44,20 @@ interface Round {
 
 const cardOf = (id: string) => CARD_BY_ID.get(id)!;
 
-export function MatchScreen({ driver, title, opponent, synced, endExtra, endButton, onFinish, onQuit }: Props) {
+export function MatchScreen({
+  driver,
+  title,
+  opponent,
+  synced,
+  endExtra,
+  endButton,
+  rewards,
+  packProgress,
+  hint,
+  onRematch,
+  onFinish,
+  onQuit,
+}: Props) {
   const { t: tr } = useI18n();
   // contro un amico i testi "CPU" diventano il suo nome
   const VS_FRIEND: Partial<Record<TKey, TKey>> = {
@@ -292,9 +311,48 @@ export function MatchScreen({ driver, title, opponent, synced, endExtra, endButt
             })}
           </ol>
           {endExtra}
-          <button className="btn primary big block" onClick={onFinish}>
-            {endButton ?? t('continue')}
-          </button>
+          {rewards && (
+            <div className="over-rewards">
+              <div className="over-chips">
+                {rewards.credits - (rewards.firstWin ? FIRST_WIN_CREDITS : 0) > 0 && (
+                  <span className="reward-pill">🪙 +{rewards.credits - (rewards.firstWin ? FIRST_WIN_CREDITS : 0)}</span>
+                )}
+                {rewards.firstWin && (
+                  <span className="reward-pill gold">
+                    {tr('m_firstWin')} 🪙 +{FIRST_WIN_CREDITS}
+                  </span>
+                )}
+                {rewards.dailyWon && (
+                  <span className="reward-pill gold">
+                    {tr('daily_title')} 🎁 +1 · 🪙 +{DAILY_REWARD_CREDITS}
+                  </span>
+                )}
+              </div>
+              {!opponent &&
+                (rewards.packEarned ? (
+                  <b className="over-pack">{tr('m_packEarned')}</b>
+                ) : (
+                  packProgress !== undefined && (
+                    <div className="over-pack">
+                      <small>{tr('m_packProgress', { a: packProgress, b: WINS_PER_PACK })}</small>
+                      <div className="bar small">
+                        <div style={{ width: `${(packProgress / WINS_PER_PACK) * 100}%` }} />
+                      </div>
+                    </div>
+                  )
+                ))}
+            </div>
+          )}
+          <div className={`over-actions ${onRematch ? 'two' : ''}`}>
+            {onRematch && (
+              <button className="btn primary big" onClick={onRematch}>
+                <RotateCcw size={18} /> {tr('m_rematch')}
+              </button>
+            )}
+            <button className={`btn big ${onRematch ? '' : 'primary block'}`} onClick={onFinish}>
+              {endButton ?? t('continue')}
+            </button>
+          </div>
         </div>
       ) : showResult && last ? (
         <>
@@ -352,6 +410,7 @@ export function MatchScreen({ driver, title, opponent, synced, endExtra, endButt
                 ? t('m_cpuPicks', { stat: statLabel(cpuPick) })
                 : t('m_cpuThinking')}
           </div>
+          {hint && view.chooser === 'player' && <p className="match-hint">{tr('m_hint')}</p>}
           {error && (
             <div className="match-error">
               <span>{error}</span>
