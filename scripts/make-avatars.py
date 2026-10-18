@@ -53,8 +53,8 @@ def bigger_thumb(url: str) -> str:
     return re.sub(r"/(\d+)px-", "/500px-", url) if "/thumb/" in url else url
 
 
-def crop_face(img: Image.Image) -> Image.Image:
-    """Quadrato attorno al volto più grande (con spalle e capelli); senza volto, la parte alta al centro."""
+def crop_face(img: Image.Image) -> Image.Image | None:
+    """Quadrato attorno al volto più grande (con spalle e capelli); None se non c'è un volto riconoscibile."""
     w, h = img.size
     gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
     found = faces.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(max(24, w // 20), max(24, w // 20)))
@@ -63,8 +63,7 @@ def crop_face(img: Image.Image) -> Image.Image:
         side = int(max(fw, fh) * 2.3)
         cx, cy = x + fw // 2, y + int(fh * 0.62)
     else:
-        side = min(w, h)
-        cx, cy = w // 2, side // 2
+        return None  # foto senza un volto chiaro (es. pilota in macchina): resta l'avatar disegnato
     side = min(side, w, h)
     left = min(max(0, cx - side // 2), w - side)
     top = min(max(0, cy - side // 2), h - side)
@@ -91,9 +90,15 @@ for i, (driver_id, p) in enumerate(sorted(portraits.items())):
             res = http.get(p["thumb"], timeout=30)
         res.raise_for_status()
         photo = Image.open(io.BytesIO(res.content)).convert("RGB")
-        face = crop_face(photo).resize((512, 512), Image.LANCZOS)
+        face = crop_face(photo)
+        if face is None:
+            raise ValueError("nessun volto riconoscibile")
+        face = face.resize((512, 512), Image.LANCZOS)
         drawn = cartoon(face)
         mask = remove(face, session=bg_session, only_mask=True).convert("L")  # sfondo tolto dalla foto originale
+        coverage = np.asarray(mask).mean() / 255
+        if not 0.15 < coverage < 0.97:  # persona non trovata (quasi tutto trasparente) o sfondo non tolto
+            raise ValueError(f"ritaglio non riuscito ({coverage:.0%} della figura)")
         drawn.putalpha(mask.resize(drawn.size))
         drawn.resize((SIZE, SIZE), Image.LANCZOS).save(out, "WEBP", quality=82, method=6)
         done.append(driver_id)
@@ -102,6 +107,11 @@ for i, (driver_id, p) in enumerate(sorted(portraits.items())):
         failed.append(f"{driver_id}: {e}")
     time.sleep(0.2)
 
+if args.force or only:  # avatar non più validi (es. foto senza volto) tolti
+    for f in failed:
+        stale = os.path.join(OUT_DIR, f.split(":")[0] + ".webp")
+        if os.path.exists(stale):
+            os.remove(stale)
 ids = sorted(f[:-5] for f in os.listdir(OUT_DIR) if f.endswith(".webp"))
 json.dump(ids, open(INDEX, "w", encoding="utf-8"))
 print(f"{len(ids)} avatar in {OUT_DIR}")

@@ -35,10 +35,11 @@ jobs:
           pip uninstall -y opencv-python opencv-python-headless opencv-contrib-python opencv-contrib-python-headless || true
           pip install "opencv-python-headless<5"  # OpenCV 5 non ha più i rilevatori di volti "Haar"
           python -c "import cv2; cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'); print('OpenCV', cv2.__version__)"
-      - run: python scripts/make-avatars.py ${{ inputs.force && '--force' || '' }}
+      # rifà tutti gli avatar con i nuovi controlli (volto riconosciuto, sfondo tolto bene)
+      - run: python scripts/make-avatars.py --force
       - name: Salva il risultato
         run: |
-          git add public/avatars src/data/avatars.json
+          git add -A public/avatars src/data/avatars.json
           if git diff --cached --quiet; then echo "nessuna novità"; exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
