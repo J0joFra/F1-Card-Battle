@@ -49,8 +49,8 @@ http.headers["User-Agent"] = UA
 
 
 def bigger_thumb(url: str) -> str:
-    # miniatura più grande (640 px) per un ritaglio del volto più nitido
-    return re.sub(r"/(\d+)px-", "/640px-", url) if "/thumb/" in url else url
+    # miniatura più grande (500 px, una delle larghezze ammesse da Wikimedia) per un volto più nitido
+    return re.sub(r"/(\d+)px-", "/500px-", url) if "/thumb/" in url else url
 
 
 def crop_face(img: Image.Image) -> Image.Image:
@@ -87,7 +87,7 @@ for i, (driver_id, p) in enumerate(sorted(portraits.items())):
         continue
     try:
         res = http.get(bigger_thumb(p["thumb"]), timeout=30)
-        if res.status_code == 404:
+        if 400 <= res.status_code < 500:  # misura non disponibile: si usa la miniatura nota
             res = http.get(p["thumb"], timeout=30)
         res.raise_for_status()
         photo = Image.open(io.BytesIO(res.content)).convert("RGB")
