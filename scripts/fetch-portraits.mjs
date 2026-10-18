@@ -105,7 +105,8 @@ for (const id of ['lewis-hamilton', 'max-verstappen', 'charles-leclerc']) consol
 
 // 2. Commons: miniatura, autore e licenza di ogni foto
 const strip = (html = '') => html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-const FREE = /^(CC0|CC BY|CC-BY|Public domain|PD|GFDL|Attribution|FAL)/i;
+// licenze libere: Creative Commons, pubblico dominio, GFDL, Free Art, Open Government Licence (UK), "Copyrighted free use"
+const FREE = /^(CC0|CC BY|CC-BY|Public domain|PD|GFDL|Attribution|FAL|OGL|Copyrighted free use)/i;
 const entries = [...found];
 const out = {};
 const skipped = [];
