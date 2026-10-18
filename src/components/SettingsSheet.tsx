@@ -105,7 +105,7 @@ export function SettingsSheet({ theme, onTheme, account, onIntro, onReset, onClo
 
         <footer className="credits">
           {t('footer_data', { src: CARDS_DATA.source, date: CARDS_DATA.generatedAt })}
-          {!CARDS_DATA.seasonComplete && t('footer_season', { y: CARDS_DATA.latestSeason })}. {t('footer_art')} {t('footer_unofficial')}
+          {!CARDS_DATA.seasonComplete && t('footer_season', { y: CARDS_DATA.latestSeason })}. {t('footer_unofficial')}
         </footer>
       </div>
     </div>

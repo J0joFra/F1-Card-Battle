@@ -89,11 +89,12 @@ La collezione per ora si salva nel browser (localStorage).
 
 ## Illustrazioni dei piloti
 
-- **Avatar disegnati**: ogni pilota ha un avatar in stile *Notionists* di Zoish (licenza CC0), creato con [DiceBear](https://www.dicebear.com) (MIT) a partire dal suo id: è sempre lo stesso per lo stesso pilota ma non vuole somigliargli (niente volti reali sulle card). Acconciature corte per i piloti e lunghe per le pilote (dato `female` da F1DB). Il modulo (`src/lib/avatars.ts`) si carica dopo l'avvio; nel frattempo si vede il casco con i colori della scuderia.
-- **Foto vere da Wikimedia Commons**: nella card ingrandita compare la foto del pilota, quando esiste con una licenza libera, con **autore e licenza** (obbligatori) e il link alla pagina di Commons. L'elenco `src/data/portraits.json` lo crea `scripts/fetch-portraits.mjs`: cerca su Wikidata le persone nate nello stesso giorno del pilota (data da F1DB), piloti di professione, con lo stesso cognome; poi prende da Commons miniatura (256 px), autore e licenza, scartando le licenze non libere. Le immagini non sono nell'app: si caricano da Commons solo quando apri la card. Lo script gira su GitHub (workflow *Portraits*, anche a mano da Actions → Portraits → Run workflow).
-- **Illustrazioni personalizzate**: se metti un'immagine in `src/assets/drivers/` ha la precedenza sull'avatar (istruzioni in `src/assets/drivers/LEGGIMI.md`):
-  - `lewis-hamilton.webp` → usata per tutte le card di Hamilton;
-  - `lewis-hamilton__ferrari.webp` → solo per la card Hamilton · Ferrari.
+Le card mostrano l'immagine del pilota se trovano un file in `src/assets/drivers/` (istruzioni in `src/assets/drivers/LEGGIMI.md`):
+
+- `lewis-hamilton.webp` → usata per tutte le card di Hamilton;
+- `lewis-hamilton__ferrari.webp` → solo per la card Hamilton · Ferrari (ha la precedenza).
+
+Formato consigliato: WebP 600 × 600 px con sfondo trasparente. Senza immagine la card mostra un casco disegnato con i colori della scuderia e il numero di gara.
 
 ## Suoni, vibrazione e animazioni
 
