@@ -90,6 +90,19 @@ La collezione per ora si salva nel browser (localStorage).
 - **Tema** chiaro/scuro: di default segue il telefono, si può forzare dalle impostazioni.
 - **Introduzione** a schede al primo avvio (riapribile dalle impostazioni) e **tutorial a tendina** in fondo a ogni schermata.
 
+## Temi delle feste
+
+Nei giorni delle feste l'app cambia colori e decorazioni da sola (`src/lib/season.ts`):
+
+| Tema | Quando | Decorazioni |
+|---|---|---|
+| 🎃 Halloween | dal 25 ottobre al 3 novembre | arancio e viola, pipistrelli e zucche che volano |
+| ❄️ Inverno | tutto dicembre e gennaio (tranne la settimana di Natale) | azzurro, neve che scende |
+| 🎄 Natale | dal 21 al 27 dicembre | rosso e verde, neve e regali |
+| 🐣 Pasqua | dal mercoledì prima di Pasqua al martedì dopo Pasquetta (data calcolata ogni anno) | rosa e giallo, fiori e ovetti |
+
+Il tema compare anche con un riquadro di auguri nella home, un simbolo accanto al logo e sul dorso delle card. Le decorazioni non si toccano, restano sotto le barre e si spengono durante la partita e con "riduci animazioni". Si possono spegnere da *Impostazioni → Temi delle feste*. Anteprima di un tema in qualsiasi giorno: aggiungi `?tema=halloween` (oppure `winter`, `christmas`, `easter`, `off`) all'indirizzo.
+
 ## Illustrazioni dei piloti
 
 Le card mostrano l'immagine del pilota se trovano un file in `src/assets/drivers/` (istruzioni in `src/assets/drivers/LEGGIMI.md`):

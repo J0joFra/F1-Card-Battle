@@ -33,6 +33,8 @@ import {
 } from "./game/collection";
 import { useI18n } from "./lib/i18n";
 import { useTheme } from "./lib/theme";
+import { useSeason } from "./lib/season";
+import { SeasonFx } from "./components/SeasonFx";
 import { useAccount } from "./hooks/useAccount";
 import { haptic, setMusicMode, sfx } from "./lib/feedback";
 import { HomeScreen } from "./screens/HomeScreen";
@@ -95,6 +97,9 @@ const FriendScreen = lazy(() =>
 const PacksScreen = lazy(() =>
   import("./screens/PacksScreen").then((m) => ({ default: m.PacksScreen }))
 );
+// segno di ogni festa (accanto al logo e nel riquadro della home)
+const SEASON_MARK = { halloween: "🎃", winter: "❄️", christmas: "🎄", easter: "🐣" } as const;
+
 const SettingsSheet = lazy(() =>
   import("./components/SettingsSheet").then((m) => ({
     default: m.SettingsSheet,
@@ -128,6 +133,7 @@ type Tab = "home" | "collection" | "packs" | "builder";
 export default function App() {
   const { t } = useI18n();
   const theme = useTheme();
+  const season = useSeason(); // tema delle feste (Halloween, Inverno, Natale, Pasqua)
   const [progress, setProgressRaw] = useState<Progress>(
     () => loadProgress() ?? starterProgress()
   );
@@ -847,11 +853,17 @@ export default function App() {
 
   return (
     <div className={`app ${inMatch ? "in-match" : ""}`}>
+      {season.season && !inMatch && <SeasonFx season={season.season} />}
       {!inMatch && (
         <header className="hud">
           <button className="brand" onClick={() => setScreen("home")}>
             <img className="brand-logo" src="./logo-card.png" alt="F1 Cards" />
             <span className="brand-name">Card Battle</span>
+            {season.season && (
+              <span className="season-badge" title={t(`season_${season.season}`)}>
+                {SEASON_MARK[season.season]}
+              </span>
+            )}
           </button>
           <div className="hud-chips">
             <span className="chip-stat" title={t("hud_credits")}>
@@ -881,6 +893,15 @@ export default function App() {
 
       <main className="content">
         <Suspense fallback={<div className="screen-loading" />}>
+          {screen === "home" && season.season && (
+            <div className="season-banner">
+              <span className="mark">{SEASON_MARK[season.season]}</span>
+              <span>
+                {t(`season_${season.season}`)}
+                <small>{t(`season_${season.season}_sub`)}</small>
+              </span>
+            </div>
+          )}
           {screen === "home" && (
             <HomeScreen
               progress={progress}
@@ -1035,6 +1056,8 @@ export default function App() {
           <SettingsSheet
             theme={theme.pref}
             onTheme={theme.setPref}
+            seasons={season.on}
+            onSeasons={season.setOn}
             account={account}
             onIntro={() => {
               setSettings(false);

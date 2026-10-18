@@ -1,4 +1,4 @@
-import { LogOut, Monitor, Moon, Music, RotateCcw, Smartphone, Sun, Volume2, X } from 'lucide-react';
+import { LogOut, Monitor, Moon, Music, PartyPopper, RotateCcw, Smartphone, Sun, Volume2, X } from 'lucide-react';
 import { hasMusic, setFeedback, useFeedbackSettings, type FeedbackSettings } from '../lib/feedback';
 import { useI18n, type TKey } from '../lib/i18n';
 import type { ThemePref } from '../lib/theme';
@@ -10,6 +10,8 @@ import { GoogleIcon } from './GoogleIcon';
 interface Props {
   theme: ThemePref;
   onTheme: (t: ThemePref) => void;
+  seasons: boolean; // temi delle feste accesi
+  onSeasons: (on: boolean) => void;
   account: Account;
   onIntro: () => void;
   onReset: () => void;
@@ -23,7 +25,7 @@ const THEMES: { id: ThemePref; icon: typeof Sun; label: TKey }[] = [
 ];
 
 // Pannello impostazioni che sale dal basso: tema, lingua, account, introduzione.
-export function SettingsSheet({ theme, onTheme, account, onIntro, onReset, onClose }: Props) {
+export function SettingsSheet({ theme, onTheme, seasons, onSeasons, account, onIntro, onReset, onClose }: Props) {
   const { t } = useI18n();
   const fb = useFeedbackSettings();
   const toggles: { key: keyof FeedbackSettings; icon: typeof Sun; label: TKey }[] = [
@@ -73,6 +75,14 @@ export function SettingsSheet({ theme, onTheme, account, onIntro, onReset, onClo
               </button>
             ))}
           </div>
+          <label className="toggle-row">
+            <PartyPopper size={18} />
+            <span>
+              {t('set_seasons')}
+              <small className="muted block-hint">{t('set_seasons_hint')}</small>
+            </span>
+            <input type="checkbox" role="switch" checked={seasons} onChange={(e) => onSeasons(e.target.checked)} />
+          </label>
         </section>
 
         <section className="set-group">

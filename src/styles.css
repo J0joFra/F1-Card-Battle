@@ -1105,3 +1105,47 @@ b.over-pack { color: #e8b931; }
 }
 /* la card che vince il round resta bordata di verde anche se è rara */
 .card.result-win { border-color: var(--win); }
+
+/* ============ Temi delle feste (Halloween, Inverno, Natale, Pasqua) ============ */
+
+:root[data-season='halloween'] { --accent: #ff7a00; --accent-2: #b45cff; --bg-glow: #3d1a00; --season-mark: '🎃'; }
+:root[data-season='halloween'][data-theme='light'] { --bg-glow: #ffd9b3; --accent: #e86a00; }
+:root[data-season='winter'] { --accent: #2f8fe0; --accent-2: #7fd0ff; --bg-glow: #0a2a4d; --season-mark: '❄️'; }
+:root[data-season='winter'][data-theme='light'] { --bg-glow: #cfe8ff; }
+:root[data-season='christmas'] { --accent: #d42426; --accent-2: #1f9d55; --bg-glow: #0d3a22; --gold: #f2c14e; --season-mark: '🎄'; }
+:root[data-season='christmas'][data-theme='light'] { --bg-glow: #d4f0de; }
+:root[data-season='easter'] { --accent: #e0559e; --accent-2: #f7b733; --bg-glow: #3d1d3f; --season-mark: '🐣'; }
+:root[data-season='easter'][data-theme='light'] { --bg-glow: #ffe0f0; --accent: #d63f8c; }
+
+/* sopra i contenuti ma sotto la barra in alto, quella in basso e le finestre; non si possono toccare */
+.season-fx { position: fixed; inset: 0; z-index: 15; pointer-events: none; overflow: hidden; }
+.season-fx span { position: absolute; font-size: var(--size); line-height: 1; opacity: 0.55; will-change: transform; }
+.fx-fall span { left: var(--x); top: -40px; color: #fff; text-shadow: 0 0 6px rgba(255, 255, 255, 0.6); animation: fx-fall var(--dur) linear var(--delay) infinite; }
+:root[data-theme='light'] .fx-fall span { color: #9cc7f2; text-shadow: 0 0 2px rgba(40, 90, 150, 0.5); }
+@keyframes fx-fall {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(var(--sway), 55vh) rotate(180deg); }
+  100% { transform: translate(0, 110vh) rotate(360deg); }
+}
+.fx-fly span { top: var(--y); left: -60px; animation: fx-fly var(--dur) linear var(--delay) infinite; }
+@keyframes fx-fly {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(30vw, -18px); }
+  50% { transform: translate(60vw, 14px); }
+  75% { transform: translate(90vw, -10px); }
+  100% { transform: translate(calc(100vw + 120px), 0); }
+}
+.app.in-match ~ .season-fx, .app.in-match .season-fx { display: none; }
+@media (prefers-reduced-motion: reduce) { .season-fx { display: none; } }
+
+/* segno della festa: accanto al logo e sul dorso delle card */
+.season-badge { font-size: 20px; line-height: 1; margin-left: -4px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4)); }
+:root[data-season] .card-back-logo::after { content: var(--season-mark); font-size: 0.42em; font-style: normal; margin-top: 4px; }
+.season-banner {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 14px; font-weight: 800;
+  background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 22%, var(--surface)), color-mix(in srgb, var(--accent-2) 22%, var(--surface)));
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+.season-banner .mark { font-size: 26px; line-height: 1; }
+.season-banner small { display: block; font-weight: 600; color: var(--muted); }
+.toggle-row .block-hint { display: block; font-size: 12px; font-weight: 500; }
