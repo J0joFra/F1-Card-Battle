@@ -43,7 +43,28 @@ model = torch.hub.load(
     "bryandlee/animegan2-pytorch:main", "generator", pretrained="face_paint_512_v2", trust_repo=True
 ).eval()
 bg_session = new_session("u2net_human_seg")
-faces = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+# rilevatore di volti YuNet (OpenCV Zoo): preciso anche con foto piccole, di profilo o in bianco e nero
+YUNET_URL = "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx"
+YUNET = os.path.expanduser("~/.cache/yunet.onnx")
+if not os.path.exists(YUNET):
+    os.makedirs(os.path.dirname(YUNET), exist_ok=True)
+    data = requests.get(YUNET_URL, timeout=60).content
+    if len(data) < 100_000:
+        sys.exit("modello YuNet non scaricato")
+    open(YUNET, "wb").write(data)
+detector = cv2.FaceDetectorYN.create(YUNET, "", (320, 320), 0.75)
+
+
+def best_face(img: Image.Image):
+    """(x, y, w, h, punteggio) del volto più grande, o None."""
+    arr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+    h, w = arr.shape[:2]
+    detector.setInputSize((w, h))
+    _, found = detector.detect(arr)
+    if found is None or not len(found):
+        return None
+    f = max(found, key=lambda f: f[2] * f[3])
+    return int(f[0]), int(f[1]), int(f[2]), int(f[3]), float(f[-1])
 http = requests.Session()
 http.headers["User-Agent"] = UA
 
@@ -56,14 +77,12 @@ def bigger_thumb(url: str) -> str:
 def crop_face(img: Image.Image) -> Image.Image | None:
     """Quadrato attorno al volto più grande (con spalle e capelli); None se non c'è un volto riconoscibile."""
     w, h = img.size
-    gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
-    found = faces.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(max(24, w // 20), max(24, w // 20)))
-    if len(found):
-        x, y, fw, fh = max(found, key=lambda f: f[2] * f[3])
-        side = int(max(fw, fh) * 2.3)
-        cx, cy = x + fw // 2, y + int(fh * 0.62)
-    else:
+    face = best_face(img)
+    if face is None or face[2] < 28:
         return None  # foto senza un volto chiaro (es. pilota in macchina): resta l'avatar disegnato
+    x, y, fw, fh, _ = face
+    side = int(max(fw, fh) * 2.3)
+    cx, cy = x + fw // 2, y + int(fh * 0.62)
     side = min(side, w, h)
     left = min(max(0, cx - side // 2), w - side)
     top = min(max(0, cy - side // 2), h - side)
@@ -96,6 +115,9 @@ for i, (driver_id, p) in enumerate(sorted(portraits.items())):
         face = face.resize((512, 512), Image.LANCZOS)
         drawn = cartoon(face)
         mask = remove(face, session=bg_session, only_mask=True).convert("L")  # sfondo tolto dalla foto originale
+        check = best_face(drawn)  # nel disegno finale il volto deve essere ancora riconoscibile
+        if check is None or check[2] < 90:
+            raise ValueError("volto non riconoscibile nel disegno")
         coverage = np.asarray(mask).mean() / 255
         if not 0.15 < coverage < 0.97:  # persona non trovata (quasi tutto trasparente) o sfondo non tolto
             raise ValueError(f"ritaglio non riuscito ({coverage:.0%} della figura)")

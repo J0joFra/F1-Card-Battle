@@ -33,8 +33,8 @@ jobs:
           pip install pillow requests "rembg[cpu]"
           # una sola copia di OpenCV (rembg ne porta un'altra: due insieme si rompono a vicenda)
           pip uninstall -y opencv-python opencv-python-headless opencv-contrib-python opencv-contrib-python-headless || true
-          pip install "opencv-python-headless<5"  # OpenCV 5 non ha più i rilevatori di volti "Haar"
-          python -c "import cv2; cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'); print('OpenCV', cv2.__version__)"
+          pip install "opencv-python-headless>=4.8,<5"  # YuNet (FaceDetectorYN) da OpenCV 4.8
+          python -c "import cv2; cv2.FaceDetectorYN; print('OpenCV', cv2.__version__)"
       # rifà tutti gli avatar con i nuovi controlli (volto riconosciuto, sfondo tolto bene)
       - run: python scripts/make-avatars.py --force
       - name: Salva il risultato
