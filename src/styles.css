@@ -1149,3 +1149,126 @@ b.over-pack { color: #e8b931; }
 .season-banner .mark { font-size: 26px; line-height: 1; }
 .season-banner small { display: block; font-weight: 600; color: var(--muted); }
 .toggle-row .block-hint { display: block; font-size: 12px; font-weight: 500; }
+
+/* ---------- Pacchetti delle feste: zucca, pacco innevato, regalo, uovo di Pasqua ---------- */
+:root[data-season] .pack > span:first-child { position: relative; z-index: 1; }
+:root[data-season] .pack small { position: relative; z-index: 1; }
+:root[data-season='halloween'] .pack {
+  width: 204px; height: 188px; border: 0; border-radius: 46% 46% 42% 42% / 54% 54% 46% 46%;
+  background:
+    radial-gradient(ellipse 18% 62% at 22% 56%, #ff9a2e, transparent 72%),
+    radial-gradient(ellipse 18% 66% at 50% 56%, #ffa43d, transparent 72%),
+    radial-gradient(ellipse 18% 62% at 78% 56%, #ff9a2e, transparent 72%),
+    #e2620a;
+  box-shadow: inset 0 -16px 26px rgba(70, 20, 0, 0.45), inset 0 12px 20px rgba(255, 255, 255, 0.18), var(--shadow);
+}
+:root[data-season='halloween'] .pack::before {
+  content: ''; position: absolute; top: -20px; left: 50%; width: 16px; height: 30px; border-radius: 7px 7px 3px 3px;
+  background: linear-gradient(90deg, #3d5e1f, #6b8f2f); transform: translateX(-50%) rotate(9deg);
+}
+:root[data-season='halloween'] .pack > span:first-child { color: #ffd23f; text-shadow: 0 0 14px #ff9d00, 0 0 3px #5a1d00; }
+:root[data-season='halloween'] .pack small { color: #4a1a00; font-weight: 800; }
+
+:root[data-season='winter'] .pack { background: linear-gradient(160deg, #1d5f9e, #0b1c33 75%); border-color: #bfe3ff; }
+:root[data-season='winter'] .pack > span:first-child { color: #bfe3ff; text-shadow: 0 0 12px #7fd0ff; }
+:root[data-season='winter'] .pack {
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.5) 1.5px, transparent 2.5px) 0 0 / 22px 22px,
+    radial-gradient(circle, rgba(255, 255, 255, 0.3) 1px, transparent 2px) 11px 11px / 22px 22px,
+    linear-gradient(160deg, #1d5f9e, #0b1c33 75%);
+}
+:root[data-season='winter'] .pack::before {
+  content: ''; position: absolute; top: -12px; left: -6px; right: -6px; height: 34px; pointer-events: none;
+  background:
+    radial-gradient(ellipse 9px 11px at 50% 0, #fff 96%, transparent 100%) 4px 14px / 26px 20px repeat-x,
+    radial-gradient(ellipse 6px 7px at 50% 0, #fff 96%, transparent 100%) 17px 14px / 26px 20px repeat-x,
+    linear-gradient(#fff, #fff) 0 0 / 100% 16px no-repeat;
+  border-radius: 18px 18px 0 0; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.25));
+}
+:root[data-season='winter'] .pack::after { content: '⛄'; position: absolute; bottom: -14px; right: -14px; font-size: 42px; font-style: normal; }
+
+:root[data-season='christmas'] .pack {
+  border: 0; border-radius: 12px;
+  background:
+    linear-gradient(90deg, transparent 43%, #f2c14e 43% 57%, transparent 57%),
+    linear-gradient(0deg, transparent 60%, #f2c14e 60% 69%, transparent 69%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.07) 0 9px, transparent 9px 18px),
+    linear-gradient(160deg, #e0302f, #96121a);
+}
+:root[data-season='christmas'] .pack::before { content: '🎀'; position: absolute; top: -34px; left: 50%; transform: translateX(-50%); font-size: 56px; font-style: normal; }
+:root[data-season='christmas'] .pack > span:first-child { color: #fff; text-shadow: 0 3px 8px rgba(0, 0, 0, 0.55); }
+:root[data-season='christmas'] .pack small { color: #ffe9a8; }
+
+:root[data-season='easter'] .pack {
+  width: 178px; height: 228px; border: 0; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  background:
+    radial-gradient(circle at 30% 26%, rgba(255, 255, 255, 0.6), transparent 26%),
+    linear-gradient(transparent 26%, #ffe066 26% 32%, transparent 32% 66%, #9be7a0 66% 72%, transparent 72%),
+    radial-gradient(circle, rgba(255, 255, 255, 0.85) 2.5px, transparent 3.5px) 0 0 / 18px 18px,
+    linear-gradient(170deg, #ff9ecf, #b77dff);
+  box-shadow: inset -12px -16px 26px rgba(80, 0, 80, 0.22), var(--shadow);
+}
+:root[data-season='easter'] .pack > span:first-child { color: #fff; text-shadow: 0 2px 8px #8a3fb8; }
+:root[data-season='easter'] .pack small { color: #5b2a73; font-weight: 800; }
+
+/* pacchetti piccoli del negozio */
+:root[data-season] .mini-pack { border: 0; }
+:root[data-season='halloween'] .mini-pack { border-radius: 46% 46% 42% 42% / 54% 54% 46% 46%; width: 54px; height: 50px; color: #ffd23f; background: radial-gradient(ellipse 22% 60% at 50% 55%, #ffa43d, transparent 70%), #e2620a; }
+:root[data-season='winter'] .mini-pack { border: 2px solid #bfe3ff; color: #bfe3ff; background: linear-gradient(160deg, #1d5f9e, #0b1c33); }
+:root[data-season='christmas'] .mini-pack { color: #fff; background: linear-gradient(90deg, transparent 42%, #f2c14e 42% 58%, transparent 58%), linear-gradient(0deg, transparent 44%, #f2c14e 44% 56%, transparent 56%), linear-gradient(160deg, #e0302f, #96121a); }
+:root[data-season='easter'] .mini-pack { border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; width: 46px; color: #fff; background: linear-gradient(transparent 30%, #ffe066 30% 40%, transparent 40% 62%, #9be7a0 62% 72%, transparent 72%), linear-gradient(170deg, #ff9ecf, #b77dff); }
+
+/* ---------- Dorso delle card ---------- */
+:root[data-season='halloween'] .card-back { background: radial-gradient(circle at 50% 40%, #6a2c00, transparent 60%), repeating-linear-gradient(135deg, #160f08 0 14px, #24170a 14px 28px); border-color: #ff7a00; }
+:root[data-season='winter'] .card-back { background: radial-gradient(circle at 50% 40%, #12406e, transparent 60%), repeating-linear-gradient(135deg, #0d1626 0 14px, #13213a 14px 28px); border-color: #7fd0ff; }
+:root[data-season='christmas'] .card-back { background: radial-gradient(circle at 50% 40%, #0f5a32, transparent 60%), repeating-linear-gradient(135deg, #3a0b0d 0 14px, #4f1013 14px 28px); border-color: #f2c14e; }
+:root[data-season='easter'] .card-back { background: radial-gradient(circle at 50% 40%, #6b3a7a, transparent 60%), repeating-linear-gradient(135deg, #2a1a33 0 14px, #352142 14px 28px); border-color: #ff9ecf; }
+
+/* ---------- Barre: luci di Natale, neve, ragnatele, prato ---------- */
+:root[data-season='christmas'] .hud::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -8px; height: 14px; pointer-events: none;
+  background:
+    radial-gradient(circle at 10px 9px, #ff3b3b 4px, transparent 5px) 0 0 / 80px 14px repeat-x,
+    radial-gradient(circle at 30px 9px, #ffd23f 4px, transparent 5px) 0 0 / 80px 14px repeat-x,
+    radial-gradient(circle at 50px 9px, #2fbf71 4px, transparent 5px) 0 0 / 80px 14px repeat-x,
+    radial-gradient(circle at 70px 9px, #3fa9f5 4px, transparent 5px) 0 0 / 80px 14px repeat-x,
+    linear-gradient(#2c2f36, #2c2f36) 0 4px / 100% 1.5px no-repeat;
+  animation: lights 1.4s steps(2) infinite;
+}
+@keyframes lights { 50% { filter: brightness(1.7) saturate(1.4) drop-shadow(0 0 4px rgba(255, 220, 120, 0.8)); } }
+:root[data-season='winter'] .tabbar::before, :root[data-season='christmas'] .tabbar::before {
+  content: ''; position: absolute; top: -10px; left: 0; right: 0; height: 12px; pointer-events: none;
+  background: radial-gradient(ellipse 11px 9px at 50% 100%, #fff 96%, transparent 100%) 0 0 / 16px 12px repeat-x;
+  filter: drop-shadow(0 -1px 1px rgba(0, 0, 0, 0.18));
+}
+:root[data-season='halloween'] .hud::before {
+  content: ''; position: absolute; right: 78px; top: 100%; width: 1px; height: 22px; background: rgba(200, 200, 200, 0.6);
+  transform-origin: top; animation: thread 3.2s ease-in-out infinite alternate; pointer-events: none;
+}
+:root[data-season='halloween'] .hud::after {
+  content: '🕷️'; position: absolute; right: 70px; top: calc(100% + 18px); font-size: 17px; pointer-events: none;
+  animation: spider 3.2s ease-in-out infinite alternate;
+}
+@keyframes thread { from { transform: scaleY(0.45); } to { transform: scaleY(1.2); } }
+@keyframes spider { from { transform: translateY(-12px); } to { transform: translateY(4px); } }
+:root[data-season='halloween'] .tabbar::before { content: '🕸️'; position: absolute; top: -24px; left: 6px; font-size: 26px; opacity: 0.75; pointer-events: none; }
+:root[data-season='halloween'] .tabbar::after { content: '🎃'; position: absolute; top: -20px; right: 10px; font-size: 22px; pointer-events: none; }
+:root[data-season='easter'] .tabbar::before {
+  content: ''; position: absolute; top: -10px; left: 0; right: 0; height: 11px; pointer-events: none;
+  background: linear-gradient(-45deg, #6cc04a 5.5px, transparent 0) 0 0 / 11px 11px repeat-x, linear-gradient(45deg, #6cc04a 5.5px, transparent 0) 0 0 / 11px 11px repeat-x;
+  transform: scaleY(-1);
+}
+:root[data-season='easter'] .tabbar::after { content: '🌷 🐰 🌼'; position: absolute; top: -24px; right: 10px; font-size: 18px; letter-spacing: 2px; pointer-events: none; }
+
+/* ---------- Neve sui riquadri (inverno e Natale) ---------- */
+:root[data-season='winter'] .panel, :root[data-season='christmas'] .panel { position: relative; }
+:root[data-season='winter'] .panel::before, :root[data-season='christmas'] .panel::before {
+  content: ''; position: absolute; top: -6px; left: 12px; right: 12px; height: 12px; pointer-events: none; border-radius: 8px 8px 0 0;
+  background: radial-gradient(ellipse 9px 6px at 50% 0, #fff 96%, transparent 100%) 0 5px / 14px 12px repeat-x, linear-gradient(#fff, #fff) 0 0 / 100% 6px no-repeat;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.15));
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-season] .hud::before, :root[data-season] .hud::after { animation: none; }
+}
+/* in partita la card è tagliata in altezza: niente cappello, si vede meglio il casco */
+.duel-stack .hat { display: none; }

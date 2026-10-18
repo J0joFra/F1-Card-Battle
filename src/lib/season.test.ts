@@ -25,11 +25,11 @@ describe('temi delle feste', () => {
     expect(seasonOf(at(2026, 12, 28))).toBe('winter');
     expect(seasonOf(at(2027, 1, 31))).toBe('winter');
     expect(seasonOf(at(2027, 2, 1))).toBeNull();
-    // Pasqua 2026 = 5 aprile: dal mercoledì 1 al martedì 7 (dopo Pasquetta)
-    expect(seasonOf(at(2026, 3, 31))).toBeNull();
-    expect(seasonOf(at(2026, 4, 1))).toBe('easter');
+    // Pasqua 2026 = 5 aprile: dalla Domenica delle Palme (29 marzo) a Pasquetta (6 aprile)
+    expect(seasonOf(at(2026, 3, 28))).toBeNull();
+    expect(seasonOf(at(2026, 3, 29))).toBe('easter');
+    expect(seasonOf(at(2026, 4, 3))).toBe('easter');
     expect(seasonOf(at(2026, 4, 6))).toBe('easter');
-    expect(seasonOf(at(2026, 4, 7))).toBe('easter');
-    expect(seasonOf(at(2026, 4, 8))).toBeNull();
+    expect(seasonOf(at(2026, 4, 7))).toBeNull();
   });
 });

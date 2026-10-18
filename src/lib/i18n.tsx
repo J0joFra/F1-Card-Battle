@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { coin } from './season';
 
 export const LANGS = [
   { code: 'it', label: 'Italiano', flag: '🇮🇹' },
@@ -1175,7 +1176,7 @@ export const getLang = () => currentLang;
 export const translate: TFn = (key, params) => {
   let s = DICT[currentLang][key] ?? it[key] ?? key;
   if (params) for (const [k, v] of Object.entries(params)) s = s.split(`{${k}}`).join(String(v));
-  return s;
+  return s.includes('🪙') ? s.split('🪙').join(coin()) : s; // monete delle feste
 };
 
 interface I18nValue {

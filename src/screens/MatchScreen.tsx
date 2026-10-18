@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { coin, seasonNow } from '../lib/season';
 import type { Card, StatKey } from '../types';
 import { Flag, RotateCcw } from 'lucide-react';
 import { CARD_BY_ID, STATS, STAT_BY_KEY, formatStat, statLabel, statShort } from '../game/cards';
@@ -18,6 +19,14 @@ const REVEAL_MS = 650;
 const PVP_REVEAL_MS = 3000; // come in server/pvp.ts
 const CPU_THINK_MS = 900;
 const CPU_ANNOUNCE_MS = 1300;
+// coriandoli della vittoria, con i colori della festa
+const SEASON_CONFETTI = {
+  none: ['#e10600', '#ffffff', '#e8b931', '#2fbf71'],
+  halloween: ['#ff7a00', '#b45cff', '#1a1a1a', '#ffd23f'],
+  winter: ['#ffffff', '#7fd0ff', '#2f8fe0', '#d6ecff'],
+  christmas: ['#d42426', '#1f9d55', '#f2c14e', '#ffffff'],
+  easter: ['#ff9ecf', '#ffe066', '#9be7a0', '#a7c7ff'],
+};
 
 interface Props {
   driver: MatchDriver; // chi arbitra: il telefono (ospite) o il server
@@ -225,7 +234,7 @@ export function MatchScreen({
       haptic('heavy');
       if (!reducedMotion())
         void import('canvas-confetti').then(({ default: confetti }) => {
-          const colors = ['#e10600', '#ffffff', '#e8b931', '#2fbf71'];
+          const colors = SEASON_CONFETTI[seasonNow() ?? 'none'];
           confetti({ particleCount: 120, spread: 80, origin: { y: 0.35 }, colors, disableForReducedMotion: true });
           setTimeout(() => confetti({ particleCount: 60, angle: 60, spread: 60, origin: { x: 0, y: 0.6 }, colors }), 250);
           setTimeout(() => confetti({ particleCount: 60, angle: 120, spread: 60, origin: { x: 1, y: 0.6 }, colors }), 400);
@@ -315,16 +324,16 @@ export function MatchScreen({
             <div className="over-rewards">
               <div className="over-chips">
                 {rewards.credits - (rewards.firstWin ? FIRST_WIN_CREDITS : 0) > 0 && (
-                  <span className="reward-pill">🪙 +{rewards.credits - (rewards.firstWin ? FIRST_WIN_CREDITS : 0)}</span>
+                  <span className="reward-pill">{coin()} +{rewards.credits - (rewards.firstWin ? FIRST_WIN_CREDITS : 0)}</span>
                 )}
                 {rewards.firstWin && (
                   <span className="reward-pill gold">
-                    {tr('m_firstWin')} 🪙 +{FIRST_WIN_CREDITS}
+                    {tr('m_firstWin')} {coin()} +{FIRST_WIN_CREDITS}
                   </span>
                 )}
                 {rewards.dailyWon && (
                   <span className="reward-pill gold">
-                    {tr('daily_title')} 🎁 +1 · 🪙 +{DAILY_REWARD_CREDITS}
+                    {tr('daily_title')} 🎁 +1 · {coin()} +{DAILY_REWARD_CREDITS}
                   </span>
                 )}
               </div>

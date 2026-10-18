@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
  * - Halloween: dal 25 ottobre al 3 novembre
  * - Natale: settimana di Natale, dal 21 al 27 dicembre
  * - Inverno: tutto dicembre e gennaio (tranne la settimana di Natale)
- * - Pasqua: dal mercoledì prima di Pasqua al martedì dopo Pasquetta
+ * - Pasqua: dalla Domenica delle Palme a Pasquetta
  * Si possono spegnere dalle impostazioni. Per vederli in anteprima: ?tema=halloween (o winter, christmas, easter, off).
  */
 export type Season = 'halloween' | 'winter' | 'christmas' | 'easter';
@@ -40,9 +40,17 @@ export function seasonOf(date = new Date()): Season | null {
   if (m === 12 && d >= 21 && d <= 27) return 'christmas';
   if (m === 12 || m === 1) return 'winter';
   const fromEaster = dayNumber(date) - dayNumber(easterSunday(date.getFullYear()));
-  if (fromEaster >= -4 && fromEaster <= 2) return 'easter';
+  if (fromEaster >= -7 && fromEaster <= 1) return 'easter';
   return null;
 }
+
+// Tema in uso, leggibile anche fuori da React (testi, casco, coriandoli). Lo aggiorna useSeason.
+let current: Season | null = null;
+export const seasonNow = () => current;
+
+// Le monete cambiano aspetto con la festa: caramelle, biscotti, ovetti di cioccolato.
+const COINS: Record<Season, string> = { halloween: '🍬', winter: '🪙', christmas: '🍪', easter: '🍫' };
+export const coin = () => (current ? COINS[current] : '🪙');
 
 const KEY = 'f1-card-battle:seasons'; // 'on' | 'off'
 const PREVIEW = 'f1-card-battle:season-preview';
@@ -77,6 +85,7 @@ export function useSeason() {
   }, []);
   const forced = preview();
   const season = forced ? (forced === 'off' ? null : forced) : on ? seasonOf(today) : null;
+  current = season; // subito, prima che si disegnino i figli
 
   useEffect(() => {
     try {

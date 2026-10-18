@@ -92,16 +92,16 @@ La collezione per ora si salva nel browser (localStorage).
 
 ## Temi delle feste
 
-Nei giorni delle feste l'app cambia colori e decorazioni da sola (`src/lib/season.ts`):
+Nei giorni delle feste l'app si traveste da sola (`src/lib/season.ts`):
 
-| Tema | Quando | Decorazioni |
-|---|---|---|
-| 🎃 Halloween | dal 25 ottobre al 3 novembre | arancio e viola, pipistrelli e zucche che volano |
-| ❄️ Inverno | tutto dicembre e gennaio (tranne la settimana di Natale) | azzurro, neve che scende |
-| 🎄 Natale | dal 21 al 27 dicembre | rosso e verde, neve e regali |
-| 🐣 Pasqua | dal mercoledì prima di Pasqua al martedì dopo Pasquetta (data calcolata ogni anno) | rosa e giallo, fiori e ovetti |
+| Tema | Quando | Pacchetti | Monete | Cappello sui caschi | Decorazioni |
+|---|---|---|---|---|---|
+| 🎃 Halloween | dal 25 ottobre al 3 novembre | zucche | 🍬 caramelle | cappello da strega | pipistrelli e fantasmi che volano, ragno che scende, ragnatela |
+| ❄️ Inverno | tutto dicembre e gennaio (tranne la settimana di Natale) | pacchi innevati con pupazzo di neve | 🪙 | berretto di lana | neve che scende, neve su barre e riquadri |
+| 🎄 Natale | dal 21 al 27 dicembre | regali con fiocco | 🍪 biscotti | cappello di Babbo Natale | luci di Natale che lampeggiano, neve e regali |
+| 🐣 Pasqua | dalla Domenica delle Palme a Pasquetta (date calcolate ogni anno) | uova decorate | 🍫 cioccolatini | orecchie da coniglio | fiori e ovetti, prato con coniglio |
 
-Il tema compare anche con un riquadro di auguri nella home, un simbolo accanto al logo e sul dorso delle card. Le decorazioni non si toccano, restano sotto le barre e si spengono durante la partita e con "riduci animazioni". Si possono spegnere da *Impostazioni → Temi delle feste*. Anteprima di un tema in qualsiasi giorno: aggiungi `?tema=halloween` (oppure `winter`, `christmas`, `easter`, `off`) all'indirizzo.
+Cambiano anche i colori dei pulsanti, il dorso delle card, i coriandoli della vittoria, il riquadro di auguri nella home e il simbolo accanto al logo. Le decorazioni non si toccano, restano sotto le barre e si spengono durante la partita (anche i cappelli, per vedere bene il casco) e con "riduci animazioni". Si possono spegnere da *Impostazioni → Temi delle feste*. Anteprima di un tema in qualsiasi giorno: aggiungi `?tema=halloween` (oppure `winter`, `christmas`, `easter`, `off`) all'indirizzo.
 
 ## Illustrazioni dei piloti
 

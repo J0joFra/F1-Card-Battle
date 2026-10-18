@@ -33,7 +33,7 @@ import {
 } from "./game/collection";
 import { useI18n } from "./lib/i18n";
 import { useTheme } from "./lib/theme";
-import { useSeason } from "./lib/season";
+import { coin, useSeason } from "./lib/season";
 import { SeasonFx } from "./components/SeasonFx";
 import { useAccount } from "./hooks/useAccount";
 import { haptic, setMusicMode, sfx } from "./lib/feedback";
@@ -656,7 +656,7 @@ export default function App() {
     if (
       !(await askConfirm(
         t("shop_confirm", { name: `${card.driver.name} · ${card.team.name}` }),
-        { confirmLabel: `🪙 ${price}` }
+        { confirmLabel: `${coin()} ${price}` }
       ))
     )
       return;
@@ -867,7 +867,7 @@ export default function App() {
           </button>
           <div className="hud-chips">
             <span className="chip-stat" title={t("hud_credits")}>
-              🪙 <b>{progress.credits}</b>
+              {coin()} <b>{progress.credits}</b>
             </span>
             {progress.jolly > 0 && (
               <span className="chip-stat" title={t("hud_jolly")}>
