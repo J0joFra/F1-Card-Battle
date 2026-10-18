@@ -39,7 +39,9 @@ only = set(filter(None, args.only.split(",")))
 os.makedirs(OUT_DIR, exist_ok=True)
 
 torch.set_grad_enabled(False)
-model = torch.hub.load("bryandlee/animegan2-pytorch:main", "generator", pretrained="face_paint_512_v2").eval()
+model = torch.hub.load(
+    "bryandlee/animegan2-pytorch:main", "generator", pretrained="face_paint_512_v2", trust_repo=True
+).eval()
 bg_session = new_session("u2net_human_seg")
 faces = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 http = requests.Session()
