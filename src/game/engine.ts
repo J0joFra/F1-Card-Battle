@@ -139,6 +139,21 @@ export function matchOutcome(state: MatchState): MatchOutcome {
   return player > cpu ? 'player' : cpu > player ? 'cpu' : 'draw';
 }
 
+// Forza di una metrica da 0 (debole) a 1 (fortissima), per la barretta colorata.
+// Di solito è il percentile rispetto a tutte le card; per le posizioni (vince il numero più basso) si usa
+// la scala "da appassionato", perché le tante card di fondo griglia farebbero sembrare buono anche un 12° posto:
+// griglia media 3° o meglio = piena, 20° o peggio = vuota; miglior arrivo 1° = piena, 15° o peggio = vuota.
+const POSITION_SCALE: Partial<Record<StatKey, [best: number, worst: number]>> = {
+  grigliaMedia: [3, 20],
+  migliorArrivo: [1, 15],
+};
+export function statStrength(key: StatKey, value: number) {
+  const scale = POSITION_SCALE[key];
+  if (!scale) return percentile(key, value);
+  const [best, worst] = scale;
+  return Math.min(1, Math.max(0, (worst - value) / (worst - best)));
+}
+
 // La CPU non vede la tua carta: sceglie, tra le metriche ancora libere, la migliore della propria.
 // "Migliore" = il valore più alto rispetto a tutte le card del gioco (percentile), perché metriche
 // diverse hanno scale diverse (es. 120 GP contro 8,5 punti a gara).
