@@ -71,7 +71,34 @@ for (let i = 0; i < dates.length; i += 120) {
   }
   await sleep(1000);
 }
-console.log(`Wikidata: foto trovate per ${found.size} piloti su ${drivers.length}`);
+console.log(`Wikidata (data di nascita + professione): ${found.size} piloti su ${drivers.length}`);
+
+// 1b. chi manca: stesso nome (in inglese) e stesso anno di nascita, senza guardare la professione
+const missing = drivers.filter((d) => !found.has(d.id));
+const esc = (s) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+for (let i = 0; i < missing.length; i += 80) {
+  const chunk = missing.slice(i, i + 80);
+  const values = [...new Set(chunk.flatMap((d) => [d.name, d.fullName].filter(Boolean)))].map((n) => `"${esc(n)}"@en`).join(' ');
+  const query = `SELECT ?label ?dob ?image WHERE {
+    VALUES ?label { ${values} }
+    ?item rdfs:label ?label ; wdt:P31 wd:Q5 ; wdt:P569 ?dob ; wdt:P18 ?image .
+  }`;
+  const data = await getJson('https://query.wikidata.org/sparql', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/sparql-results+json' },
+    body: new URLSearchParams({ query }),
+  });
+  for (const b of data.results.bindings) {
+    const year = b.dob.value.slice(0, 4);
+    for (const d of chunk) {
+      if (found.has(d.id) || dobKey(d.dateOfBirth).slice(0, 4) !== year) continue;
+      if (b.label.value !== d.name && b.label.value !== d.fullName) continue;
+      found.set(d.id, decodeURIComponent(b.image.value.split('/').pop()));
+    }
+  }
+  await sleep(1000);
+}
+console.log(`Wikidata (nome + anno di nascita): in tutto ${found.size} piloti`);
 
 // 2. Commons: miniatura, autore e licenza di ogni foto
 const strip = (html = '') => html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
