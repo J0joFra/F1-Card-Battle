@@ -42,6 +42,7 @@ export function CardView({ card, size = 'md', onPickStat, lockedStats, highlight
     >
       <div className="card-art">
         <DriverArt card={card} />
+        {(card.rarity === 'platino' || card.rarity === 'leggendaria') && <span className="holo" aria-hidden />}
         <span className="card-flag" aria-hidden>
           {flagEmoji(card.driver.country)}
         </span>

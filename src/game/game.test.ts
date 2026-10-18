@@ -16,6 +16,7 @@ import {
   statStrength,
 } from './engine';
 import { canAdd, deckProblems } from './deckRules';
+import { HELMET_DESIGNS, helmetStyle } from '../components/DriverArt';
 import {
   addCards,
   autoFillDeck,
@@ -170,6 +171,16 @@ describe('forza delle metriche (barretta colorata)', () => {
   it('le altre metriche: più alto è meglio (percentile)', () => {
     expect(statStrength('puntiGara', 15)).toBeGreaterThan(statStrength('puntiGara', 0.5));
     expect(statStrength('gare', 200)).toBe(percentile('gare', 200));
+  });
+});
+
+describe('caschi dei piloti', () => {
+  it('ogni pilota ha sempre lo stesso disegno; il secondo colore si stacca dalla base', () => {
+    expect(helmetStyle('lewis-hamilton', '#dc0000')).toEqual(helmetStyle('lewis-hamilton', '#dc0000'));
+    expect(helmetStyle('lewis-hamilton', '#dc0000').design).toBe(helmetStyle('lewis-hamilton', '#00a19c').design);
+    const designs = new Set(PLAYABLE_CARDS.map((c) => helmetStyle(c.driver.id, '#888888').design));
+    expect(designs.size).toBe(HELMET_DESIGNS.length);
+    for (const base of ['#ffffff', '#ffd400', '#dc0000', '#1e41ff']) expect(helmetStyle('ayrton-senna', base).accent).not.toBe(base);
   });
 });
 

@@ -97,7 +97,9 @@ Le card mostrano l'immagine del pilota se trovano un file in `src/assets/drivers
 - `lewis-hamilton.webp` → usata per tutte le card di Hamilton;
 - `lewis-hamilton__ferrari.webp` → solo per la card Hamilton · Ferrari (ha la precedenza).
 
-Formato consigliato: WebP 600 × 600 px con sfondo trasparente. Senza immagine la card mostra un casco disegnato con i colori della scuderia e il numero di gara.
+Formato consigliato: WebP 600 × 600 px con sfondo trasparente. Senza immagine la card mostra un casco disegnato: colore di base della scuderia, numero di gara e un **disegno personale del pilota** (strisce, stelle, bande, saetta, puntini, scacchi…, con secondo colore e visiera), uguale su tutte le sue card.
+
+Le card rare si riconoscono anche dal bordo: *Argento* metallico, *Oro* in lamina dorata con scintillii, *Platino* olografico con riflesso arcobaleno, *Leggendaria* con bordo multicolore che gira, stelle e nome dorato. Nelle griglie le animazioni sono spente per non affaticare il telefono.
 
 ## Suoni, vibrazione e animazioni
 

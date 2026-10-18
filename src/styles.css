@@ -1052,3 +1052,56 @@ b.over-pack { color: #e8b931; }
 @media (max-height: 620px) {
   .match-hint { display: none; }
 }
+
+/* ============ Card rare: bordo in lamina, olografia, bordo animato ============ */
+/* Argento: bordo metallico. Oro: lamina dorata e scintillii. Platino: olografico. Leggendaria: bordo che gira e stelle. */
+.card.rarity-argento, .card.rarity-oro, .card.rarity-platino, .card.rarity-leggendaria {
+  border-color: transparent;
+  background:
+    linear-gradient(170deg, color-mix(in srgb, var(--team) 55%, #0d0e12) 0%, #14161c 46%) padding-box,
+    var(--foil) border-box;
+}
+.card.rarity-argento { --foil: linear-gradient(135deg, #f4f6fa, #9aa3b1 35%, #e9edf3 55%, #7e8796); }
+.card.rarity-oro { --foil: linear-gradient(135deg, #fff4b8, #e8b931 30%, #9c6f00 55%, #ffe58a 80%, #c4920f); }
+.card.rarity-platino { --foil: linear-gradient(135deg, #e6fffe, #7fe3e0 25%, #b8a8ff 50%, #ffb3e6 70%, #7fe3e0); }
+.card.rarity-leggendaria {
+  --foil: conic-gradient(from var(--spin, 0deg), #b46bff, #ff5ec8, #ffd166, #6be4ff, #b46bff);
+  animation: spin-border 6s linear infinite;
+}
+@property --spin { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@keyframes spin-border { to { --spin: 360deg; } }
+
+/* scintillii dorati sull'illustrazione */
+.card.rarity-oro .card-art::after, .card.rarity-leggendaria .card-art::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 28%, #fff 0 1.2px, transparent 2px),
+    radial-gradient(circle at 78% 18%, #fff 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 86% 64%, #fff 0 1px, transparent 2px),
+    radial-gradient(circle at 30% 78%, #fff 0 1.3px, transparent 2.2px),
+    radial-gradient(circle at 60% 40%, #fff 0 0.9px, transparent 1.8px);
+  opacity: 0.75; animation: twinkle 2.4s ease-in-out infinite alternate;
+}
+@keyframes twinkle { from { opacity: 0.25; } to { opacity: 0.85; } }
+/* platino e leggendaria: riflesso arcobaleno che scorre sull'illustrazione */
+.card.rarity-platino .card-art > .holo, .card.rarity-leggendaria .card-art > .holo { display: block; }
+.card .card-art > .holo {
+  display: none; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: color-dodge; opacity: 0.38;
+  background: linear-gradient(115deg, #ff4fa3 0%, #ffd166 18%, #6be4ff 36%, #b46bff 54%, #ff4fa3 72%, #ffd166 90%);
+  background-size: 300% 100%; animation: holo 7s linear infinite;
+}
+.card.rarity-leggendaria .card-art > .holo { opacity: 0.5; }
+@keyframes holo { from { background-position: 0% 0; } to { background-position: 300% 0; } }
+/* nome in oro sulle card leggendarie */
+.card.rarity-leggendaria .card-name {
+  background: linear-gradient(90deg, #ffe58a, #ffffff, #ffd166); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* card piccole (griglie): niente animazioni, solo i colori, per non affaticare il telefono */
+.card-sm.rarity-leggendaria { animation: none; }
+.card-sm .card-art::after, .card-sm .card-art > .holo { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .card.rarity-leggendaria, .card .card-art::after, .card .card-art > .holo { animation: none !important; }
+}
+/* la card che vince il round resta bordata di verde anche se è rara */
+.card.result-win { border-color: var(--win); }
