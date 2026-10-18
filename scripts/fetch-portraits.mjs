@@ -99,27 +99,39 @@ for (let i = 0; i < missing.length; i += 80) {
   await sleep(1000);
 }
 console.log(`Wikidata (nome + anno di nascita): in tutto ${found.size} piloti`);
+const notFound = drivers.filter((d) => !found.has(d.id));
+console.log(`Senza foto su Wikidata: ${notFound.length} (es. ${notFound.slice(0, 25).map((d) => d.id).join(', ')})`);
+for (const id of ['lewis-hamilton', 'max-verstappen', 'charles-leclerc']) console.log(`  ${id}: ${found.get(id) ?? 'non trovato su Wikidata'}`);
 
 // 2. Commons: miniatura, autore e licenza di ogni foto
 const strip = (html = '') => html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
 const FREE = /^(CC0|CC BY|CC-BY|Public domain|PD|GFDL|Attribution|FAL)/i;
 const entries = [...found];
 const out = {};
+const skipped = [];
 for (let i = 0; i < entries.length; i += 40) {
   const chunk = entries.slice(i, i + 40);
   const titles = chunk.map(([, file]) => `File:${file}`).join('|');
-  const url = `https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=256&titles=${encodeURIComponent(titles)}`;
+  const url = `https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=256&redirects=1&titles=${encodeURIComponent(titles)}`;
   const data = await getJson(url);
   const pages = Object.values(data.query?.pages ?? {});
   const norm2 = data.query?.normalized ?? [];
+  const redirects = data.query?.redirects ?? [];
   for (const [driverId, file] of chunk) {
     const asked = `File:${file}`;
-    const title = norm2.find((n) => n.from === asked)?.to ?? asked;
+    const normalized = norm2.find((n) => n.from === asked)?.to ?? asked;
+    const title = redirects.find((r) => r.from === normalized)?.to ?? normalized; // file rinominato su Commons
     const info = pages.find((p) => p.title === title)?.imageinfo?.[0];
-    if (!info?.thumburl) continue;
+    if (!info?.thumburl) {
+      skipped.push(`${driverId}: file non trovato (${file})`);
+      continue;
+    }
     const meta = info.extmetadata ?? {};
     const license = strip(meta.LicenseShortName?.value);
-    if (!FREE.test(license)) continue; // solo licenze libere
+    if (!FREE.test(license)) {
+      skipped.push(`${driverId}: licenza "${license}"`);
+      continue; // solo licenze libere
+    }
     out[driverId] = {
       thumb: info.thumburl,
       page: info.descriptionurl,
@@ -130,6 +142,7 @@ for (let i = 0; i < entries.length; i += 40) {
   }
   await sleep(500);
 }
+if (skipped.length) console.log(`Scartate ${skipped.length}:\n  ${skipped.join('\n  ')}`);
 const sorted = Object.fromEntries(Object.entries(out).sort(([a], [b]) => a.localeCompare(b)));
 fs.writeFileSync(OUT, JSON.stringify(sorted, null, 0) + '\n');
 console.log(`${Object.keys(sorted).length} foto con licenza libera → ${OUT}`);
