@@ -23,6 +23,7 @@ export interface Driver {
   lastName: string;
   abbreviation: string;
   country: string | null;
+  female?: boolean; // le poche pilote della storia (serve all'avatar disegnato)
 }
 
 export interface Card {

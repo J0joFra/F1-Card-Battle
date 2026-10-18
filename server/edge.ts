@@ -21,6 +21,25 @@ const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE
   auth: { persistSession: false },
 });
 
+// Avvisi istantanei (Supabase Realtime, broadcast): dopo ogni cambiamento di una sfida il server manda un segnale
+// "aggiornato" ai telefoni interessati, che rileggono subito lo stato dal server. Nel segnale non c'è nessun dato
+// di gioco: i canali si chiamano con l'id (casuale) della sfida o dell'utente. Se il segnale non arriva, i telefoni
+// controllano comunque ogni pochi secondi.
+async function signal(topics: string[]) {
+  if (!topics.length) return;
+  try {
+    await fetch(`${Deno.env.get('SUPABASE_URL')}/realtime/v1/api/broadcast`, {
+      method: 'POST',
+      headers: { apikey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: topics.map((topic) => ({ topic, event: 'update', payload: {} })) }),
+    });
+  } catch {
+    /* il segnale è solo un acceleratore */
+  }
+}
+const pvpTopic = (id: string) => `pvp-${id}`;
+const userTopic = (id: string) => `user-${id}`;
+
 function storeFor(userId: string, displayName: string | null): Store {
   return {
     me: { id: userId, name: displayName },
@@ -149,6 +168,7 @@ function storeFor(userId: string, displayName: string | null): Store {
         .single();
       if (error?.code === '23505') return null; // codice già in uso
       if (error) throw error;
+      if (rec.invitee) await signal([userTopic(rec.invitee)]); // l'amico invitato vede subito l'invito
       return data.id as string;
     },
     async updatePvp(id, rec, rev) {
@@ -159,7 +179,10 @@ function storeFor(userId: string, displayName: string | null): Store {
         .eq('rev', rev)
         .select('id');
       if (error) throw error;
-      return (data?.length ?? 0) > 0;
+      const ok = (data?.length ?? 0) > 0;
+      // mossa, ingresso dell'avversario, abbandono…: tutti e due i telefoni si aggiornano subito
+      if (ok) await signal([pvpTopic(id), ...(rec.invitee && rec.status !== 'playing' ? [userTopic(rec.invitee)] : [])]);
+      return ok;
     },
   };
 }

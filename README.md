@@ -55,7 +55,8 @@ Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per 
 - Ognuno ha 30 secondi per scegliere: se non lo fa (o chiude l'app), il server gioca la metrica migliore della sua card.
 - **Turni sincronizzati**: appena uno sceglie, i due telefoni mostrano il risultato per 3 secondi e passano insieme alla carta successiva, senza premere *Prossimo round* (il server dice a ognuno da quanto è stata fatta la mossa).
 - Premi a fine serie: la vittoria conta per il pacchetto (come contro la CPU) e vale **+10 crediti**, il pareggio **+5 crediti**. Chi abbandona perde la serie.
-- Il telefono chiede al server ogni secondo se l'avversario ha giocato, e ogni 20 secondi se ci sono inviti (è anche il "sono online"). Tabelle `pvp_matches` e `friends`, chiuse ai telefoni.
+- **Aggiornamenti istantanei** (Supabase Realtime): dopo ogni cambiamento di una sfida (mossa, ingresso, abbandono, invito) il server manda un segnale sul canale della sfida (`pvp-<id>`) o dell'amico invitato (`user-<id>`) e i telefoni rileggono subito lo stato dal server. Il segnale non contiene dati di gioco. Se la connessione Realtime non c'è, i telefoni controllano comunque ogni 3 secondi (partita) e ogni 20 secondi (inviti; è anche il "sono online"). Codice in `src/lib/live.ts` e `server/edge.ts`. Tabelle `pvp_matches` e `friends`, chiuse ai telefoni.
+- Con l'app chiusa non arriva nulla: per le notifiche sul telefono serve Firebase Cloud Messaging (da configurare).
 
 ## Sfida del giorno e missioni
 
@@ -88,12 +89,11 @@ La collezione per ora si salva nel browser (localStorage).
 
 ## Illustrazioni dei piloti
 
-Le card mostrano l'immagine del pilota se trovano un file in `src/assets/drivers/` (istruzioni in `src/assets/drivers/LEGGIMI.md`):
-
-- `lewis-hamilton.webp` → usata per tutte le card di Hamilton;
-- `lewis-hamilton__ferrari.webp` → solo per la card Hamilton · Ferrari (ha la precedenza).
-
-Formato consigliato: WebP 600 × 600 px con sfondo trasparente. Senza immagine la card mostra un casco disegnato con i colori della scuderia e il numero di gara.
+- **Avatar disegnati**: ogni pilota ha un avatar in stile *Notionists* di Zoish (licenza CC0), creato con [DiceBear](https://www.dicebear.com) (MIT) a partire dal suo id: è sempre lo stesso per lo stesso pilota ma non vuole somigliargli (niente volti reali sulle card). Acconciature corte per i piloti e lunghe per le pilote (dato `female` da F1DB). Il modulo (`src/lib/avatars.ts`) si carica dopo l'avvio; nel frattempo si vede il casco con i colori della scuderia.
+- **Foto vere da Wikimedia Commons**: nella card ingrandita compare la foto del pilota, quando esiste con una licenza libera, con **autore e licenza** (obbligatori) e il link alla pagina di Commons. L'elenco `src/data/portraits.json` lo crea `scripts/fetch-portraits.mjs`: cerca su Wikidata le persone nate nello stesso giorno del pilota (data da F1DB), piloti di professione, con lo stesso cognome; poi prende da Commons miniatura (256 px), autore e licenza, scartando le licenze non libere. Le immagini non sono nell'app: si caricano da Commons solo quando apri la card. Lo script gira su GitHub (workflow *Portraits*, anche a mano da Actions → Portraits → Run workflow).
+- **Illustrazioni personalizzate**: se metti un'immagine in `src/assets/drivers/` ha la precedenza sull'avatar (istruzioni in `src/assets/drivers/LEGGIMI.md`):
+  - `lewis-hamilton.webp` → usata per tutte le card di Hamilton;
+  - `lewis-hamilton__ferrari.webp` → solo per la card Hamilton · Ferrari.
 
 ## Suoni, vibrazione e animazioni
 
