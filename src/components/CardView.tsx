@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import type { Card, StatKey } from '../types';
 import { STATS, flagEmoji, isCollectOnly, formatStat, rarityLabel, statHint, statLabel } from '../game/cards';
 import { teamColor } from '../game/teamColors';
+import { percentile } from '../game/engine';
 import { useI18n, type TFn } from '../lib/i18n';
 import { DriverArt } from './DriverArt';
 
@@ -67,6 +68,10 @@ export function CardView({ card, size = 'md', onPickStat, lockedStats, highlight
         <ul className="card-stats">
           {STATS.map((s) => {
             const locked = !!lockedStats?.includes(s.key);
+            // forza della metrica rispetto a tutte le card: barra verde (forte), gialla, rossa (debole)
+            const p = percentile(s.key, card.stats[s.key]);
+            const strength = { '--p': p.toFixed(3) } as CSSProperties;
+            const tier = p >= 0.67 ? 'st-hi' : p >= 0.34 ? 'st-mid' : 'st-lo';
             const content = (
               <>
                 <span>
@@ -81,7 +86,7 @@ export function CardView({ card, size = 'md', onPickStat, lockedStats, highlight
               </>
             );
             return (
-              <li key={s.key} className={`${highlight === s.key ? 'hl' : ''} ${locked ? 'locked' : ''}`}>
+              <li key={s.key} className={`${highlight === s.key ? 'hl' : ''} ${locked ? 'locked' : ''} ${tier}`} style={strength}>
                 {onPickStat ? (
                   <button
                     type="button"

@@ -3,7 +3,9 @@ import { ALL_CARDS, CARD_BY_ID, STATS } from '../game/cards';
 import { PACK_TYPES, storePrice, teamOfDay } from '../game/shop';
 import { starterProgress, withDecks, type Progress } from '../game/collection';
 import { autoFillDeck } from '../game/collection';
-import { dailyChallenge, seededRng, themeMode, themePool } from '../game/daily';
+import { dailyChallenge, dailyLoanDeck, seededRng, themeMode, themePool } from '../game/daily';
+import { deckProblems } from '../game/deckRules';
+import { FIRST_WIN_CREDITS, MATCH_CREDITS } from '../game/collection';
 import { CLASSIC, fillDeck } from '../game/deckRules';
 import { PVP_REVEAL_MS, PVP_TURN_MS, handle, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type Store } from './actions';
 
@@ -276,6 +278,53 @@ describe('server: partita', () => {
     const r1 = await call(db.store, { action: 'match_play', match: start.match!, stat: 'gare' });
     if (r1.view!.chooser === 'player')
       await expect(call(db.store, { action: 'match_play', match: start.match!, stat: 'gare' })).rejects.toThrow('bad_stat');
+  });
+
+  it('partita contro la CPU giocata fino in fondo: crediti anche se perdi, bonus alla prima vittoria del giorno', async () => {
+    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f']) {
+      const p = starterProgress(seededRng(seed));
+      const db = memoryStore(p);
+      const start = await call(db.store, { action: 'match_start', deck: deckIds(p), daily: false, date: '2026-10-16' });
+      let view = start.view!;
+      let res;
+      while (!view.outcome) {
+        const stat = view.chooser === 'player' ? STATS.find((s) => !view.usedStats.includes(s.key))!.key : undefined;
+        res = await call(db.store, { action: 'match_play', match: start.match!, stat });
+        view = res.view!;
+      }
+      const won = view.outcome === 'player';
+      expect(res!.rewards!.firstWin).toBe(won);
+      expect(res!.rewards!.credits).toBe(MATCH_CREDITS[view.outcome!] + (won ? FIRST_WIN_CREDITS : 0));
+      expect(db.profile!.progress.credits).toBe(p.credits + res!.rewards!.credits);
+    }
+  });
+
+  it('abbandonare una partita contro la CPU non dà crediti', async () => {
+    const p = starterProgress(seededRng('a'));
+    const db = memoryStore(p);
+    const start = await call(db.store, { action: 'match_start', deck: deckIds(p), daily: false, date: '2026-10-16' });
+    await call(db.store, { action: 'match_quit', match: start.match! });
+    expect(db.profile!.progress.credits).toBe(p.credits);
+  });
+
+  it('sfida del giorno con il mazzo in prestito: il mazzo lo decide il server', async () => {
+    const p = starterProgress(seededRng('a'));
+    const db = memoryStore(p);
+    const loan = dailyLoanDeck(dailyChallenge('2026-10-16'));
+    // le card mandate dal telefono non contano: il server usa il suo mazzo in prestito
+    const start = await call(db.store, { action: 'match_start', deck: [], daily: true, date: '2026-10-16', loan: true, mode: CLASSIC });
+    expect(loan.map((c) => c.id)).toContain(start.view!.current);
+    expect(db.profile!.progress.daily.date).toBe('2026-10-16');
+  });
+
+  it('mazzo in prestito: sempre 7 card valide del tema', () => {
+    for (let i = 0; i < 120; i++) {
+      const date = `2026-${String(1 + (i % 12)).padStart(2, '0')}-${String(1 + (i % 28)).padStart(2, '0')}`;
+      const ch = dailyChallenge(date);
+      const loan = dailyLoanDeck(ch);
+      expect(loan).toHaveLength(7);
+      expect(deckProblems(loan, themeMode(ch.theme))).toEqual([]);
+    }
   });
 
   it('sfida del giorno: una sola al giorno, anche abbandonandola', async () => {

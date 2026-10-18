@@ -21,6 +21,7 @@ import {
   loadProgress,
   savedDeck,
   activeSlot,
+  ownedCards,
   seriesDecks,
   withDecks,
   openPack,
@@ -39,6 +40,7 @@ import {
   DAILY_REWARD_CREDITS,
   claimMission,
   dailyChallenge,
+  dailyLoanDeck,
   missionsAfterPack,
   missionsFor,
   startDaily,
@@ -61,7 +63,7 @@ import {
   parseMode,
   type MatchMode,
 } from "./game/deckRules";
-import { modeLabel } from "./components/ModePicker";
+import { modeLabel, modeReady } from "./components/ModePicker";
 import { ApiError, callGame, errorMessage } from "./lib/api";
 import type {
   Friend,
@@ -228,12 +230,25 @@ export default function App() {
   const progressRef = useRef(progress);
   progressRef.current = progress;
   const rewardsRef = useRef<MatchRewards | null>(null);
+  // premi dell'ultima partita, mostrati a fine partita
+  const [rewards, setRewardsState] = useState<MatchRewards | null>(null);
+  const setRewards = (r: MatchRewards | null) => {
+    rewardsRef.current = r;
+    setRewardsState(r);
+  };
+  // ultima partita contro la CPU, per la rivincita
+  const lastStart = useRef<{ deck: Card[]; slot: number; mode: MatchMode } | null>(null);
   const [starting, setStarting] = useState(false);
 
   // partita contro la CPU con il mazzo in uso: se è incompleto lo completiamo noi, se non è valido si va ai mazzi
   // Partita veloce: nella classica si gioca subito con il mazzo in uso (se è incompleto lo completiamo noi,
   // se non è valido si va ai mazzi); nelle partite a tema e nella sfida del giorno prima si scelgono le card adatte.
   function play(daily = false) {
+    // sfida del giorno senza abbastanza card del tema: si gioca subito con il mazzo in prestito
+    if (daily && !modeReady(themeMode(challenge.theme), ownedCards(progress)).ok) {
+      void startMatch(dailyLoanDeck(challenge), activeSlot(progress), true, themeMode(challenge.theme), true);
+      return;
+    }
     if (daily || mode.kind !== "classic") {
       setPick({ mode: daily ? themeMode(challenge.theme) : mode, daily });
       go("pick");
@@ -255,11 +270,13 @@ export default function App() {
     deck: Card[],
     slot: number,
     daily: boolean,
-    matchMode: MatchMode
+    matchMode: MatchMode,
+    loan = false
   ) {
     const ids = deck.map((c) => c.id);
     const classic = matchMode.kind === "classic";
-    rewardsRef.current = null;
+    setRewards(null);
+    lastStart.current = daily ? null : { deck, slot, mode: matchMode };
     setDailyMode(daily);
     setMatchMode(matchMode);
     if (account.online) {
@@ -272,6 +289,7 @@ export default function App() {
         date: today,
         slot,
         mode: matchMode,
+        ...(loan ? { loan: true } : {}),
       });
       setStarting(false);
       if (!res?.match || !res.view) {
@@ -286,7 +304,7 @@ export default function App() {
             callGame({ action: "match_play", match: id, stat })
           );
           if (r.progress) setProgressRaw(r.progress);
-          if (r.rewards) rewardsRef.current = r.rewards;
+          if (r.rewards) setRewards(r.rewards);
           return r.view!;
         },
         quit() {
@@ -318,10 +336,11 @@ export default function App() {
             daily,
           });
           setProgress(end.progress);
-          rewardsRef.current = end.rewards;
+          setRewards(end.rewards);
         })
       );
     }
+    setMatchKey((k) => k + 1);
     setScreen("match");
   }
 
@@ -347,7 +366,7 @@ export default function App() {
     const live = liveRef.current!.live;
     const adopt = (r: GameResponse): MatchView => {
       if (r.progress) setProgressRaw(r.progress);
-      if (r.rewards) rewardsRef.current = r.rewards;
+      if (r.rewards) setRewards(r.rewards);
       if (r.pvp) setSeries(r.pvp);
       last = {
         ...r.view!,
@@ -405,7 +424,8 @@ export default function App() {
 
   function startPvp(res: GameResponse | null, name?: string | null) {
     if (!res?.pvp || !res.view) return;
-    rewardsRef.current = null;
+    setRewards(null);
+    lastStart.current = null;
     setLobby(null);
     setInvite(null);
     setFriendAdded(false);
@@ -573,13 +593,23 @@ export default function App() {
     setDailyMode(false);
     setOpponent(null);
     setSeries(null);
-    if (r?.credits) setToast(t("toast_friendCredits", { n: r.credits }));
-    else if (r?.dailyWon)
+    if (r?.dailyWon)
       setToast(t("toast_dailyWon", { c: DAILY_REWARD_CREDITS }));
     else if (r?.missionsCompleted) setToast(t("mis_completed"));
     else if (r?.packEarned)
       setToast(t("toast_packEarned", { n: WINS_PER_PACK }));
     setScreen(r?.packEarned || r?.dailyWon ? "packs" : "home");
+  }
+
+  // Rivincita: stessa modalità e stesso mazzo, contro un nuovo mazzo della CPU.
+  function rematch() {
+    const last = lastStart.current;
+    if (!last) return;
+    const r = rewardsRef.current;
+    if (r?.missionsCompleted) setToast(t("mis_completed"));
+    else if (r?.packEarned)
+      setToast(t("toast_packEarned", { n: WINS_PER_PACK }));
+    void startMatch(last.deck, last.slot, false, last.mode);
   }
 
   function quitMatch() {
@@ -922,6 +952,10 @@ export default function App() {
                   ? t("sr_next", { n: series.game + 1 })
                   : undefined
               }
+              rewards={rewards}
+              packProgress={progress.winsTowardPack}
+              hint={progress.wins + progress.losses + progress.draws < 5}
+              onRematch={lastStart.current && !opponent ? rematch : undefined}
               onFinish={finishMatch}
               onQuit={quitMatch}
             />

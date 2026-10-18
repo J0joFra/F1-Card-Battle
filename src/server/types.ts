@@ -17,7 +17,7 @@ export type GameRequest =
   | { action: 'buy_store'; card: string; date: string }
   | { action: 'use_jolly'; card: string }
   | { action: 'claim_mission'; index: number; date: string }
-  | { action: 'match_start'; deck: string[]; daily: boolean; date: string; slot?: number; mode?: MatchMode }
+  | { action: 'match_start'; deck: string[]; daily: boolean; date: string; slot?: number; mode?: MatchMode; loan?: boolean }
   | { action: 'match_play'; match: string; stat?: StatKey }
   | { action: 'match_quit'; match: string }
   // sfida tra amici (al meglio di 3, con i 3 mazzi salvati)

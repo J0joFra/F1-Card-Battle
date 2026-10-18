@@ -42,7 +42,7 @@ export function missionText(m: Mission, t: TFn) {
 interface DailyProps {
   challenge: DailyChallenge;
   state: DailyState;
-  canPlay: boolean;
+  canPlay: boolean; // hai abbastanza card del tema (altrimenti mazzo in prestito)
   have?: number; // card del tema che possiedi
   onPlay: () => void;
 }
@@ -76,11 +76,12 @@ export function DailyCard({ challenge, state, canPlay, have, onPlay }: DailyProp
         <p className={`daily-result ${state.won ? 'won' : 'lost'}`}>{state.won ? t('daily_won') : t('daily_lost')}</p>
       ) : (
         <>
-          <button className="btn primary block daily-btn" onClick={onPlay} disabled={!canPlay}>
-            {t('daily_play')}
+          {/* senza abbastanza card del tema si gioca con un mazzo in prestito */}
+          <button className="btn primary block daily-btn" onClick={onPlay}>
+            {canPlay ? t('daily_play') : t('daily_playLoan')}
             <span className="reward-chip">🎁 +1 · 🪙 +{DAILY_REWARD_CREDITS}</span>
           </button>
-          {!canPlay && have !== undefined && <p className="muted daily-need">{t('daily_need', { n: DECK_SIZE, m: have })}</p>}
+          {!canPlay && have !== undefined && <p className="muted daily-need">{t('daily_loan', { n: DECK_SIZE, m: have })}</p>}
         </>
       )}
     </section>
