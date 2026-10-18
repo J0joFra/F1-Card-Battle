@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { coin } from '../lib/season';
 import { Copy, Layers, Share2, Swords, UserMinus, Users } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 import { callGame } from '../lib/api';
@@ -177,8 +178,8 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
       </header>
       <ul className="odds-chips">
         <li>⚔️ {t('fr_bo3')}</li>
-        <li>🏆 🪙 +{FRIEND_WIN_CREDITS}</li>
-        <li>🤝 🪙 +{FRIEND_DRAW_CREDITS}</li>
+        <li>🏆 {coin()} +{FRIEND_WIN_CREDITS}</li>
+        <li>🤝 {coin()} +{FRIEND_DRAW_CREDITS}</li>
       </ul>
 
       <section className="panel">

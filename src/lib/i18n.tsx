@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { coin } from './season';
 
 export const LANGS = [
   { code: 'it', label: 'Italiano', flag: '🇮🇹' },
@@ -291,7 +292,7 @@ const it = {
   pv_left: 'Il tuo avversario ha abbandonato.',
   m_timeLeft: '{n} secondi per scegliere',
   toast_friendCredits: '+{n} 🪙 dalla sfida!',
-  m_firstWin: 'Prima vittoria del giorno', m_packEarned: '🎁 Pacchetto guadagnato!', m_packProgress: 'Prossimo pacchetto: {a}/{b} vittorie', m_rematch: 'Rivincita', m_hint: 'La barretta sotto ogni metrica indica quanto è forte rispetto a tutti i piloti: verde forte, rossa debole. ↓ = vince il valore più basso.', daily_playLoan: 'Gioca con un mazzo in prestito', daily_loan: 'Non hai {n} card del tema (ne hai {m}): ti prestiamo un mazzo per oggi.',
+  m_firstWin: 'Prima vittoria del giorno', m_packEarned: '🎁 Pacchetto guadagnato!', m_packProgress: 'Prossimo pacchetto: {a}/{b} vittorie', season_halloween: 'Settimana di Halloween', season_halloween_sub: 'Pipistrelli e zucche in pista fino al 3 novembre.', season_winter: 'Stagione invernale', season_winter_sub: 'Il paddock si copre di neve fino a fine gennaio.', season_christmas: 'Buon Natale!', season_christmas_sub: 'Tema natalizio per tutta la settimana di Natale.', season_easter: 'Buona Pasqua!', season_easter_sub: 'Tema pasquale fino a Pasquetta.', set_seasons: 'Temi delle feste', set_seasons_hint: 'Halloween, inverno, Natale e Pasqua, solo nei giorni della festa.', m_rematch: 'Rivincita', m_hint: 'La barretta sotto ogni metrica indica quanto è forte rispetto a tutti i piloti: verde forte, rossa debole. ↓ = vince il valore più basso.', daily_playLoan: 'Gioca con un mazzo in prestito', daily_loan: 'Non hai {n} card del tema (ne hai {m}): ti prestiamo un mazzo per oggi.',
   err_bad_code: 'Codice non valido o sfida già iniziata.',
   err_own_match: 'Questa è la tua sfida: manda il codice a un amico.',
   tut_friend_1: 'Prepara i tuoi 3 mazzi, poi sfida un amico dalla lista (il pallino verde indica chi è online) oppure crea una sfida con codice.',
@@ -491,7 +492,7 @@ const en: Dict = {
   pv_left: 'Your opponent left the match.',
   m_timeLeft: '{n} seconds to choose',
   toast_friendCredits: '+{n} 🪙 from the challenge!',
-  m_firstWin: 'First win of the day', m_packEarned: '🎁 Pack earned!', m_packProgress: 'Next pack: {a}/{b} wins', m_rematch: 'Rematch', m_hint: 'The bar under each stat shows how strong it is compared to all drivers: green strong, red weak. ↓ = lowest value wins.', daily_playLoan: 'Play with a loan deck', daily_loan: 'You don’t have {n} cards of the theme (you have {m}): we’ll lend you a deck for today.',
+  m_firstWin: 'First win of the day', m_packEarned: '🎁 Pack earned!', m_packProgress: 'Next pack: {a}/{b} wins', season_halloween: 'Halloween week', season_halloween_sub: 'Bats and pumpkins on track until 3 November.', season_winter: 'Winter season', season_winter_sub: 'Snow in the paddock until the end of January.', season_christmas: 'Merry Christmas!', season_christmas_sub: 'Christmas theme all through Christmas week.', season_easter: 'Happy Easter!', season_easter_sub: 'Easter theme until Easter Monday.', set_seasons: 'Holiday themes', set_seasons_hint: 'Halloween, winter, Christmas and Easter, only on those days.', m_rematch: 'Rematch', m_hint: 'The bar under each stat shows how strong it is compared to all drivers: green strong, red weak. ↓ = lowest value wins.', daily_playLoan: 'Play with a loan deck', daily_loan: 'You don’t have {n} cards of the theme (you have {m}): we’ll lend you a deck for today.',
   err_bad_code: 'Invalid code or the challenge already started.',
   err_own_match: 'This is your own challenge: send the code to a friend.',
   tut_friend_1: 'Prepare your 3 decks, then challenge a friend from the list (the green dot shows who’s online) or create a challenge with a code.',
@@ -688,7 +689,7 @@ const fr: Dict = {
   pv_left: 'Ton adversaire a abandonné.',
   m_timeLeft: '{n} secondes pour choisir',
   toast_friendCredits: '+{n} 🪙 grâce au défi !',
-  m_firstWin: 'Première victoire du jour', m_packEarned: '🎁 Paquet gagné !', m_packProgress: 'Prochain paquet : {a}/{b} victoires', m_rematch: 'Revanche', m_hint: 'La barre sous chaque stat indique sa force par rapport à tous les pilotes : vert fort, rouge faible. ↓ = la valeur la plus basse gagne.', daily_playLoan: 'Jouer avec un deck prêté', daily_loan: 'Tu n’as pas {n} cartes du thème (tu en as {m}) : on te prête un deck pour aujourd’hui.',
+  m_firstWin: 'Première victoire du jour', m_packEarned: '🎁 Paquet gagné !', m_packProgress: 'Prochain paquet : {a}/{b} victoires', season_halloween: 'Semaine d’Halloween', season_halloween_sub: 'Chauves-souris et citrouilles en piste jusqu’au 3 novembre.', season_winter: 'Saison d’hiver', season_winter_sub: 'La neige recouvre le paddock jusqu’à fin janvier.', season_christmas: 'Joyeux Noël !', season_christmas_sub: 'Thème de Noël pendant toute la semaine de Noël.', season_easter: 'Joyeuses Pâques !', season_easter_sub: 'Thème de Pâques jusqu’au lundi de Pâques.', set_seasons: 'Thèmes des fêtes', set_seasons_hint: 'Halloween, hiver, Noël et Pâques, seulement les jours de fête.', m_rematch: 'Revanche', m_hint: 'La barre sous chaque stat indique sa force par rapport à tous les pilotes : vert fort, rouge faible. ↓ = la valeur la plus basse gagne.', daily_playLoan: 'Jouer avec un deck prêté', daily_loan: 'Tu n’as pas {n} cartes du thème (tu en as {m}) : on te prête un deck pour aujourd’hui.',
   err_bad_code: 'Code invalide ou défi déjà commencé.',
   err_own_match: 'C’est ton propre défi : envoie le code à un ami.',
   tut_friend_1: 'Prépare tes 3 decks, puis défie un ami de la liste (le point vert indique qui est en ligne) ou crée un défi avec un code.',
@@ -885,7 +886,7 @@ const es: Dict = {
   pv_left: 'Tu rival ha abandonado.',
   m_timeLeft: '{n} segundos para elegir',
   toast_friendCredits: '¡+{n} 🪙 del desafío!',
-  m_firstWin: 'Primera victoria del día', m_packEarned: '🎁 ¡Sobre ganado!', m_packProgress: 'Próximo sobre: {a}/{b} victorias', m_rematch: 'Revancha', m_hint: 'La barra bajo cada estadística indica lo fuerte que es frente a todos los pilotos: verde fuerte, roja débil. ↓ = gana el valor más bajo.', daily_playLoan: 'Jugar con un mazo prestado', daily_loan: 'No tienes {n} cartas del tema (tienes {m}): te prestamos un mazo por hoy.',
+  m_firstWin: 'Primera victoria del día', m_packEarned: '🎁 ¡Sobre ganado!', m_packProgress: 'Próximo sobre: {a}/{b} victorias', season_halloween: 'Semana de Halloween', season_halloween_sub: 'Murciélagos y calabazas en pista hasta el 3 de noviembre.', season_winter: 'Temporada de invierno', season_winter_sub: 'La nieve cubre el paddock hasta finales de enero.', season_christmas: '¡Feliz Navidad!', season_christmas_sub: 'Tema navideño durante toda la semana de Navidad.', season_easter: '¡Felices Pascuas!', season_easter_sub: 'Tema de Pascua hasta el lunes de Pascua.', set_seasons: 'Temas festivos', set_seasons_hint: 'Halloween, invierno, Navidad y Pascua, solo en esos días.', m_rematch: 'Revancha', m_hint: 'La barra bajo cada estadística indica lo fuerte que es frente a todos los pilotos: verde fuerte, roja débil. ↓ = gana el valor más bajo.', daily_playLoan: 'Jugar con un mazo prestado', daily_loan: 'No tienes {n} cartas del tema (tienes {m}): te prestamos un mazo por hoy.',
   err_bad_code: 'Código no válido o el desafío ya empezó.',
   err_own_match: 'Es tu propio desafío: envía el código a un amigo.',
   tut_friend_1: 'Prepara tus 3 mazos y desafía a un amigo de la lista (el punto verde indica quién está en línea) o crea un desafío con código.',
@@ -1082,7 +1083,7 @@ const de: Dict = {
   pv_left: 'Dein Gegner hat aufgegeben.',
   m_timeLeft: '{n} Sekunden zum Wählen',
   toast_friendCredits: '+{n} 🪙 aus der Herausforderung!',
-  m_firstWin: 'Erster Sieg des Tages', m_packEarned: '🎁 Pack verdient!', m_packProgress: 'Nächstes Pack: {a}/{b} Siege', m_rematch: 'Revanche', m_hint: 'Der Balken unter jedem Wert zeigt, wie stark er im Vergleich zu allen Fahrern ist: grün stark, rot schwach. ↓ = der niedrigste Wert gewinnt.', daily_playLoan: 'Mit Leihdeck spielen', daily_loan: 'Du hast keine {n} Karten zum Thema (du hast {m}): Wir leihen dir ein Deck für heute.',
+  m_firstWin: 'Erster Sieg des Tages', m_packEarned: '🎁 Pack verdient!', m_packProgress: 'Nächstes Pack: {a}/{b} Siege', season_halloween: 'Halloween-Woche', season_halloween_sub: 'Fledermäuse und Kürbisse auf der Strecke bis zum 3. November.', season_winter: 'Wintersaison', season_winter_sub: 'Schnee im Fahrerlager bis Ende Januar.', season_christmas: 'Frohe Weihnachten!', season_christmas_sub: 'Weihnachtsthema die ganze Weihnachtswoche.', season_easter: 'Frohe Ostern!', season_easter_sub: 'Osterthema bis Ostermontag.', set_seasons: 'Feiertags-Themen', set_seasons_hint: 'Halloween, Winter, Weihnachten und Ostern, nur an diesen Tagen.', m_rematch: 'Revanche', m_hint: 'Der Balken unter jedem Wert zeigt, wie stark er im Vergleich zu allen Fahrern ist: grün stark, rot schwach. ↓ = der niedrigste Wert gewinnt.', daily_playLoan: 'Mit Leihdeck spielen', daily_loan: 'Du hast keine {n} Karten zum Thema (du hast {m}): Wir leihen dir ein Deck für heute.',
   err_bad_code: 'Ungültiger Code oder die Herausforderung läuft schon.',
   err_own_match: 'Das ist deine eigene Herausforderung: Schick den Code einem Freund.',
   tut_friend_1: 'Bereite deine 3 Decks vor und fordere dann einen Freund aus der Liste heraus (der grüne Punkt zeigt, wer online ist) – oder erstelle eine Herausforderung mit Code.',
@@ -1175,7 +1176,7 @@ export const getLang = () => currentLang;
 export const translate: TFn = (key, params) => {
   let s = DICT[currentLang][key] ?? it[key] ?? key;
   if (params) for (const [k, v] of Object.entries(params)) s = s.split(`{${k}}`).join(String(v));
-  return s;
+  return s.includes('🪙') ? s.split('🪙').join(coin()) : s; // monete delle feste
 };
 
 interface I18nValue {

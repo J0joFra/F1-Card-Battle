@@ -1,4 +1,5 @@
 import { DECK_SIZE } from '../game/engine';
+import { coin } from '../lib/season';
 import { CalendarDays, Check, Target } from 'lucide-react';
 import { statLabel } from '../game/cards';
 import {
@@ -79,7 +80,7 @@ export function DailyCard({ challenge, state, canPlay, have, onPlay }: DailyProp
           {/* senza abbastanza card del tema si gioca con un mazzo in prestito */}
           <button className="btn primary block daily-btn" onClick={onPlay}>
             {canPlay ? t('daily_play') : t('daily_playLoan')}
-            <span className="reward-chip">🎁 +1 · 🪙 +{DAILY_REWARD_CREDITS}</span>
+            <span className="reward-chip">🎁 +1 · {coin()} +{DAILY_REWARD_CREDITS}</span>
           </button>
           {!canPlay && have !== undefined && <p className="muted daily-need">{t('daily_loan', { n: DECK_SIZE, m: have })}</p>}
         </>
@@ -107,7 +108,7 @@ export function MissionsPanel({ missions, onClaim }: { missions: MissionsState; 
                   <div style={{ width: `${(s.progress / s.mission.target) * 100}%` }} />
                 </div>
                 <small className="muted">
-                  {s.progress}/{s.mission.target} · 🪙 {s.reward}
+                  {s.progress}/{s.mission.target} · {coin()} {s.reward}
                 </small>
               </div>
               {s.claimed ? (

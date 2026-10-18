@@ -1,4 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react';
+import { coin } from '../lib/season';
 import type { Card } from '../types';
 import { CARD_BY_ID } from '../game/cards';
 import { useI18n } from '../lib/i18n';
@@ -61,7 +62,7 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
   async function buy(kind: PackKind) {
     if (tearing) return;
     const { price } = PACK_TYPES[kind];
-    if (!(await askConfirm(t('shop_confirm', { name: packName(kind) }), { confirmLabel: `🪙 ${price}` }))) return;
+    if (!(await askConfirm(t('shop_confirm', { name: packName(kind) }), { confirmLabel: `${coin()} ${price}` }))) return;
     if (kind === 'classic') return onBuyPack();
     sfx('pack');
     haptic('medium');
@@ -215,7 +216,7 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
               <span className="mini-pack">F1</span>
               <b>{packName(k)}</b>
               <small>{t(k === 'classic' ? 'shop_classic_sub' : k === 'premium' ? 'shop_premium_sub' : 'shop_team_sub', { n: type.size })}</small>
-              <span className="price">🪙 {type.price}</span>
+              <span className="price">{coin()} {type.price}</span>
             </button>
           );
         })}
@@ -241,7 +242,7 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
                 onClick={() => onBuyCard(card)}
                 disabled={owned || bought || progress.credits < price}
               >
-                {bought || owned ? `✓ ${t('shop_owned')}` : `🪙 ${price}`}
+                {bought || owned ? `✓ ${t('shop_owned')}` : `${coin()} ${price}`}
               </button>
             );
             return (
