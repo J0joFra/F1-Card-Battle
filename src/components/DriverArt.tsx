@@ -39,7 +39,7 @@ function hash(text: string) {
 
 const ACCENTS = ['#ffffff', '#ffd400', '#15171d', '#e10600', '#1e5bff', '#16a34a', '#c0c6d0', '#ff7a00', '#ff4fa3', '#00c2d1'];
 const VISORS = ['#11131a', '#11131a', '#11131a', '#c99a1c', '#2d6cdf', '#6a3fa0'];
-export const HELMET_DESIGNS = ['stripe', 'twin', 'crown', 'chevron', 'stars', 'split', 'ring', 'bolt', 'dots', 'checker'] as const;
+export const HELMET_DESIGNS = ['slash', 'diamonds', 'crown', 'chevron', 'stars', 'split', 'band', 'bolt', 'dots', 'checker'] as const;
 type Design = (typeof HELMET_DESIGNS)[number];
 
 const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
@@ -68,17 +68,23 @@ const star = (cx: number, cy: number, r: number) =>
 // il motivo, disegnato sopra la calotta (e ritagliato sulla sua forma)
 function Pattern({ design, color }: { design: Design; color: string }) {
   switch (design) {
-    case 'stripe':
-      return <path d="M22 44 C40 24 74 18 104 34 L106 42 C76 28 44 32 24 52 Z" fill={color} />;
-    case 'twin':
+    case 'slash':
       return (
         <>
-          <path d="M18 50 C38 28 72 20 106 34 L107 39 C74 26 42 33 20 55 Z" fill={color} />
-          <path d="M22 60 C42 38 74 32 110 44 L110 49 C76 38 46 44 24 65 Z" fill={color} />
+          <polygon points="30,0 44,0 4,100 -10,100" fill={color} />
+          <polygon points="52,0 60,0 20,100 12,100" fill={color} />
+        </>
+      );
+    case 'diamonds':
+      return (
+        <>
+          {[24, 44, 64, 84].map((x, i) => (
+            <polygon key={x} points={`${x},${28 + (i % 2) * 8} ${x + 8},${38 + (i % 2) * 8} ${x},${48 + (i % 2) * 8} ${x - 8},${38 + (i % 2) * 8}`} fill={color} />
+          ))}
         </>
       );
     case 'crown':
-      return <path d="M0 0 H120 V34 C92 24 56 24 30 36 C20 40 12 46 0 54 Z" fill={color} />;
+      return <polygon points="0,0 120,0 120,28 0,50" fill={color} />;
     case 'chevron':
       return <polygon points="18,30 50,52 18,74 30,74 62,52 30,30" fill={color} />;
     case 'stars':
@@ -92,11 +98,11 @@ function Pattern({ design, color }: { design: Design; color: string }) {
       );
     case 'split':
       return <path d="M0 100 L0 58 L66 0 L84 0 L14 100 Z" fill={color} />;
-    case 'ring':
+    case 'band':
       return (
         <>
-          <path d="M0 34 C40 26 80 26 120 34 L120 44 C80 36 40 36 0 44 Z" fill={color} />
-          <path d="M0 48 C40 40 80 40 120 48 L120 51 C80 43 40 43 0 51 Z" fill={color} opacity="0.7" />
+          <rect x="0" y="30" width="120" height="10" fill={color} />
+          <rect x="0" y="44" width="120" height="3" fill={color} />
         </>
       );
     case 'bolt':
