@@ -4,7 +4,6 @@ import { createPortal } from 'react-dom';
 import { CardView } from './CardView';
 import { StatRadar } from './StatRadar';
 import { reducedMotion } from '../lib/feedback';
-import { usePortrait } from '../lib/portraits';
 
 const HALF_MS = 140; // metà giro: la card si "chiude", cambia faccia e si riapre
 
@@ -32,7 +31,6 @@ export function FlipCard({
   const target = useRef<'front' | 'back'>('front');
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const [zoom, setZoom] = useState(false);
-  const photo = usePortrait(card.driver.id, zoom);
   useEffect(() => () => clearTimeout(timer.current), []);
 
   function turnTo(next: 'front' | 'back') {
@@ -58,15 +56,6 @@ export function FlipCard({
         </b>
         {big && <small>{card.period}</small>}
       </div>
-      {big && photo && (
-        // foto vera da Wikimedia Commons, con autore e licenza (obbligatori)
-        <a className="driver-photo" href={photo.page} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
-          <img src={photo.thumb} alt={card.driver.name} loading="lazy" referrerPolicy="no-referrer" />
-          <small>
-            📷 {photo.author} · {photo.license}
-          </small>
-        </a>
-      )}
       <StatRadar card={card} />
       {action && (
         <div className="flip-action" onClick={(e) => e.stopPropagation()}>

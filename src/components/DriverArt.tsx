@@ -1,5 +1,3 @@
-import { useEffect, useState } from 'react';
-import cartoonIds from '../data/avatars.json';
 import type { Card } from '../types';
 import { teamColor } from '../game/teamColors';
 
@@ -22,52 +20,10 @@ const PORTRAITS = new Map(
 
 export const portraitOf = (card: Card) => PORTRAITS.get(card.id) ?? PORTRAITS.get(card.driver.id) ?? null;
 
-// Avatar disegnati (DiceBear): il modulo si carica la prima volta che serve, intanto si vede il casco.
-type AvatarFn = (driver: Card['driver']) => string;
-let avatarFn: AvatarFn | null = null;
-let loading: Promise<void> | null = null;
-const waiting = new Set<() => void>();
-function loadAvatars() {
-  loading ??= import('../lib/avatars').then((m) => {
-    avatarFn = m.avatarUri;
-    waiting.forEach((f) => f());
-    waiting.clear();
-  });
-}
-
-// avatar a cartone fatti dalle foto vere (scripts/make-avatars.py): somigliano al pilota
-const CARTOONS = new Set(cartoonIds as string[]);
-const cartoonOf = (card: Card) => (CARTOONS.has(card.driver.id) ? `./avatars/${card.driver.id}.webp` : null);
-
 export function DriverArt({ card }: { card: Card }) {
   const src = portraitOf(card);
-  const cartoon = src ? null : cartoonOf(card);
-  const [, ready] = useState(!!avatarFn);
-  useEffect(() => {
-    if (src || cartoon || avatarFn) return;
-    const done = () => ready(true);
-    waiting.add(done);
-    loadAvatars();
-    return () => {
-      waiting.delete(done);
-    };
-  }, [src, cartoon]);
   if (src) return <img className="art-img" src={src} alt={card.driver.name} loading="lazy" draggable={false} />;
-  if (cartoon)
-    return (
-      <>
-        <img className="art-cartoon" src={cartoon} alt={card.driver.name} loading="lazy" draggable={false} />
-        {card.kind === 'career' ? <span className="art-number">★</span> : card.number != null && <span className="art-number">{card.number}</span>}
-      </>
-    );
-  if (!avatarFn) return <Helmet card={card} />;
-  return (
-    <>
-      <img className="art-avatar" src={avatarFn(card.driver)} alt="" draggable={false} />
-      {card.kind !== 'career' && card.number != null && <span className="art-number">{card.number}</span>}
-      {card.kind === 'career' && <span className="art-number">★</span>}
-    </>
-  );
+  return <Helmet card={card} />;
 }
 
 // Casco stilizzato: colore della scuderia, visiera scura, numero di gara sul lato.
