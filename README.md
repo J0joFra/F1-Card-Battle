@@ -38,7 +38,7 @@ Sono scelte perché quasi nessun pilota abbia 0: un mix di totali, che premiano 
 | % Gare finite | affidabilità: gare portate al traguardo |
 | % Batte compagno | gare chiuse davanti al compagno di squadra |
 
-Sotto ogni metrica una **barretta colorata** dice quanto è forte rispetto a tutte le card giocabili (percentile): verde forte, gialla media, rossa debole. Nelle prime 5 partite un suggerimento spiega barre e frecce ↓.
+Sotto ogni metrica una **barretta colorata** dice quanto è forte rispetto a tutte le card giocabili (percentile): verde forte, gialla media, rossa debole. Per le due metriche di posizione si usa la scala da appassionato: *Griglia media* piena da 3° in su e vuota dal 20°, *Miglior arrivo* piena con la vittoria (1°) e vuota dal 15°. Nelle prime 5 partite un suggerimento spiega barre e frecce ↓.
 
 Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per la rarità.
 

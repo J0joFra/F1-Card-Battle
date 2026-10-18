@@ -13,6 +13,7 @@ import {
   newMatch,
   percentile,
   playRound,
+  statStrength,
 } from './engine';
 import { canAdd, deckProblems } from './deckRules';
 import {
@@ -153,6 +154,22 @@ describe('motore di gioco', () => {
     const count = (cs: Card[]) => cs.map((c) => c.rarity).sort().join();
     expect(count(cpu)).toBe(count(mixed));
     expect(cpu.some((c) => mixed.includes(c))).toBe(false);
+  });
+});
+
+describe('forza delle metriche (barretta colorata)', () => {
+  it('posizioni: vince il numero più basso, su scala da appassionato', () => {
+    expect(statStrength('migliorArrivo', 1)).toBe(1);
+    expect(statStrength('migliorArrivo', 2)).toBeGreaterThan(0.67); // verde
+    expect(statStrength('migliorArrivo', 99)).toBe(0); // mai arrivato
+    expect(statStrength('grigliaMedia', 2.5)).toBe(1);
+    expect(statStrength('grigliaMedia', 12.6)).toBeLessThan(0.67); // non verde
+    expect(statStrength('grigliaMedia', 18)).toBeLessThan(0.34); // rossa
+    expect(statStrength('grigliaMedia', 6)).toBeGreaterThan(statStrength('grigliaMedia', 10));
+  });
+  it('le altre metriche: più alto è meglio (percentile)', () => {
+    expect(statStrength('puntiGara', 15)).toBeGreaterThan(statStrength('puntiGara', 0.5));
+    expect(statStrength('gare', 200)).toBe(percentile('gare', 200));
   });
 });
 
