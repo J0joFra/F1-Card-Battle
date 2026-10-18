@@ -192,6 +192,7 @@ const driverOf = (driverId) => {
     lastName: d.lastName,
     abbreviation: d.abbreviation,
     country: countries[d.nationalityCountryId] ?? null,
+    ...(d.gender === 'FEMALE' ? { female: true } : {}), // per l'avatar disegnato
   };
 };
 const COLLECT_RARITY = { pioneer: 'pioniere', classic: 'classica' };
