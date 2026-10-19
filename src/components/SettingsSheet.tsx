@@ -1,15 +1,18 @@
-import { LogOut, Monitor, Moon, Music, PartyPopper, RotateCcw, Smartphone, Sun, Volume2, X } from 'lucide-react';
+import { KeyRound, Monitor, Moon, Music, PartyPopper, Pencil, RotateCcw, Smartphone, Sun, Volume2, X } from 'lucide-react';
 import { hasMusic, setFeedback, useFeedbackSettings, type FeedbackSettings } from '../lib/feedback';
 import { useI18n, type TKey } from '../lib/i18n';
 import type { ThemePref } from '../lib/theme';
 import type { Account } from '../hooks/useAccount';
 import { CARDS_DATA } from '../game/cards';
 import { LangPicker } from './LangPicker';
-import { GoogleIcon } from './GoogleIcon';
+import { AvatarHelmet } from './DriverArt';
+import { DRIVERS } from '../game/profile';
 
 interface Props {
   theme: ThemePref;
   onTheme: (t: ThemePref) => void;
+  onProfile: () => void; // crea o modifica il profilo
+  onRecoveryCode: () => void; // nuovo codice di recupero
   seasons: boolean; // temi delle feste accesi
   onSeasons: (on: boolean) => void;
   account: Account;
@@ -25,9 +28,10 @@ const THEMES: { id: ThemePref; icon: typeof Sun; label: TKey }[] = [
 ];
 
 // Pannello impostazioni che sale dal basso: tema, lingua, account, introduzione.
-export function SettingsSheet({ theme, onTheme, seasons, onSeasons, account, onIntro, onReset, onClose }: Props) {
+export function SettingsSheet({ theme, onTheme, seasons, onSeasons, account, onProfile, onRecoveryCode, onIntro, onReset, onClose }: Props) {
   const { t } = useI18n();
   const fb = useFeedbackSettings();
+  const favoriteName = DRIVERS.find((d) => d.id === account.profile?.favorite)?.name;
   const toggles: { key: keyof FeedbackSettings; icon: typeof Sun; label: TKey }[] = [
     { key: 'sound', icon: Volume2, label: 'fb_sound' },
     ...(hasMusic ? [{ key: 'music' as const, icon: Music, label: 'fb_music' as TKey }] : []),
@@ -46,23 +50,28 @@ export function SettingsSheet({ theme, onTheme, seasons, onSeasons, account, onI
 
         <section className="set-group">
           <h3>{t('set_account')}</h3>
-          {account.session ? (
-            <div className="account-row">
-              <span className="avatar">{(account.name ?? '?').trim().charAt(0).toUpperCase()}</span>
-              <div className="account-info">
-                <b>{account.name}</b>
-                <small className={`sync sync-${account.status}`}>{account.status !== 'offline' && t(`sync_${account.status}` as TKey)}</small>
-              </div>
-              <button className="btn ghost small" onClick={account.signOut}>
-                <LogOut size={16} /> {t('signout')}
-              </button>
-            </div>
-          ) : (
+          {account.profile ? (
             <>
-              <button className="btn google block" onClick={account.signIn}>
-                <GoogleIcon /> {t('signin_google')}
+              <div className="profile-row">
+                <AvatarHelmet avatar={account.profile.avatar} size={52} />
+                <div className="account-info">
+                  <b>{account.profile.nickname}</b>
+                  {favoriteName && <small>❤️ {favoriteName}</small>}
+                  <small className={`sync sync-${account.status}`}>{account.status !== 'offline' && t(`sync_${account.status}` as TKey)}</small>
+                </div>
+                <button className="btn ghost small" onClick={onProfile}>
+                  <Pencil size={16} /> {t('pr_edit')}
+                </button>
+              </div>
+              <button className="btn ghost block" onClick={onRecoveryCode}>
+                <KeyRound size={16} /> {t('pr_newCode')}
               </button>
+              <small className="muted">{t('pr_newCodeHelp')}</small>
             </>
+          ) : (
+            <button className="btn primary block" onClick={onProfile}>
+              {t('pr_createTitle')}
+            </button>
           )}
         </section>
 
@@ -106,7 +115,7 @@ export function SettingsSheet({ theme, onTheme, seasons, onSeasons, account, onI
             {t('set_intro')}
           </button>
           {/* con l'accesso fatto la collezione è sul server: si ricomincia solo da ospite */}
-          {!account.session && (
+          {!account.online && (
             <button className="btn text danger block" onClick={onReset}>
               <RotateCcw size={14} /> {t('reset')}
             </button>

@@ -35,6 +35,8 @@ import { useI18n } from "./lib/i18n";
 import { useTheme } from "./lib/theme";
 import { coin, useSeason } from "./lib/season";
 import { SeasonFx } from "./components/SeasonFx";
+import { AvatarHelmet } from "./components/DriverArt";
+import { ProfileEditor, RecoveryCode } from "./components/ProfileEditor";
 import { useAccount } from "./hooks/useAccount";
 import { haptic, setMusicMode, sfx } from "./lib/feedback";
 import { HomeScreen } from "./screens/HomeScreen";
@@ -183,11 +185,18 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [settings, setSettings] = useState(false);
   const [intro, setIntro] = useState(() => !onboardingDone());
+  // profilo: creazione (anche da "Crea il tuo profilo") o modifica, e codice di recupero da mostrare
+  const [profileEditor, setProfileEditor] = useState<{ mode: "create" | "edit"; auto?: boolean } | null>(null);
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
   // il gioco è pronto: la busta dell'animazione di apertura (in index.html) si può togliere
   useEffect(() => {
     (window as Window & { __introReady?: () => void }).__introReady?.();
   }, []);
   const account = useAccount(progress, setProgressRaw, setToast);
+  // nessun profilo: alla prima apertura (dopo il tutorial) si apre la creazione del profilo
+  useEffect(() => {
+    if (account.needsProfile && !intro) setProfileEditor((cur) => cur ?? { mode: "create", auto: true });
+  }, [account.needsProfile, intro]);
 
   useEffect(() => saveProgress(progress), [progress]);
   useEffect(() => {
@@ -491,15 +500,15 @@ export default function App() {
   const [linkCode, setLinkCode] = useState(() => takeChallengeCode());
   useEffect(() => {
     if (!linkCode) return;
-    if (!account.session) {
-      setScreen("friend"); // da lì si accede con Google, poi si entra
+    if (!account.online) {
+      setScreen("friend"); // da lì si crea il profilo, poi si entra
       return;
     }
     if (account.status !== "saved") return; // prima la collezione dal server
     setLinkCode(null);
     clearChallengeCode();
     void joinPvp(linkCode);
-  }, [linkCode, account.session, account.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [linkCode, account.online, account.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function cancelLobby(declined = false) {
     if (declined)
@@ -879,10 +888,8 @@ export default function App() {
               onClick={() => setSettings(true)}
               aria-label={t("nav_settings")}
             >
-              {account.session ? (
-                <span className="avatar small">
-                  {(account.name ?? "?").trim().charAt(0).toUpperCase()}
-                </span>
+              {account.profile ? (
+                <AvatarHelmet avatar={account.profile.avatar} size={34} />
               ) : (
                 <Settings size={22} />
               )}
@@ -918,6 +925,7 @@ export default function App() {
               onFriend={() => go("friend")}
               onClaim={claim}
               onPacks={() => go("packs")}
+              onProfile={() => setProfileEditor({ mode: "create" })}
             />
           )}
           {screen === "builder" && (
@@ -998,6 +1006,7 @@ export default function App() {
               onEditDecks={() => go("builder")}
               onStart={(res) => startPvp(res, lobby?.opponent)}
               onCancel={cancelLobby}
+              onProfile={() => setProfileEditor({ mode: "create" })}
             />
           )}
           {screen === "packs" && (
@@ -1059,6 +1068,17 @@ export default function App() {
             seasons={season.on}
             onSeasons={season.setOn}
             account={account}
+            onProfile={() => {
+              setSettings(false);
+              setProfileEditor({ mode: account.profile ? "edit" : "create" });
+            }}
+            onRecoveryCode={async () => {
+              const code = await account.newRecoveryCode().catch(() => null);
+              if (code) {
+                setSettings(false);
+                setRecoveryCode(code);
+              } else setToast(t("err_network"));
+            }}
             onIntro={() => {
               setSettings(false);
               setIntro(true);
@@ -1069,6 +1089,26 @@ export default function App() {
         </Suspense>
       )}
       {intro && <Onboarding onClose={() => setIntro(false)} />}
+      {/* profilo: alla prima apertura (dopo il tutorial) o dalle impostazioni */}
+      {!intro && profileEditor && (
+        <ProfileEditor
+          mode={profileEditor.mode}
+          initial={account.profile}
+          onCreate={account.createProfile}
+          onRecover={account.recover}
+          onSave={account.updateProfile}
+          onLater={
+            profileEditor.auto
+              ? () => {
+                  account.later();
+                  setProfileEditor(null);
+                }
+              : undefined
+          }
+          onClose={() => setProfileEditor(null)}
+        />
+      )}
+      {recoveryCode && <RecoveryCode code={recoveryCode} onDone={() => setRecoveryCode(null)} />}
       {/* invito di un amico: tendina in alto che resta finché non rispondi */}
       {invite && screen !== "match" && (
         <div className="invite-drop" role="alertdialog" aria-live="assertive">

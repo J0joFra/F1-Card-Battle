@@ -4,6 +4,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { GameError, handle, type GameRequest, type MatchRecord, type PvpRecord, type Store } from '../src/server/actions';
 import type { Progress } from '../src/game/collection';
+import type { Avatar } from '../src/game/profile';
 
 declare const Deno: { env: { get(k: string): string | undefined }; serve(h: (r: Request) => Response | Promise<Response>): void };
 
@@ -49,17 +50,16 @@ function storeFor(userId: string, displayName: string | null): Store {
       return data ? { progress: data.progress as Partial<Progress>, version: data.version as number } : null;
     },
     async putProfile(progress, prevVersion, uid = userId) {
-      // il nome si aggiorna solo per chi fa la richiesta
-      const name = uid === userId ? { display_name: displayName } : {};
+      // il nome mostrato agli altri è il nickname del profilo: qui si salva solo la progressione
       if (prevVersion === null) {
-        const { error } = await admin.from('profiles').insert({ id: uid, progress, version: 1, ...name });
+        const { error } = await admin.from('profiles').insert({ id: uid, progress, version: 1 });
         if (error?.code === '23505') return false; // creato nel frattempo da un'altra richiesta
         if (error) throw error;
         return true;
       }
       const { data, error } = await admin
         .from('profiles')
-        .update({ progress, version: prevVersion + 1, ...name })
+        .update({ progress, version: prevVersion + 1 })
         .eq('id', uid)
         .eq('version', prevVersion)
         .select('id');
@@ -116,6 +116,87 @@ function storeFor(userId: string, displayName: string | null): Store {
       if (error) throw error;
       return ((data ?? []) as { id: string; data: PvpRecord }[]).map((r) => ({ id: r.id, rec: r.data }));
     },
+    async getAccount() {
+      const { data, error } = await admin
+        .from('profiles')
+        .select('nickname, avatar, favorite_driver, moved_to')
+        .eq('id', userId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      return {
+        nickname: (data.nickname as string | null) ?? null,
+        avatar: (data.avatar as Avatar | null) ?? null,
+        favorite: (data.favorite_driver as string | null) ?? null,
+        movedTo: (data.moved_to as string | null) ?? null,
+      };
+    },
+    async nicknameTaken(nickname) {
+      const { count, error } = await admin
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('nickname_key', nickname.toLowerCase())
+        .is('moved_to', null)
+        .neq('id', userId);
+      if (error) throw error;
+      return (count ?? 0) > 0;
+    },
+    async createProfile(row) {
+      const { error } = await admin.from('profiles').insert({
+        id: userId,
+        progress: row.progress,
+        version: 1,
+        display_name: row.nickname,
+        nickname: row.nickname,
+        avatar: row.avatar,
+        favorite_driver: row.favorite,
+        recovery_hash: row.recoveryHash,
+      });
+      if (error?.code === '23505') return false; // profilo o nickname già presi nel frattempo
+      if (error) throw error;
+      return true;
+    },
+    async updateAccount(fields) {
+      const update: Record<string, unknown> = {};
+      if (fields.nickname !== undefined) Object.assign(update, { nickname: fields.nickname, display_name: fields.nickname });
+      if (fields.avatar !== undefined) update.avatar = fields.avatar;
+      if (fields.favorite !== undefined) update.favorite_driver = fields.favorite;
+      if (fields.recoveryHash !== undefined) update.recovery_hash = fields.recoveryHash;
+      if (!Object.keys(update).length) return;
+      const { error } = await admin.from('profiles').update(update).eq('id', userId);
+      if (error?.code === '23505') throw new GameError('nickname_taken', 409);
+      if (error) throw error;
+    },
+    async findByRecovery(hash) {
+      const { data, error } = await admin.from('profiles').select('id').eq('recovery_hash', hash).is('moved_to', null).maybeSingle();
+      if (error) throw error;
+      return (data?.id as string | undefined) ?? null;
+    },
+    async nextLegacy() {
+      const { data, error } = await admin
+        .from('profiles')
+        .select('id')
+        .not('legacy_slot', 'is', null)
+        .is('moved_to', null)
+        .order('legacy_slot')
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return (data?.id as string | undefined) ?? null;
+    },
+    async transferProfile(from, fields) {
+      const { data, error } = await admin.rpc('transfer_profile', {
+        from_id: from,
+        to_id: userId,
+        new_nickname: fields.nickname,
+        new_avatar: fields.avatar,
+        new_favorite: fields.favorite,
+        new_recovery_hash: fields.recoveryHash,
+      });
+      if (error?.code === '23505') throw new GameError('nickname_taken', 409);
+      if (error) throw error;
+      return data === true;
+    },
     async touch(now) {
       const { error } = await admin.from('profiles').update({ last_seen: new Date(now).toISOString() }).eq('id', userId);
       if (error) throw error;
@@ -125,13 +206,13 @@ function storeFor(userId: string, displayName: string | null): Store {
       if (error) throw error;
       const ids = ((rows ?? []) as { friend_id: string }[]).map((r) => r.friend_id);
       if (!ids.length) return [];
-      const { data: profiles, error: e2 } = await admin.from('profiles').select('id, display_name, last_seen').in('id', ids);
+      const { data: profiles, error: e2 } = await admin.from('profiles').select('id, display_name, avatar, last_seen').in('id', ids);
       if (e2) throw e2;
-      type Row = { id: string; display_name: string | null; last_seen: string | null };
+      type Row = { id: string; display_name: string | null; avatar: Avatar | null; last_seen: string | null };
       const byId = new Map(((profiles ?? []) as Row[]).map((p) => [p.id, p]));
       return ids.map((id: string) => {
         const p = byId.get(id);
-        return { id, name: p?.display_name ?? null, lastSeen: p?.last_seen ? Date.parse(p.last_seen) : null };
+        return { id, name: p?.display_name ?? null, avatar: p?.avatar ?? null, lastSeen: p?.last_seen ? Date.parse(p.last_seen) : null };
       });
     },
     async isFriend(other) {
@@ -197,8 +278,9 @@ Deno.serve(async (req) => {
     const { data: auth, error: authError } = await admin.auth.getUser(token);
     if (authError || !auth.user) return json({ error: 'unauthorized' }, 401);
     const user = auth.user;
-    // nome mostrato all'avversario: il nome dell'account Google (o la parte prima della @)
-    const name = (user.user_metadata?.full_name as string | undefined) ?? user.email?.split('@')[0] ?? null;
+    // nome mostrato all'avversario: il nickname del profilo
+    const { data: me } = await admin.from('profiles').select('display_name').eq('id', user.id).maybeSingle();
+    const name = (me?.display_name as string | null | undefined) ?? null;
     const body = (await req.json()) as GameRequest;
     const res = await handle(body, storeFor(user.id, name), { today: utcToday(), rng: Math.random });
     return json(res);

@@ -21,9 +21,6 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-        env:
-          # ID client OAuth "Applicazione web" (pubblico): Settings → Secrets and variables → Actions → Variables
-          VITE_GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
       - run: npx cap sync android
       - run: ./gradlew assembleDebug --no-daemon
         working-directory: android

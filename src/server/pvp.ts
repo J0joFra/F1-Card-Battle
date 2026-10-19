@@ -288,7 +288,7 @@ export async function handlePvp(req: GameRequest, store: Store, ctx: Ctx): Promi
       await store.touch(now);
       const list = await store.listFriends();
       const friends = list
-        .map((f) => ({ id: f.id, name: f.name, online: f.lastSeen !== null && now - f.lastSeen < ONLINE_MS }))
+        .map((f) => ({ id: f.id, name: f.name, avatar: f.avatar ?? null, online: f.lastSeen !== null && now - f.lastSeen < ONLINE_MS }))
         .sort((a, b) => Number(b.online) - Number(a.online) || (a.name ?? '').localeCompare(b.name ?? ''));
       return { friends };
     }

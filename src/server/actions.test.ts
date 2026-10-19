@@ -7,7 +7,10 @@ import { dailyChallenge, dailyLoanDeck, seededRng, themeMode, themePool } from '
 import { deckProblems } from '../game/deckRules';
 import { FIRST_WIN_CREDITS, MATCH_CREDITS } from '../game/collection';
 import { CLASSIC, fillDeck } from '../game/deckRules';
-import { PVP_REVEAL_MS, PVP_TURN_MS, handle, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type Store } from './actions';
+import { PVP_REVEAL_MS, PVP_TURN_MS, handle, type AccountRow, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type Store } from './actions';
+
+const AVATAR = { base: '#e10600', design: 'stars', accent: '#ffffff', visor: '#11131a', number: 44 } as const;
+const NEW_PROFILE = { nickname: 'Joaquim', avatar: { ...AVATAR }, favorite: 'lewis-hamilton' };
 
 // database finto in memoria, con gli stessi controlli di versione di quello vero; più utenti
 function memoryDb() {
@@ -17,6 +20,8 @@ function memoryDb() {
   const seen = new Map<string, number>();
   const names = new Map<string, string | null>();
   const friendships = new Set<string>(); // "a|b"
+  // dati del profilo (nickname, avatar…), codici di recupero e profili del vecchio accesso con Google
+  const accounts = new Map<string, AccountRow & { recoveryHash: string | null; legacy: number | null }>();
   let conflictsToSimulate = 0;
   const as = (id: string, name: string | null = id): Store => (names.set(id, name), {
     me: { id, name },
@@ -25,6 +30,58 @@ function memoryDb() {
     },
     async touch(now) {
       seen.set(id, now);
+    },
+    async getAccount() {
+      if (!profiles.has(id)) return null;
+      const a = accounts.get(id);
+      return { nickname: a?.nickname ?? null, avatar: a?.avatar ?? null, favorite: a?.favorite ?? null, movedTo: a?.movedTo ?? null };
+    },
+    async nicknameTaken(nickname) {
+      return [...accounts.values()].some((a) => !a.movedTo && a.nickname?.toLowerCase() === nickname.toLowerCase());
+    },
+    async createProfile(row) {
+      if (profiles.has(id) || [...accounts.values()].some((a) => !a.movedTo && a.nickname?.toLowerCase() === row.nickname.toLowerCase())) return false;
+      profiles.set(id, { progress: row.progress, version: 1 });
+      accounts.set(id, { nickname: row.nickname, avatar: row.avatar, favorite: row.favorite, movedTo: null, recoveryHash: row.recoveryHash, legacy: null });
+      names.set(id, row.nickname);
+      return true;
+    },
+    async updateAccount(fields) {
+      const a = accounts.get(id) ?? { nickname: null, avatar: null, favorite: null, movedTo: null, recoveryHash: null, legacy: null };
+      accounts.set(id, { ...a, ...fields });
+      if (fields.nickname) names.set(id, fields.nickname);
+    },
+    async findByRecovery(hash) {
+      return [...accounts].find(([, a]) => !a.movedTo && a.recoveryHash === hash)?.[0] ?? null;
+    },
+    async nextLegacy() {
+      const list = [...accounts].filter(([, a]) => !a.movedTo && a.legacy !== null).sort((a, b) => a[1].legacy! - b[1].legacy!);
+      return list[0]?.[0] ?? null;
+    },
+    async transferProfile(from, fields) {
+      const src = profiles.get(from);
+      const old = accounts.get(from);
+      if (!src || old?.movedTo || profiles.has(id)) return false;
+      profiles.set(id, { progress: structuredClone(src.progress), version: 1 });
+      accounts.set(id, {
+        nickname: fields.nickname ?? old?.nickname ?? null,
+        avatar: fields.avatar ?? old?.avatar ?? null,
+        favorite: fields.favorite ?? old?.favorite ?? null,
+        movedTo: null,
+        recoveryHash: fields.recoveryHash,
+        legacy: null,
+      });
+      accounts.set(from, { nickname: null, avatar: old?.avatar ?? null, favorite: null, movedTo: id, recoveryHash: null, legacy: null });
+      for (const f of [...friendships]) {
+        const [a, b] = f.split('|');
+        if (a !== from && b !== from) continue;
+        friendships.delete(f);
+        const na = a === from ? id : a;
+        const nb = b === from ? id : b;
+        if (na !== nb) friendships.add(`${na}|${nb}`);
+      }
+      names.set(id, accounts.get(id)!.nickname);
+      return true;
     },
     async listFriends() {
       return [...friendships].filter((f) => f.startsWith(`${id}|`)).map((f) => {
@@ -102,6 +159,7 @@ function memoryDb() {
   return {
     as,
     profiles,
+    accounts,
     friendships,
     pvps,
     simulateConflicts(n: number) {
@@ -127,19 +185,24 @@ const call = (s: Store, r: GameRequest) => handle(r, s, ctx);
 const deckIds = (p: Progress) => autoFillDeck(p, [], seededRng('deck')).map((c) => c.id);
 
 describe('server: profilo', () => {
-  it('primo accesso senza dati: mazzo iniziale', async () => {
+  it('primo accesso: senza profilo il server chiede di crearlo; poi mazzo iniziale', async () => {
     const db = memoryStore();
-    const { progress } = await call(db.store, { action: 'sync' });
+    const first = await call(db.store, { action: 'sync' });
+    expect(first.needsProfile).toBe(true);
+    expect(db.profile).toBeNull();
+    const { progress, profile, recoveryCode } = await call(db.store, { action: 'profile_create', ...NEW_PROFILE });
     expect(Object.keys(progress!.owned)).toHaveLength(15);
-    expect(db.profile).not.toBeNull();
+    expect(profile).toEqual({ nickname: 'Joaquim', avatar: AVATAR, favorite: 'lewis-hamilton' });
+    expect(recoveryCode).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+    expect((await call(db.store, { action: 'sync' })).profile!.nickname).toBe('Joaquim');
   });
 
   it('primo accesso: i progressi del dispositivo vengono importati solo se plausibili', async () => {
     const guest = { ...starterProgress(seededRng('g')), credits: 120, wins: 7 };
-    const ok = await call(memoryStore().store, { action: 'sync', guest });
+    const ok = await call(memoryStore().store, { action: 'profile_create', ...NEW_PROFILE, guest });
     expect(ok.progress!.credits).toBe(120);
     const cheat = { ...guest, credits: 999999, owned: Object.fromEntries(ALL_CARDS.map((c) => [c.id, 1])) };
-    const res = await call(memoryStore().store, { action: 'sync', guest: cheat });
+    const res = await call(memoryStore().store, { action: 'profile_create', ...NEW_PROFILE, guest: cheat });
     expect(res.progress!.credits).toBe(0);
     expect(Object.keys(res.progress!.owned)).toHaveLength(15);
   });
@@ -336,6 +399,78 @@ describe('server: partita', () => {
   });
 });
 
+describe('server: account senza Google (nickname, avatar, pilota preferito)', () => {
+  // due vecchi profili del login con Google: prima Joaquim, poi Claudia, amici tra loro
+  function legacyDb() {
+    const db = memoryDb();
+    const joaquim = { ...starterProgress(seededRng('j')), credits: 19, wins: 65 };
+    const claudia = { ...starterProgress(seededRng('c')), credits: 147, wins: 163 };
+    db.profiles.set('google-j', { progress: joaquim, version: 279 });
+    db.profiles.set('google-c', { progress: claudia, version: 454 });
+    db.accounts.set('google-j', { nickname: null, avatar: null, favorite: null, movedTo: null, recoveryHash: null, legacy: 1 });
+    db.accounts.set('google-c', { nickname: null, avatar: null, favorite: null, movedTo: null, recoveryHash: null, legacy: 2 });
+    db.friendships.add('google-j|google-c').add('google-c|google-j');
+    return { db, joaquim, claudia };
+  }
+
+  it('i primi due account creati riprendono, in ordine, i profili del vecchio accesso con Google (con gli amici)', async () => {
+    const { db, joaquim, claudia } = legacyDb();
+    const first = await call(db.as('anon-1'), { action: 'profile_create', ...NEW_PROFILE });
+    expect(first.progress!.wins).toBe(joaquim.wins);
+    expect(Object.keys(first.progress!.owned).sort()).toEqual(Object.keys(joaquim.owned).sort());
+    const second = await call(db.as('anon-2'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Claudia' });
+    expect(second.progress!.credits).toBe(claudia.credits);
+    expect(second.profile!.nickname).toBe('Claudia');
+    // amici anche con i nuovi account; i vecchi profili restano come copia ma non si usano più
+    expect(db.friendships).toEqual(new Set(['anon-1|anon-2', 'anon-2|anon-1']));
+    await expect(call(db.as('google-j'), { action: 'sync' })).rejects.toThrow('account_moved');
+    // dal terzo in poi: account nuovi con il mazzo iniziale
+    const third = await call(db.as('anon-3'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Marco' });
+    expect(third.progress!.wins).toBe(0);
+  });
+
+  it('dal vecchio accesso con Google: il codice preso prima di uscire porta sul nuovo account proprio quel profilo', async () => {
+    const { db, claudia } = legacyDb();
+    const { recoveryCode } = await call(db.as('google-c'), { action: 'recovery_new' });
+    const res = await call(db.as('anon-c'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Claudia', recover: recoveryCode });
+    expect(res.progress!.wins).toBe(claudia.wins);
+    expect(res.profile!.nickname).toBe('Claudia');
+    // Joaquim, che arriva dopo, riprende comunque il suo
+    const j = await call(db.as('anon-j'), { action: 'profile_create', ...NEW_PROFILE });
+    expect(j.progress!.wins).toBe(65);
+  });
+
+  it('nickname unico (senza distinguere maiuscole), valido; avatar e pilota controllati', async () => {
+    const db = memoryDb();
+    await call(db.as('a'), { action: 'profile_create', ...NEW_PROFILE });
+    await expect(call(db.as('b'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'joaquim' })).rejects.toThrow('nickname_taken');
+    await expect(call(db.as('b'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'x' })).rejects.toThrow('bad_nickname');
+    await expect(call(db.as('b'), { action: 'profile_create', ...NEW_PROFILE, nickname: '<script>' })).rejects.toThrow('bad_nickname');
+    await expect(
+      call(db.as('b'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Bea', avatar: { ...AVATAR, base: 'red' } as never }),
+    ).rejects.toThrow('bad_avatar');
+    const ok = await call(db.as('b'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Bea', favorite: 'nessuno' });
+    expect(ok.profile!.favorite).toBeNull();
+    await expect(call(db.as('b'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Bea2' })).rejects.toThrow('has_profile');
+  });
+
+  it('modifica del profilo e recupero su un altro telefono con il codice', async () => {
+    const db = memoryDb();
+    const created = await call(db.as('phone-1'), { action: 'profile_create', ...NEW_PROFILE });
+    const upd = await call(db.as('phone-1'), { action: 'profile_update', nickname: 'Jojo', favorite: 'ayrton-senna' });
+    expect(upd.profile).toEqual({ nickname: 'Jojo', avatar: AVATAR, favorite: 'ayrton-senna' });
+    await expect(call(db.as('phone-2'), { action: 'profile_create', recover: 'AAAA-BBBB-CCCC' })).rejects.toThrow('bad_recovery');
+    // il codice si può scrivere anche minuscolo e senza trattini
+    const code = created.recoveryCode!.toLowerCase().replace(/-/g, '');
+    const back = await call(db.as('phone-2'), { action: 'profile_create', recover: code });
+    expect(back.profile!.nickname).toBe('Jojo');
+    expect(back.recoveryCode).not.toBe(created.recoveryCode); // codice nuovo, quello vecchio non vale più
+    await expect(call(db.as('phone-3'), { action: 'profile_create', recover: created.recoveryCode })).rejects.toThrow('bad_recovery');
+    // il nickname ora è libero dal vecchio profilo spostato, ma resta preso dal nuovo
+    await expect(call(db.as('phone-3'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'jojo' })).rejects.toThrow('nickname_taken');
+  });
+});
+
 describe('server: sfida tra amici (al meglio di 3)', () => {
   // profilo con i 3 mazzi salvati e validi
   const ready = (seed: string) => {
@@ -471,7 +606,7 @@ describe('server: sfida tra amici (al meglio di 3)', () => {
     // amicizia reciproca; online se visto da poco
     await handle({ action: 'ping' }, t.bruno, t.c);
     let list = (await handle({ action: 'friends' }, t.anna, t.c)).friends!;
-    expect(list).toEqual([{ id: 'bruno', name: 'Bruno', online: true }]);
+    expect(list).toEqual([{ id: 'bruno', name: 'Bruno', avatar: null, online: true }]);
     expect((await handle({ action: 'friends' }, t.bruno, t.c)).friends![0].id).toBe('anna');
     t.tick(2 * 60_000);
     list = (await handle({ action: 'friends' }, t.anna, t.c)).friends!;

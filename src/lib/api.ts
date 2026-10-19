@@ -5,7 +5,7 @@ import type { GameRequest, GameResponse } from '../server/actions';
 
 /*
  * Chiamate all'"arbitro" sul server (Edge Function "game"), usate da chi ha fatto l'accesso.
- * Gli ospiti giocano solo sul dispositivo e non passano di qui.
+ * Chi non ha ancora creato il profilo gioca solo sul dispositivo e non passa di qui.
  */
 
 export class ApiError extends Error {
@@ -41,6 +41,12 @@ const MESSAGES: Record<string, TKey> = {
   own_match: 'err_own_match',
   decks_not_ready: 'err_decks_not_ready',
   not_friend: 'err_not_friend',
+  nickname_taken: 'err_nickname_taken',
+  bad_nickname: 'err_bad_nickname',
+  bad_recovery: 'err_bad_recovery',
+  anon_disabled: 'err_anon_disabled',
+  has_profile: 'err_has_profile',
+  account_moved: 'err_account_moved',
 };
 
 export const errorMessage = (e: unknown) =>

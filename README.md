@@ -50,10 +50,10 @@ Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per 
 
 ## Sfida un amico
 
-- Serve l'accesso con Google: la partita la arbitra il server, così nessuno può barare né vedere le card dell'altro.
+- Serve il profilo (nickname e avatar): la partita la arbitra il server, così nessuno può barare né vedere le card dell'altro.
 - **Al meglio di 3**: vince la serie chi vince 2 partite. La partita 1 si gioca con il mazzo salvato 1 di ognuno, la 2 con il mazzo 2, la 3 con il mazzo 3 (*Prepara mazzi*; se mancano, il gioco li completa da solo così si entra subito). Nella partita successiva inizia a scegliere chi ha perso la precedente.
 - **Amici**: a fine sfida si può aggiungere l'avversario agli amici (amicizia reciproca). Nella lista il pallino verde indica chi è online (visto negli ultimi 75 secondi); toccando *Sfida* l'amico riceve, entro una ventina di secondi, un invito a tendina in alto che resta finché non risponde: *Accetta* lo porta subito in partita.
-- In alternativa si crea una sfida con un **codice di 6 caratteri**: *Condividi* manda un messaggio con il **link diretto** alla sfida (`…/?sfida=CODICE`). Chi lo apre entra in partita (dopo l'accesso con Google). Il codice scade dopo 15 minuti.
+- In alternativa si crea una sfida con un **codice di 6 caratteri**: *Condividi* manda un messaggio con il **link diretto** alla sfida (`…/?sfida=CODICE`). Chi lo apre entra in partita (dopo aver creato il profilo). Il codice scade dopo 15 minuti.
 - Ognuno ha 30 secondi per scegliere: se non lo fa (o chiude l'app), il server gioca la metrica migliore della sua card.
 - **Turni sincronizzati**: appena uno sceglie, i due telefoni mostrano il risultato per 3 secondi e passano insieme alla carta successiva, senza premere *Prossimo round* (il server dice a ognuno da quanto è stata fatta la mossa).
 - Premi a fine serie: la vittoria conta per il pacchetto (come contro la CPU) e vale **+10 crediti**, il pareggio **+5 crediti**. Chi abbandona perde la serie.
@@ -124,45 +124,30 @@ Le card rare si riconoscono anche dal bordo: *Argento* metallico, *Oro* in lamin
 
 ## Account e salvataggio online
 
-Il login con Google e il salvataggio della collezione usano [Supabase](https://supabase.com) (progetto `f1-card-battle`, piano gratuito).
+Niente login con Google: ogni giocatore crea il suo **profilo** alla prima apertura (dopo il tutorial). Account e salvataggio usano [Supabase](https://supabase.com) (progetto `f1-card-battle`, piano gratuito).
 
-- Senza login si gioca come prima: tutto resta salvato sul dispositivo, e decide il telefono.
-- **Con il login decide il server.** Pacchetti, crediti, acquisti, Jolly, premi delle missioni e partite contro la CPU passano dalla Edge Function `game` (Supabase): il telefono chiede un'azione, il server la controlla con le stesse regole del gioco e salva. Nelle partite il server gioca un round alla volta, quindi il telefono non conosce mai in anticipo le carte della CPU.
-- Al primo login la collezione del dispositivo diventa quella dell'account, ma solo se plausibile (limiti su card, crediti, pacchetti…); altrimenti si parte dal mazzo iniziale. Chi aveva già un account con la vecchia app riceve un'ultima unione con i dati del telefono, poi conta solo il server.
-- Uscendo, il dispositivo torna "ospite" e la collezione resta sull'account.
-- Tabelle: `profiles` (una riga per utente, con un numero di `version` per evitare che due richieste contemporanee si sovrascrivano) e `matches` (partite in corso). `matches` è chiusa ai telefoni: la usa solo il server. Lo schema è in `supabase/migrations/`.
+- **Profilo**: *nickname* (3–16 caratteri, unico), **avatar** (un casco disegnato dal giocatore: colore, motivo, secondo colore, visiera, numero) e **pilota preferito**. Si modifica da *Impostazioni → Account*. Il nickname è quello che vedono amici e avversari.
+- **Account anonimo**: il profilo è legato a un account anonimo di Supabase, creato sul telefono quando si crea il profilo. Niente email né password.
+- **Codice di recupero** (es. `ABCD-EFGH-JKLM`): si mostra alla creazione del profilo e se ne può fare uno nuovo dalle impostazioni (quello vecchio smette di valere). Serve per riavere account e carte su un altro telefono: nella creazione del profilo, *Hai già un account? Recuperalo con il codice*. Sul server si salva solo l'impronta SHA-256 del codice.
+- Si può rimandare con *Più tardi*: si gioca sul dispositivo (come prima, da ospite) e la creazione si ripropone alla prossima apertura. Le carte del dispositivo passano al profilo quando lo crei, se plausibili.
+- **Passaggio dal vecchio accesso con Google**: i profili creati con Google sono segnati come "da riprendere" (`legacy_slot`, in ordine di creazione). Se il telefono ha ancora l'accesso Google, l'app chiede al server un codice per quel profilo, esce da Google e alla creazione del profilo nuovo riprende proprio quello. Senza accesso Google, i primi account creati riprendono i vecchi profili nell'ordine in cui erano stati creati. Il trasferimento (funzione SQL `transfer_profile`) sposta carte, progressi e amici; il vecchio profilo resta come copia, segnato come spostato.
+- **Decide il server.** Pacchetti, crediti, acquisti, Jolly, premi delle missioni e partite passano dalla Edge Function `game`: il telefono chiede un'azione, il server la controlla con le stesse regole del gioco e salva. Nelle partite il server gioca un round alla volta, quindi il telefono non conosce mai in anticipo le carte della CPU. I telefoni possono solo leggere il proprio profilo, non scriverlo.
+- Tabelle: `profiles` (una riga per account, con un numero di `version` per evitare che due richieste contemporanee si sovrascrivano), `matches`, `pvp_matches`, `friends`. Lo schema è in `supabase/migrations/`.
 - Codice del server: la logica è in `src/server/actions.ts` (con i test), l'aggancio a Supabase in `server/edge.ts`. `npm run build:server` crea `supabase/functions/game/index.js`, che si pubblica come Edge Function `game` (entrypoint `index.js`, JWT obbligatorio). Il catalogo delle card il server lo scarica da `src/data/cards.json` sul branch `main`.
-- Quando tutti avranno l'app aggiornata, va eseguito `supabase/pending/close_client_writes.sql`: toglie ai telefoni il permesso di scrivere direttamente il profilo (la vecchia app lo faceva).
 - URL e chiave *publishable* sono in `src/lib/supabase.ts`: sono pubblici per definizione (la protezione dei dati la fanno le regole RLS). Si possono sostituire con `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`.
 
-### Configurare il login con Google (una volta sola)
+### Configurazione (una volta sola)
 
-1. **Google Cloud Console** → *API e servizi* → *Credenziali* → *Crea credenziali* → *ID client OAuth* → tipo *Applicazione web*.
-   - *URI di reindirizzamento autorizzati*: `https://fheiutmpkglkpymkrrqt.supabase.co/auth/v1/callback`
-   - Se richiesto, configura prima la *schermata di consenso OAuth* (tipo *Esterno*, nome app e la tua email).
-2. **Supabase** → progetto `f1-card-battle` → *Authentication* → *Sign In / Providers* → *Google*: attivalo e incolla *Client ID* e *Client Secret*.
-3. **Supabase** → *Authentication* → *URL Configuration*:
-   - *Site URL*: `https://j0jofra.github.io/F1-Card-Battle/`
-   - *Redirect URLs*: aggiungi `https://j0jofra.github.io/F1-Card-Battle/**` e `http://localhost:5173/**`
+**Supabase** → progetto `f1-card-battle` → *Authentication* → *Sign In / Providers* → attiva **Allow anonymous sign-ins**. Il provider Google si può spegnere quando i vecchi profili sono stati ripresi.
 
 ## App Android
 
 L'app Android è fatta con [Capacitor](https://capacitorjs.com): è lo stesso gioco del sito, dentro un'app (cartella `android/`).
 
-- **Login**: nell'app si usa il selettore account di Android (plugin `@capgo/capacitor-social-login`), senza aprire il browser. Il token di Google viene passato a Supabase (`signInWithIdToken`), quindi l'account e la collezione sono gli stessi del sito.
 - **APK di prova**: a ogni push sui branch `claude/**` e `main`, la GitHub Action *App Android* compila un APK di debug. Lo trovi in *Actions* → ultima esecuzione → *Artifacts* → `f1-card-battle-debug-apk`.
 - La chiave di firma di debug (`android/app/debug.keystore`) è fissa e versionata, così l'impronta SHA-1 non cambia:
   `SHA-1 06:36:44:09:26:59:CE:0A:2E:6C:39:EB:73:D1:2B:FF:43:BD:24:7E`
   Per la pubblicazione sul Play Store servirà una chiave di rilascio separata (mai nel repository).
-
-### Configurare il login nell'app (una volta sola)
-
-1. **Google Cloud Console** → *Credenziali* → *Crea credenziali* → *ID client OAuth* → tipo **Android**:
-   - Nome pacchetto: `com.j0jofra.f1cardbattle`
-   - Impronta SHA-1: quella qui sopra
-2. **GitHub** → repository → *Settings* → *Secrets and variables* → *Actions* → scheda *Variables* → *New repository variable*:
-   - Nome `GOOGLE_WEB_CLIENT_ID`, valore: l'ID client di tipo **Applicazione web** (quello già usato in Supabase, finisce con `.apps.googleusercontent.com`). Non è un segreto.
-3. Rilancia la Action *App Android* (o fai un push) e installa il nuovo APK.
 
 ### Sviluppo locale dell'app
 
@@ -170,7 +155,6 @@ L'app Android è fatta con [Capacitor](https://capacitorjs.com): è lo stesso gi
 npm run build && npx cap sync android
 npx cap open android   # apre Android Studio
 ```
-Per il login in locale crea un file `.env.local` con `VITE_GOOGLE_WEB_CLIENT_ID=...`.
 
 ## Sviluppo
 
