@@ -9,7 +9,8 @@ import { FlipCard } from '../components/FlipCard';
 import { useProgressive } from '../hooks/useProgressive';
 import { DECK_SLOTS, activeSlot, autoFillDeck, ownedCards, savedDeck, type Progress } from '../game/collection';
 import { DECK_SIZE } from '../game/engine';
-import { CLASSIC, canAdd, deckProblems, fillDeck, fitsMode, rarityCaps, type MatchMode } from '../game/deckRules';
+import { CLASSIC, addBlock, deckProblems, decksProblems, fillDeck, fitsMode, rarityCaps, MIN_DIFFERENT, type MatchMode, type SlotBlock } from '../game/deckRules';
+import type { TKey } from '../lib/i18n';
 
 interface Props {
   progress: Progress;
@@ -35,6 +36,12 @@ const RARITY_RANK: Record<Rarity, number> = {
   classica: -1,
 };
 const VIEW_KEY = 'f1-card-battle:deck-view';
+const BLOCK_LABEL: Record<SlotBlock, TKey> = {
+  full: 'deck_full',
+  rarity: 'deck_rarityFull',
+  allDecks: 'deck_blockAll',
+  similar: 'deck_blockSimilar',
+};
 
 function savedView(): View {
   try {
@@ -57,12 +64,16 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
     const active = activeSlot(progress);
     const saved = Array.from({ length: DECK_SLOTS }, (_, i) => savedDeck(progress, i));
     return {
-      drafts: saved.map((d, i) => (i === active && d.length < DECK_SIZE ? autoFillDeck(progress, d) : d)),
+      drafts: saved.map((d, i) =>
+        i === active && d.length < DECK_SIZE ? autoFillDeck(progress, d, Math.random, saved.filter((_, j) => j !== i)) : d,
+      ),
     };
   });
   const [drafts, setDrafts] = useState<Card[][]>(initial.drafts);
   const [visited] = useState(() => new Set([activeSlot(progress)]));
   const deck = drafts[slot];
+  // gli altri mazzi: il mazzo in modifica deve restare diverso da loro (nei mazzi a tema non conta)
+  const others = themed ? [] : drafts.filter((_, i) => i !== slot);
   const setDeck = (next: Card[] | ((d: Card[]) => Card[])) =>
     setDrafts((all) => all.map((d, i) => (i === slot ? (typeof next === 'function' ? next(d) : next) : d)));
 
@@ -98,7 +109,7 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
     if (!visited.has(i)) {
       visited.add(i);
       if (drafts[i].length < DECK_SIZE) {
-        setDrafts((all) => all.map((d, j) => (j === i ? refill(d) : d)));
+        setDrafts((all) => all.map((d, j) => (j === i ? refill(d, all.filter((_, k) => k !== j)) : d)));
       }
     }
     setSlot(i);
@@ -113,8 +124,10 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
       /* niente memoria: va bene lo stesso */
     }
   };
-  const problems = deckProblems(deck, mode);
-  const refill = (d: Card[]) => (themed ? fillDeck(usable, d, mode) : autoFillDeck(progress, d));
+  const problems = [...deckProblems(deck, mode), ...(themed ? [] : decksProblems(drafts, slot))];
+  const refill = (d: Card[], rest: Card[][] = others) =>
+    themed ? fillDeck(usable, d, mode) : autoFillDeck(progress, d, Math.random, rest);
+  const blockOf = (c: Card) => addBlock(deck, c, mode, others);
 
   // ordina per rarità (dalla più rara) o per una metrica (dal valore migliore)
   const rows = useMemo(() => {
@@ -129,7 +142,7 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
   const { limit, sentinel } = useProgressive(rows.length, 40, `${sort}|${view}`);
 
   const toggle = (c: Card) =>
-    setDeck((d) => (d.some((x) => x.id === c.id) ? d.filter((x) => x.id !== c.id) : canAdd(d, c, mode) ? [...d, c] : d));
+    setDeck((d) => (d.some((x) => x.id === c.id) ? d.filter((x) => x.id !== c.id) : !addBlock(d, c, mode, others) ? [...d, c] : d));
 
   // per ogni metrica, il valore migliore presente nel mazzo: aiuta a vedere i punti deboli
   const bestInDeck = (key: StatKey) => {
@@ -148,12 +161,12 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
           </button>
         )}
         <h2>{title ?? t('nav_decks')}</h2>
-        <HelpButton items={['tut_deck_1', 'tut_deck_2', 'tut_deck_3', 'tut_deck_4']} />
+        <HelpButton items={['tut_deck_1', 'tut_deck_2', 'tut_deck_3', 'tut_deck_4', 'tut_deck_5']} params={{ n: MIN_DIFFERENT }} />
       </header>
       {!themed && (
         <div className="deck-tabs" role="tablist" aria-label={t('deck_slots')}>
           {drafts.map((d, i) => {
-            const ok = d.length === DECK_SIZE && !deckProblems(d).length;
+            const ok = d.length === DECK_SIZE && !deckProblems(d).length && !decksProblems(drafts, i).length;
             return (
               <button
                 key={i}
@@ -290,10 +303,12 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
             <tbody>
               {rows.slice(0, limit).map((c) => {
                 const selected = deck.some((x) => x.id === c.id);
-                const blocked = !selected && !canAdd(deck, c, mode);
+                const block = selected ? null : blockOf(c);
+                const blocked = !!block;
                 return (
                   <tr
                     key={c.id}
+                    title={block ? t(BLOCK_LABEL[block]) : undefined}
                     className={`${selected ? 'in-deck' : ''} ${blocked ? 'blocked' : ''}`}
                     onClick={() => !blocked && toggle(c)}
                     aria-selected={selected}
@@ -327,7 +342,8 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
         <div className="pick-grid">
           {rows.slice(0, limit).map((c) => {
             const selected = deck.some((x) => x.id === c.id);
-            const blocked = !selected && !canAdd(deck, c, mode);
+            const block = selected ? null : blockOf(c);
+            const blocked = !!block;
             return (
               <div key={c.id} className={`${selected ? 'in-deck' : ''} ${blocked ? 'blocked' : ''}`}>
                 <FlipCard
@@ -338,13 +354,13 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
                       className={`btn ${selected ? 'ghost' : 'primary'}`}
                       onClick={() => toggle(c)}
                       disabled={blocked}
-                      title={blocked ? t(deck.length >= DECK_SIZE ? 'deck_full' : 'deck_rarityFull') : undefined}
+                      title={block ? t(BLOCK_LABEL[block]) : undefined}
                     >
                       {selected ? <Minus size={14} /> : <Plus size={14} />}{' '}
                       {selected
                         ? t('deck_takeOut')
-                        : blocked
-                        ? t(deck.length >= DECK_SIZE ? 'deck_full' : 'deck_rarityFull')
+                        : block
+                        ? t(BLOCK_LABEL[block])
                         : t('deck_add')}
                     </button>
                   }

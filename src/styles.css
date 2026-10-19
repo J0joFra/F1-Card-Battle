@@ -407,8 +407,10 @@ p { line-height: 1.45; }
 .jolly-picker p { margin: 0; }
 .jolly-picker ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .jolly-picker li { display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
-.jolly-options { display: flex; flex-wrap: wrap; gap: 6px; }
-.jolly-options .chip { color: var(--text); }
+.jolly-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.jolly-head h3 { margin: 0; }
+.jolly-options { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x proximity; }
+.jolly-option { flex: 0 0 auto; width: 150px; scroll-snap-align: start; }
 
 /* ============ Sovrapposizioni ============ */
 .overlay { position: fixed; inset: 0; z-index: 40; background: var(--overlay); animation: fade 0.18s; }
@@ -802,6 +804,7 @@ p { line-height: 1.45; }
 
 /* card ingrandita (toccata): il retro grande con il diagramma a ragnatela */
 .flip-zoom-backdrop { z-index: 45; }
+.confirm-backdrop { z-index: 50; } /* sopra la card ingrandita: la conferma parte anche da lì */
 .flip-zoom.card-md { position: relative; inset: auto; width: min(320px, calc(100vw - 48px)); padding: 14px 14px 16px; gap: 8px; }
 .flip-zoom .flip-back-head b { font-size: 17px; }
 .flip-zoom .flip-back-head small { font-size: 12px; }

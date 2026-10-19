@@ -1,7 +1,7 @@
 import type { Card, Rarity } from '../types';
 import { ALL_CARDS, CARD_BY_ID, careerCardOf, cardsOfRarity, teamCardsOfDriver, isCollectOnly } from './cards';
 import { DECK_SIZE, shuffle, type Rng } from './engine';
-import { deckProblems, fillDeck } from './deckRules';
+import { deckProblems, decksProblems, fillDeck, fillDecks } from './deckRules';
 import { emptyDaily, type DailyState, type MissionsState } from './daily';
 
 export const WINS_PER_PACK = 10;
@@ -107,12 +107,21 @@ export function withDecks(p: Progress, decks: string[][], active: number): Progr
 // I 3 mazzi della sfida tra amici, solo se sono tutti completi e validi.
 export function seriesDecks(p: Progress): Card[][] | null {
   const decks = deckSlots(p).map((ids) => toCards(p, ids));
-  return decks.every((d) => d.length === DECK_SIZE && !deckProblems(d).length) ? decks : null;
+  return decks.every((d) => d.length === DECK_SIZE && !deckProblems(d).length) && !decksProblems(decks).length ? decks : null;
 }
 
+// I mazzi salvati, come card (solo quelle ancora possedute).
+export const savedDecks = (p: Progress): Card[][] => deckSlots(p).map((ids) => toCards(p, ids));
+
+// Gli altri mazzi salvati, per controllare che il mazzo `slot` resti diverso da loro.
+export const otherDecks = (p: Progress, slot: number): Card[][] => savedDecks(p).filter((_, i) => i !== slot);
+
+// Completa i 3 mazzi salvati con card della collezione (per la sfida tra amici).
+export const autoFillDecks = (p: Progress, rng: Rng = Math.random): Card[][] => fillDecks(ownedCards(p), savedDecks(p), rng);
+
 // Completa il mazzo con card casuali della collezione, rispettando i limiti di rarità.
-export function autoFillDeck(p: Progress, deck: Card[], rng: Rng = Math.random): Card[] {
-  return fillDeck(ownedCards(p), deck, undefined, rng);
+export function autoFillDeck(p: Progress, deck: Card[], rng: Rng = Math.random, others: Card[][] = []): Card[] {
+  return fillDeck(ownedCards(p), deck, undefined, rng, false, others);
 }
 
 function rollRarity(rng: Rng): Rarity {

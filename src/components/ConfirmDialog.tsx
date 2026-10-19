@@ -39,7 +39,7 @@ export function ConfirmHost() {
     setReq(null);
   };
   return (
-    <div className="overlay modal-backdrop" onClick={() => answer(false)}>
+    <div className="overlay modal-backdrop confirm-backdrop" onClick={() => answer(false)}>
       <div className="modal confirm pop" onClick={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true">
         <p>{req.message}</p>
         <div className="actions">

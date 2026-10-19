@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Card } from '../types';
-import { ALL_CARDS, CARD_BY_ID, PLAYABLE_CARDS, RARITY_THRESHOLDS, STATS, careerCardOf, teamCardsOfDriver } from './cards';
+import { ALL_CARDS, CARD_BY_ID, PLAYABLE_CARDS, RARITY_THRESHOLDS, STATS, careerCardOf, cardsOfRarity, teamCardsOfDriver } from './cards';
 import {
   DECK_SIZE,
   ROUNDS,
@@ -15,11 +15,12 @@ import {
   playRound,
   statStrength,
 } from './engine';
-import { canAdd, deckProblems } from './deckRules';
+import { CLASSIC, MAX_SHARED, addBlock, canAdd, deckProblems, decksProblems } from './deckRules';
 import { HELMET_DESIGNS, helmetStyle } from '../components/DriverArt';
 import {
   addCards,
   autoFillDeck,
+  autoFillDecks,
   drawPack,
   isUntouched,
   jollyTargets,
@@ -378,5 +379,26 @@ describe('card da collezione: Pioniere e Classiche', () => {
   it('una card giocabile che non esiste più diventa la Classica dello stesso pilota', () => {
     const p = normalizeProgress({ owned: { 'niki-lauda__march': 1, 'niki-lauda__ferrari': 2 } });
     expect(p.owned).toEqual({ 'niki-lauda__classic': 1, 'niki-lauda__ferrari': 2 });
+  });
+});
+
+describe('3 mazzi diversi', () => {
+  it('dal mazzo iniziale si completano sempre 3 mazzi validi e diversi', () => {
+    for (let i = 1; i <= 60; i++) {
+      const p = starterProgress(seeded(i));
+      const decks = autoFillDecks(p, seeded(i * 13));
+      expect(decks.every((d) => d.length === DECK_SIZE && !deckProblems(d).length)).toBe(true);
+      expect(decksProblems(decks)).toEqual([]);
+    }
+  });
+
+  it('una card non va nel terzo mazzo, né in un mazzo che ha già 2 card in comune con un altro', () => {
+    const cards = cardsOfRarity('bronzo').slice(0, 12);
+    const a = cards.slice(0, 7);
+    expect(MAX_SHARED).toBe(DECK_SIZE - 5);
+    expect(addBlock([], a[0], CLASSIC, [a, [a[0]]])).toBe('allDecks');
+    expect(addBlock([a[0], a[1]], a[2], CLASSIC, [a, []])).toBe('similar');
+    expect(addBlock([a[0], a[1]], cards[8], CLASSIC, [a, []])).toBeNull();
+    expect(decksProblems([a, a, []])).toHaveLength(1);
   });
 });

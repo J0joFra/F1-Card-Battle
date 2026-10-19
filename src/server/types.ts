@@ -14,6 +14,7 @@ export type GameRequest =
   | { action: 'profile_create'; nickname?: string; avatar?: Avatar; favorite?: string | null; guest?: Partial<Progress>; recover?: string }
   | { action: 'profile_update'; nickname?: string; avatar?: Avatar; favorite?: string | null }
   | { action: 'recovery_new' }
+  | { action: 'account_delete'; confirm: true }
   | { action: 'set_deck'; deck: string[] }
   | { action: 'set_decks'; decks: string[][]; active: number }
   | { action: 'open_pack'; date?: string }
@@ -112,6 +113,7 @@ export interface GameResponse {
   profile?: PlayerProfile; // il tuo profilo (nickname, avatar, pilota preferito)
   needsProfile?: boolean; // nessun profilo: va creato
   recoveryCode?: string; // codice di recupero appena creato (si mostra una volta sola)
+  deleted?: boolean; // account eliminato
 }
 
 // dati del profilo salvati accanto alla progressione
@@ -156,6 +158,9 @@ export interface Store {
   updateAccount(fields: { nickname?: string; avatar?: Avatar; favorite?: string | null; recoveryHash?: string }): Promise<void>;
   // profilo (non ancora spostato) con questo codice di recupero
   findByRecovery(hash: string): Promise<string | null>;
+  // elimina l'account di chi fa la richiesta e tutto ciò che gli appartiene (anche le copie dei profili da cui
+  // è stato recuperato): carte, progressi, amicizie, partite
+  deleteAccount(): Promise<void>;
   // sposta tutto il profilo `from` (carte, progressi, amici) su chi fa la richiesta; null = tieni i dati vecchi
   transferProfile(
     from: string,

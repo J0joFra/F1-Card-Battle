@@ -40,6 +40,7 @@ const MESSAGES: Record<string, TKey> = {
   bad_code: 'err_bad_code',
   own_match: 'err_own_match',
   decks_not_ready: 'err_decks_not_ready',
+  decks_similar: 'err_decks_similar',
   not_friend: 'err_not_friend',
   nickname_taken: 'err_nickname_taken',
   bad_nickname: 'err_bad_nickname',

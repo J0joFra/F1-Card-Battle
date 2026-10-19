@@ -8,10 +8,11 @@ import {
   starterProgress,
   withDecks,
   deckSlots,
+  savedDecks,
   type Progress,
 } from '../game/collection';
 import { claimMission, dailyChallenge, dailyLoanDeck, dailyPlayed, missionsAfterPack, missionsFor, startDaily, themeMode } from '../game/daily';
-import { CLASSIC, fitsMode, parseMode } from '../game/deckRules';
+import { CLASSIC, decksOverlap, fitsMode, parseMode } from '../game/deckRules';
 import { buildCpuDeck, cpuChooseStat, isAvailable, matchOutcome, newMatch, playRound, type Rng } from '../game/engine';
 import { applyMatchEnd, loadMatch, storeMatch, toView, type MatchRewards, type MatchView, type StoredMatch } from '../game/match';
 import type { StatKey } from '../types';
@@ -145,8 +146,19 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       return { recoveryCode };
     }
 
+    case 'account_delete':
+      if (req.confirm !== true) throw new GameError('bad_request');
+      await store.deleteAccount();
+      return { deleted: true };
+
     case 'set_decks':
-      return withProfile(store, ctx, (p) => ({ progress: withDecks(p, Array.isArray(req.decks) ? req.decks : [], req.active) }));
+      return withProfile(store, ctx, (p) => {
+        const next = withDecks(p, Array.isArray(req.decks) ? req.decks : [], req.active);
+        // i mazzi devono restare diversi tra loro; si accettano però i passi che sistemano mazzi già troppo simili
+        const overlap = decksOverlap(savedDecks(next));
+        if (overlap > 0 && overlap > decksOverlap(savedDecks(p))) throw new GameError('decks_similar');
+        return { progress: next };
+      });
 
     case 'set_deck':
       return withProfile(store, ctx, (p) => {
@@ -259,6 +271,10 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
         // il mazzo si ricorda solo nella partita classica (gli altri sono mazzi a tema, da una volta)
         const slot = req.slot ?? p.activeDeck ?? 0;
         const decks = mode.kind === 'classic' ? withDecks(p, deckSlots(p).map((d, i) => (i === slot ? ids : d)), slot) : p;
+        // il mazzo giocato diventa quello dello slot: non deve rendere i 3 mazzi più simili di prima
+        // (l'app nuova blocca già prima; i mazzi vecchi, salvati prima della regola, si possono ancora giocare)
+        if (mode.kind === 'classic' && decksOverlap(savedDecks(decks)) > decksOverlap(savedDecks(p)))
+          throw new GameError('decks_similar');
         return {
           progress: { ...decks, daily: daily ? startDaily(p.daily, req.date) : p.daily },
         };
