@@ -7,12 +7,6 @@ const config: CapacitorConfig = {
   android: {
     backgroundColor: '#0e0f13',
   },
-  plugins: {
-    // Login nativo: solo Google (gli altri provider non vengono inclusi nell'app)
-    SocialLogin: {
-      providers: { google: true, facebook: false, apple: false, twitter: false },
-    },
-  },
 };
 
 export default config;

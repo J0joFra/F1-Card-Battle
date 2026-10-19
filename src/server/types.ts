@@ -4,11 +4,16 @@ import type { Progress } from '../game/collection';
 import type { MatchOutcome, Side } from '../game/engine';
 import type { MatchRewards, MatchView, StoredMatch } from '../game/match';
 import type { PackKind } from '../game/shop';
+import type { Avatar, PlayerProfile } from '../game/profile';
 
 // Tipi condivisi tra la logica del server, il database (Store) e il telefono.
 
 export type GameRequest =
   | { action: 'sync'; guest?: Partial<Progress> }
+  // account senza Google: profilo con nickname, avatar e pilota preferito
+  | { action: 'profile_create'; nickname?: string; avatar?: Avatar; favorite?: string | null; guest?: Partial<Progress>; recover?: string }
+  | { action: 'profile_update'; nickname?: string; avatar?: Avatar; favorite?: string | null }
+  | { action: 'recovery_new' }
   | { action: 'set_deck'; deck: string[] }
   | { action: 'set_decks'; decks: string[][]; active: number }
   | { action: 'open_pack'; date?: string }
@@ -78,6 +83,7 @@ export interface PvpInfo {
 export interface Friend {
   id: string;
   name: string | null;
+  avatar?: Avatar | null;
   online: boolean;
 }
 
@@ -103,6 +109,17 @@ export interface GameResponse {
   pvp?: PvpInfo;
   friends?: Friend[];
   invites?: Invite[];
+  profile?: PlayerProfile; // il tuo profilo (nickname, avatar, pilota preferito)
+  needsProfile?: boolean; // nessun profilo: va creato
+  recoveryCode?: string; // codice di recupero appena creato (si mostra una volta sola)
+}
+
+// dati del profilo salvati accanto alla progressione
+export interface AccountRow {
+  nickname: string | null;
+  avatar: Avatar | null;
+  favorite: string | null;
+  movedTo: string | null; // profilo spostato su un altro account
 }
 
 export interface MatchRecord {
@@ -131,10 +148,23 @@ export interface Store {
   createPvp(rec: PvpRecord): Promise<string | null>;
   // salva solo se la sfida non è cambiata nel frattempo (rev)
   updatePvp(id: string, rec: PvpRecord, rev: number): Promise<boolean>;
+  // profilo dell'account (nickname, avatar, pilota preferito)
+  getAccount(): Promise<AccountRow | null>;
+  nicknameTaken(nickname: string): Promise<boolean>;
+  // nuovo profilo per chi fa la richiesta; false se esiste già o il nickname è stato preso nel frattempo
+  createProfile(row: { progress: Progress; nickname: string; avatar: Avatar; favorite: string | null; recoveryHash: string }): Promise<boolean>;
+  updateAccount(fields: { nickname?: string; avatar?: Avatar; favorite?: string | null; recoveryHash?: string }): Promise<void>;
+  // profilo (non ancora spostato) con questo codice di recupero
+  findByRecovery(hash: string): Promise<string | null>;
+  // sposta tutto il profilo `from` (carte, progressi, amici) su chi fa la richiesta; null = tieni i dati vecchi
+  transferProfile(
+    from: string,
+    fields: { nickname: string | null; avatar: Avatar | null; favorite: string | null; recoveryHash: string },
+  ): Promise<boolean>;
   // presenza: "visto adesso"
   touch(now: number): Promise<void>;
   // amici, con il nome e l'ultima volta che sono stati visti (ms)
-  listFriends(): Promise<{ id: string; name: string | null; lastSeen: number | null }[]>;
+  listFriends(): Promise<{ id: string; name: string | null; avatar?: Avatar | null; lastSeen: number | null }[]>;
   isFriend(other: string): Promise<boolean>;
   addFriend(other: string): Promise<void>; // amicizia reciproca
   removeFriend(other: string): Promise<void>;

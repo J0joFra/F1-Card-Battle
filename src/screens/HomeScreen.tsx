@@ -16,7 +16,6 @@ import { ModePicker, modeLabel, modeReady } from '../components/ModePicker';
 import { DECK_SIZE } from '../game/engine';
 import type { Account } from '../hooks/useAccount';
 import { CardView } from '../components/CardView';
-import { GoogleIcon } from '../components/GoogleIcon';
 import { HelpButton } from '../components/TutorialSection';
 import { DailyCard, MissionsPanel } from '../components/Daily';
 import { themeMode, type DailyChallenge, type MissionsState } from '../game/daily';
@@ -34,6 +33,7 @@ interface Props {
   onFriend: () => void;
   onClaim: (i: number) => void;
   onPacks: () => void;
+  onProfile: () => void; // crea il profilo (salvataggio online e sfide tra amici)
 }
 
 export function HomeScreen({
@@ -49,6 +49,7 @@ export function HomeScreen({
   onFriend,
   onClaim,
   onPacks,
+  onProfile,
 }: Props) {
   const { t } = useI18n();
   const owned = collectionSize(progress);
@@ -142,9 +143,9 @@ export function HomeScreen({
         </div>
       </section>
 
-      {!account.session && (
-        <button className="btn google block cloud-btn" onClick={account.signIn}>
-          <GoogleIcon /> {t('home_cloud_t')}
+      {!account.online && (
+        <button className="btn primary block cloud-btn" onClick={onProfile}>
+          {t('pr_createTitle')}
         </button>
       )}
     </div>

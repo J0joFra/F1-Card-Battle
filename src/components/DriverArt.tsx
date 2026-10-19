@@ -2,6 +2,7 @@ import { useId } from 'react';
 import type { Card } from '../types';
 import { teamColor } from '../game/teamColors';
 import { seasonNow, type Season } from '../lib/season';
+import { HELMET_DESIGNS, type HelmetDesign } from '../game/profile';
 
 /*
  * Illustrazione della card.
@@ -40,8 +41,8 @@ function hash(text: string) {
 
 const ACCENTS = ['#ffffff', '#ffd400', '#15171d', '#e10600', '#1e5bff', '#16a34a', '#c0c6d0', '#ff7a00', '#ff4fa3', '#00c2d1'];
 const VISORS = ['#11131a', '#11131a', '#11131a', '#c99a1c', '#2d6cdf', '#6a3fa0'];
-export const HELMET_DESIGNS = ['slash', 'diamonds', 'crown', 'chevron', 'stars', 'split', 'band', 'bolt', 'dots', 'checker'] as const;
-type Design = (typeof HELMET_DESIGNS)[number];
+export { HELMET_DESIGNS };
+type Design = HelmetDesign;
 
 const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 const distance = (a: string, b: string) => {
@@ -176,13 +177,26 @@ function Hat({ season, shade }: { season: Season; shade: string }) {
 
 // Casco stilizzato: colore della scuderia, motivo del pilota, visiera, numero di gara sul lato.
 function Helmet({ card }: { card: Card }) {
-  const id = useId().replace(/:/g, '');
   const base = card.kind === 'career' ? '#c9a227' : teamColor(card.team.id);
   const { design, accent, visor } = helmetStyle(card.driver.id, base);
   const label = card.kind === 'career' ? '★' : (card.number ?? card.driver.abbreviation.slice(0, 2));
+  return <HelmetSvg className="art-helmet" base={base} design={design} accent={accent} visor={visor} label={label} />;
+}
+
+interface HelmetProps {
+  base: string;
+  design: Design;
+  accent: string;
+  visor: string;
+  label: string | number;
+  className?: string;
+}
+
+export function HelmetSvg({ base, design, accent, visor, label, className }: HelmetProps) {
+  const id = useId().replace(/:/g, '');
   const season = seasonNow();
   return (
-    <svg className="art-helmet" viewBox={season ? '0 -18 120 118' : '0 0 120 100'} aria-hidden>
+    <svg className={className} viewBox={season ? '0 -18 120 118' : '0 0 120 100'} aria-hidden>
       <defs>
         <linearGradient id={`g${id}`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#fff" stopOpacity="0.35" />

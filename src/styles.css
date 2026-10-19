@@ -1272,3 +1272,57 @@ b.over-pack { color: #e8b931; }
 }
 /* in partita la card è tagliata in altezza: niente cappello, si vede meglio il casco */
 .duel-stack .hat { display: none; }
+
+/* ============ Profilo del giocatore ============ */
+.profile-backdrop { z-index: 55; display: flex; justify-content: center; overflow-y: auto; padding: calc(var(--safe-top) + 12px) 12px calc(var(--safe-bottom) + 24px); background: var(--bg); }
+.profile-editor { position: relative; width: 100%; max-width: 440px; display: grid; gap: 16px; align-content: start; }
+.profile-editor h2 { text-align: center; font-size: 24px; font-weight: 900; font-style: italic; margin: 6px 0 0; }
+.profile-editor > p { margin: -8px 0 0; }
+.pr-preview { display: grid; justify-items: center; gap: 6px; padding: 8px 0; }
+.pr-preview b { font-size: 20px; font-weight: 900; }
+.pr-field { display: grid; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+.pr-field > span { font-weight: 800; }
+.pr-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pr-input {
+  width: 100%; font: inherit; font-size: 17px; font-weight: 700; color: var(--text); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 12px; padding: 11px 12px; outline: none;
+}
+.pr-input:focus { border-color: var(--accent); }
+.pr-input.code { text-align: center; letter-spacing: 3px; font-size: 20px; text-transform: uppercase; }
+.pr-error { color: var(--lose); font-weight: 700; margin: 0; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatches button { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--line); padding: 0; }
+.swatches button.on { outline: 3px solid var(--accent); outline-offset: 2px; }
+.designs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.designs button { background: none; border: 2px solid transparent; border-radius: 50%; padding: 2px; display: grid; place-items: center; }
+.designs button.on { border-color: var(--accent); }
+.pr-number { display: grid; gap: 6px; max-width: 120px; }
+.pr-fav { display: flex; align-items: center; justify-content: space-between; font-weight: 800; }
+.pr-drivers { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.pr-drivers button { width: 100%; text-align: left; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; font-weight: 700; }
+.pr-recover { display: grid; gap: 12px; }
+.modal.recovery { max-width: 360px; }
+.recovery-code {
+  font-size: 24px; font-weight: 900; letter-spacing: 3px; padding: 12px 16px; border-radius: 12px;
+  background: var(--surface-2); border: 2px dashed var(--accent); user-select: all; -webkit-user-select: all;
+}
+.profile-row { display: flex; align-items: center; gap: 12px; }
+.profile-row .account-info { flex: 1; min-width: 0; display: grid; }
+.profile-row .account-info small { color: var(--muted); }
+.hud-avatar { padding: 0; border: 0; background: none; border-radius: 50%; display: grid; }
+/* avatar umano del giocatore: ritratto in tuta, in un cerchio del colore della tuta */
+.player-avatar {
+  display: inline-grid; place-items: end center; flex-shrink: 0; border-radius: 50%; overflow: hidden;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--suit) 35%, #ffffff) 0%, color-mix(in srgb, var(--suit) 55%, #1b1d24) 100%);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.25);
+}
+.player-avatar svg { width: 100%; height: 100%; display: block; }
+.av-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.av-tabs button {
+  flex-shrink: 0; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2);
+  font-weight: 800; font-size: 13px; color: var(--muted);
+}
+.av-tabs button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.av-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 8px; }
+.av-options button { background: none; border: 3px solid transparent; border-radius: 50%; padding: 0; display: grid; place-items: center; aspect-ratio: 1; }
+.av-options button.on { border-color: var(--accent); }

@@ -8,7 +8,7 @@ import { deckProblems } from '../game/deckRules';
 import { DECK_SIZE, TURN_SECONDS } from '../game/engine';
 import type { Account } from '../hooks/useAccount';
 import type { Friend, GameResponse, PvpInfo } from '../server/actions';
-import { GoogleIcon } from '../components/GoogleIcon';
+import { PlayerAvatar } from '../components/PlayerAvatar';
 import { HelpButton } from '../components/TutorialSection';
 import { askConfirm } from '../components/ConfirmDialog';
 import { haptic, sfx } from '../lib/feedback';
@@ -28,9 +28,10 @@ interface Props {
   onEditDecks: () => void;
   onStart: (res: GameResponse) => void; // l'avversario è entrato: si gioca
   onCancel: (declined?: boolean) => void;
+  onProfile: () => void; // crea il profilo (serve per sfidare gli amici)
 }
 
-export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEditDecks, onStart, onCancel }: Props) {
+export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEditDecks, onStart, onCancel, onProfile }: Props) {
   const { t } = useI18n();
   const [code, setCode] = useState('');
   const [copied, setCopied] = useState(false);
@@ -134,8 +135,8 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
         </header>
         <section className="panel">
           <p>{t('fr_needLogin')}</p>
-          <button className="btn google block" onClick={account.signIn}>
-            <GoogleIcon /> {t('signin_google')}
+          <button className="btn primary block" onClick={onProfile}>
+            {t('pr_createTitle')}
           </button>
         </section>
       </div>
@@ -214,7 +215,13 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
           <ul className="friend-list">
             {friends.map((f) => (
               <li key={f.id}>
-                <span className={`avatar presence ${f.online ? 'online' : ''}`}>{(f.name ?? '?').trim().charAt(0).toUpperCase()}</span>
+                {f.avatar ? (
+                  <span className={`presence ${f.online ? 'online' : ''}`}>
+                    <PlayerAvatar avatar={f.avatar} size={40} />
+                  </span>
+                ) : (
+                  <span className={`avatar presence ${f.online ? 'online' : ''}`}>{(f.name ?? '?').trim().charAt(0).toUpperCase()}</span>
+                )}
                 <span className="who">
                   <b>{f.name ?? t('fr_opponent')}</b>
                   <small>{f.online ? t('fr_online') : t('fr_offline')}</small>
