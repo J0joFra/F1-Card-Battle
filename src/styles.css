@@ -1274,13 +1274,6 @@ b.over-pack { color: #e8b931; }
 .duel-stack .hat { display: none; }
 
 /* ============ Profilo del giocatore ============ */
-/* avatar: il casco disegnato dal giocatore in un cerchio del suo colore */
-.avatar-helmet {
-  display: inline-grid; place-items: center; flex-shrink: 0; border-radius: 50%; overflow: hidden;
-  background-image: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.35), rgba(0, 0, 0, 0.35)) !important;
-  background-blend-mode: overlay; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.25);
-}
-.avatar-helmet svg { width: 88%; height: auto; margin-top: 6%; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4)); }
 .profile-backdrop { z-index: 55; display: flex; justify-content: center; overflow-y: auto; padding: calc(var(--safe-top) + 12px) 12px calc(var(--safe-bottom) + 24px); background: var(--bg); }
 .profile-editor { position: relative; width: 100%; max-width: 440px; display: grid; gap: 16px; align-content: start; }
 .profile-editor h2 { text-align: center; font-size: 24px; font-weight: 900; font-style: italic; margin: 6px 0 0; }
@@ -1317,3 +1310,19 @@ b.over-pack { color: #e8b931; }
 .profile-row .account-info { flex: 1; min-width: 0; display: grid; }
 .profile-row .account-info small { color: var(--muted); }
 .hud-avatar { padding: 0; border: 0; background: none; border-radius: 50%; display: grid; }
+/* avatar umano del giocatore: ritratto in tuta, in un cerchio del colore della tuta */
+.player-avatar {
+  display: inline-grid; place-items: end center; flex-shrink: 0; border-radius: 50%; overflow: hidden;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--suit) 35%, #ffffff) 0%, color-mix(in srgb, var(--suit) 55%, #1b1d24) 100%);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.25);
+}
+.player-avatar svg { width: 100%; height: 100%; display: block; }
+.av-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.av-tabs button {
+  flex-shrink: 0; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2);
+  font-weight: 800; font-size: 13px; color: var(--muted);
+}
+.av-tabs button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.av-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 8px; }
+.av-options button { background: none; border: 3px solid transparent; border-radius: 50%; padding: 0; display: grid; place-items: center; aspect-ratio: 1; }
+.av-options button.on { border-color: var(--accent); }

@@ -8,7 +8,7 @@ import { deckProblems } from '../game/deckRules';
 import { DECK_SIZE, TURN_SECONDS } from '../game/engine';
 import type { Account } from '../hooks/useAccount';
 import type { Friend, GameResponse, PvpInfo } from '../server/actions';
-import { AvatarHelmet } from '../components/DriverArt';
+import { PlayerAvatar } from '../components/PlayerAvatar';
 import { HelpButton } from '../components/TutorialSection';
 import { askConfirm } from '../components/ConfirmDialog';
 import { haptic, sfx } from '../lib/feedback';
@@ -217,7 +217,7 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
               <li key={f.id}>
                 {f.avatar ? (
                   <span className={`presence ${f.online ? 'online' : ''}`}>
-                    <AvatarHelmet avatar={f.avatar} size={40} />
+                    <PlayerAvatar avatar={f.avatar} size={40} />
                   </span>
                 ) : (
                   <span className={`avatar presence ${f.online ? 'online' : ''}`}>{(f.name ?? '?').trim().charAt(0).toUpperCase()}</span>

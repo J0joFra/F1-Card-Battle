@@ -1,25 +1,30 @@
 import { ALL_CARDS } from './cards';
 
 /*
- * Profilo del giocatore: nickname, avatar (un casco disegnato da lui) e pilota preferito.
+ * Profilo del giocatore: nickname, avatar (un ritratto che gli somiglia) e pilota preferito.
  * Le stesse regole valgono sul telefono (per avvisare subito) e sul server (che decide).
  */
 
 export const HELMET_DESIGNS = ['slash', 'diamonds', 'crown', 'chevron', 'stars', 'split', 'band', 'bolt', 'dots', 'checker'] as const;
 export type HelmetDesign = (typeof HELMET_DESIGNS)[number];
 
-// colori a scelta per il casco dell'avatar
-export const AVATAR_BASES = ['#e10600', '#ff8000', '#ffd400', '#16a34a', '#00a19c', '#1e5bff', '#1e2b5c', '#7c3aed', '#ff4fa3', '#f4f4f5', '#9aa0ab', '#15171d'];
-export const AVATAR_ACCENTS = ['#ffffff', '#ffd400', '#15171d', '#e10600', '#1e5bff', '#16a34a', '#c0c6d0', '#ff7a00', '#ff4fa3', '#00c2d1'];
-export const AVATAR_VISORS = ['#11131a', '#c99a1c', '#2d6cdf', '#6a3fa0'];
-
-export interface Avatar {
-  base: string;
-  design: HelmetDesign;
-  accent: string;
-  visor: string;
-  number: number; // numero di gara, 0–99
-}
+// Avatar del giocatore: un ritratto in tuta da pilota, da costruire perché ti assomigli.
+// Ogni parte è il numero dell'opzione scelta nell'elenco qui sotto.
+export const AVATAR_OPTIONS = {
+  skin: ['#ffdfc8', '#f3c6a5', '#e2aa84', '#c98a62', '#aa6c45', '#8c5333', '#6c3e24', '#4a2a17'],
+  hair: ['bald', 'buzz', 'short', 'sidepart', 'curly', 'afro', 'long', 'ponytail', 'bun', 'mohawk', 'wavy', 'spiky'],
+  hairColor: ['#1b1b1d', '#3b2418', '#6b3f1f', '#9a6233', '#c99a5b', '#e8cf8a', '#b5482a', '#8f8f94', '#e9e9ec', '#2f5bea', '#e0457b'],
+  eyes: ['round', 'happy', 'narrow', 'big', 'wink'],
+  eyeColor: ['#3a2a1e', '#6b4a2b', '#3d7a3d', '#3a6fb0', '#6b7b8c'],
+  brows: ['natural', 'arched', 'thick', 'straight', 'raised'],
+  mouth: ['smile', 'grin', 'neutral', 'open', 'smirk', 'tongue'],
+  beard: ['none', 'stubble', 'moustache', 'goatee', 'full', 'chinstrap'],
+  glasses: ['none', 'round', 'square', 'aviator', 'sunglasses'],
+  suit: ['#e10600', '#ff8000', '#00a19c', '#1e41ff', '#005aff', '#00594f', '#ffd800', '#ff4fa3', '#7c3aed', '#15171d', '#f4f4f5', '#9aa0ab'],
+} as const;
+export type AvatarPart = keyof typeof AVATAR_OPTIONS;
+export const AVATAR_PARTS = Object.keys(AVATAR_OPTIONS) as AvatarPart[];
+export type Avatar = Record<AvatarPart, number>;
 
 export interface PlayerProfile {
   nickname: string;
@@ -41,17 +46,13 @@ export function cleanNickname(raw: unknown): string | null {
 export function parseAvatar(raw: unknown): Avatar | null {
   if (!raw || typeof raw !== 'object') return null;
   const a = raw as Record<string, unknown>;
-  const ok =
-    AVATAR_BASES.includes(a.base as string) &&
-    (HELMET_DESIGNS as readonly string[]).includes(a.design as string) &&
-    AVATAR_ACCENTS.includes(a.accent as string) &&
-    AVATAR_VISORS.includes(a.visor as string) &&
-    Number.isInteger(a.number) &&
-    (a.number as number) >= 0 &&
-    (a.number as number) <= 99;
-  return ok
-    ? { base: a.base as string, design: a.design as HelmetDesign, accent: a.accent as string, visor: a.visor as string, number: a.number as number }
-    : null;
+  const out = {} as Avatar;
+  for (const part of AVATAR_PARTS) {
+    const v = a[part];
+    if (!Number.isInteger(v) || (v as number) < 0 || (v as number) >= AVATAR_OPTIONS[part].length) return null;
+    out[part] = v as number;
+  }
+  return out;
 }
 
 // piloti che si possono scegliere come preferiti (uno per pilota, in ordine alfabetico)
@@ -62,15 +63,12 @@ const DRIVER_IDS = new Set(DRIVERS.map((d) => d.id));
 export const validFavorite = (id: unknown): string | null => (typeof id === 'string' && DRIVER_IDS.has(id) ? id : null);
 
 export function randomAvatar(rng: () => number = Math.random): Avatar {
-  const pick = <T,>(list: readonly T[]) => list[Math.floor(rng() * list.length)];
-  const base = pick(AVATAR_BASES);
-  return {
-    base,
-    design: pick(HELMET_DESIGNS),
-    accent: pick(AVATAR_ACCENTS.filter((c) => c !== base)),
-    visor: pick(AVATAR_VISORS),
-    number: 1 + Math.floor(rng() * 99),
-  };
+  const out = {} as Avatar;
+  for (const part of AVATAR_PARTS) out[part] = Math.floor(rng() * AVATAR_OPTIONS[part].length);
+  // un po' più spesso niente barba e niente occhiali
+  if (rng() < 0.5) out.beard = 0;
+  if (rng() < 0.6) out.glasses = 0;
+  return out;
 }
 
 // Codice di recupero: per riavere l'account su un altro telefono. Sul server si salva solo l'impronta (hash).

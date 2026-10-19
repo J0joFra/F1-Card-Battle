@@ -76,10 +76,11 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
         const device = plausibleDevice(req.guest);
         const merged = device ? mergeProgress(server, device) : server;
         const progress = { ...merged, updatedAt: Date.now() };
-        if (await store.putProfile(progress, row.version)) return { progress, profile: profileOf(account) };
-        return { progress: normalizeProgress((await store.getProfile())!.progress), profile: profileOf(account) };
+        const saved = (await store.putProfile(progress, row.version)) ? progress : normalizeProgress((await store.getProfile())!.progress);
+        return { progress: saved, profile: profileOf(account), needsProfile: !profileOf(account) };
       }
-      if (row) return { progress: normalizeProgress(row.progress), profile: profileOf(account) };
+      // profilo ripreso con il codice ma ancora senza nickname e avatar: il telefono li fa completare
+      if (row) return { progress: normalizeProgress(row.progress), profile: profileOf(account), needsProfile: !profileOf(account) };
       // nessun profilo: il telefono chiede nickname, avatar e pilota preferito (profile_create)
       return { needsProfile: true };
     }
@@ -95,10 +96,9 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       if (nickname && (await store.nicknameTaken(nickname))) throw new GameError('nickname_taken', 409);
       const recoveryCode = newRecoveryCode();
       const recoveryHash = await hashRecoveryCode(recoveryCode);
-      // 1) codice di recupero (nuovo telefono, o passaggio dal vecchio accesso con Google)
-      // 2) altrimenti il profilo di un vecchio accesso con Google ancora da riprendere, in ordine di creazione
-      // 3) altrimenti un profilo nuovo, dai progressi del dispositivo (se plausibili) o dal mazzo iniziale
-      const from = req.recover ? await store.findByRecovery(await hashRecoveryCode(req.recover)) : await store.nextLegacy();
+      // con il codice di recupero si riprende un account (nuovo telefono, o le carte del vecchio accesso con Google);
+      // altrimenti profilo nuovo, dai progressi del dispositivo (se plausibili) o dal mazzo iniziale
+      const from = req.recover ? await store.findByRecovery(await hashRecoveryCode(req.recover)) : null;
       if (req.recover && !from) throw new GameError('bad_recovery', 404);
       if (from) {
         if (!(await store.transferProfile(from, { nickname, avatar, favorite, recoveryHash }))) throw new GameError('busy', 409);

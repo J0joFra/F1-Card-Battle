@@ -17,11 +17,7 @@ comment on column public.profiles.moved_to is 'Profilo passato a un altro accoun
 create unique index if not exists profiles_nickname_key on public.profiles (nickname_key) where moved_to is null and nickname_key is not null;
 create unique index if not exists profiles_recovery_hash on public.profiles (recovery_hash) where recovery_hash is not null;
 
--- i profili creati finora (accesso con Google) diventano "da riprendere", nell'ordine in cui sono stati creati
-update public.profiles p
-set legacy_slot = r.n
-from (select id, row_number() over (order by created_at) as n from public.profiles) r
-where p.id = r.id and p.legacy_slot is null and p.moved_to is null;
+-- (legacy_slot non si usa più: le carte del vecchio accesso con Google si riprendono con un codice creato apposta)
 
 -- Sposta tutto un profilo (carte, progressi, amici) su un altro account, in un colpo solo.
 -- I campi null tengono i valori del profilo vecchio. Il profilo vecchio resta come copia, segnato come spostato.

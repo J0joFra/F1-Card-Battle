@@ -9,8 +9,6 @@ import type { Avatar, PlayerProfile } from '../game/profile';
 export type SyncStatus = 'offline' | 'loading' | 'saving' | 'saved' | 'error';
 
 const RETRY_MS = 20_000;
-// codice per riprendere il profilo del vecchio accesso con Google (salvato prima di uscire da Google)
-const LEGACY_KEY = 'f1-card-battle:legacy-code';
 // "Più tardi" sulla creazione del profilo: vale fino alla prossima apertura dell'app
 const LATER_KEY = 'f1-card-battle:profile-later';
 
@@ -45,6 +43,8 @@ export interface Account {
   online: boolean;
   // nessun profilo: va mostrata la creazione (a meno di "Più tardi")
   needsProfile: boolean;
+  // account ripreso con il codice ma senza nickname e avatar: va completato
+  incomplete: boolean;
   // da chiamare intorno a ogni richiesta al server, per lo stato "Salvataggio… / Salvato online"
   track: <T>(p: Promise<T>) => Promise<T>;
   resync: () => void;
@@ -60,8 +60,7 @@ export interface Account {
  * Account senza Google: ogni telefono ha un account anonimo di Supabase con un profilo di gioco
  * (nickname, avatar, pilota preferito). La copia "vera" della collezione è sul server.
  * Per riavere l'account su un altro telefono c'è il codice di recupero.
- * Chi aveva ancora l'accesso con Google: prima di uscire si chiede un codice per il suo vecchio profilo,
- * così alla creazione del nuovo account carte e progressi passano lì.
+ * Le carte del vecchio accesso con Google si riprendono con un codice di recupero creato apposta.
  */
 export function useAccount(
   progress: Progress,
@@ -72,6 +71,7 @@ export function useAccount(
   const [ready, setReady] = useState(false); // sessione letta
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [missing, setMissing] = useState(false); // il server dice che il profilo non c'è
+  const [incomplete, setIncomplete] = useState(false); // account ripreso con il codice: mancano nickname e avatar
   const [later, setLater] = useState(() => read(sessionStorage, LATER_KEY) === '1');
   const [status, setStatus] = useState<SyncStatus>('offline');
   const [attempt, setAttempt] = useState(0);
@@ -90,29 +90,16 @@ export function useAccount(
   const userId = session?.user.id ?? null;
   const google = !!session && !session.user.is_anonymous;
 
-  // Vecchio accesso con Google: codice per il suo profilo, poi si esce (Google non si usa più).
+  // Vecchio accesso con Google: non si usa più, si esce (le carte si riprendono con il codice di recupero).
   useEffect(() => {
-    if (!google) return;
-    let cancelled = false;
-    callGame({ action: 'recovery_new' })
-      .then(async (res) => {
-        if (cancelled) return;
-        if (res.recoveryCode) write(localStorage, LEGACY_KEY, res.recoveryCode);
-        await supabase.auth.signOut();
-      })
-      .catch(async (e) => {
-        // profilo già passato o mai creato: si esce comunque; altrimenti (rete) si riprova alla prossima apertura
-        if (!cancelled && e instanceof ApiError && ['no_profile', 'account_moved'].includes(e.code)) await supabase.auth.signOut();
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [google, userId]);
+    if (google) void supabase.auth.signOut();
+  }, [google]);
 
   // Allineamento con il server (e nuovi tentativi se il server non risponde).
   useEffect(() => {
     setProfile(null);
     setMissing(false);
+    setIncomplete(false);
     if (!userId || google) {
       setStatus('offline');
       return;
@@ -122,13 +109,14 @@ export function useAccount(
     callGame({ action: 'sync' })
       .then((res) => {
         if (cancelled) return;
-        if (res.needsProfile || !res.profile) {
+        if (!res.progress) {
           setMissing(true);
           setStatus('offline');
           return;
         }
-        if (res.progress) replaceProgress(res.progress);
-        setProfile(res.profile);
+        replaceProgress(res.progress);
+        setProfile(res.profile ?? null);
+        setIncomplete(!res.profile);
         setStatus('saved');
       })
       .catch((e) => {
@@ -176,8 +164,9 @@ export function useAccount(
     (res: Awaited<ReturnType<typeof callGame>>) => {
       if (res.progress) replaceProgress(res.progress);
       if (res.profile) setProfile(res.profile);
-      setMissing(!res.profile);
-      setStatus(res.profile ? 'saved' : 'offline');
+      setMissing(!res.progress);
+      setIncomplete(!!res.progress && !res.profile);
+      setStatus(res.progress ? 'saved' : 'offline');
       return res.recoveryCode ?? null;
     },
     [replaceProgress],
@@ -187,18 +176,7 @@ export function useAccount(
     async (input: ProfileInput) => {
       await ensureSession();
       const local = progressRef.current;
-      const legacy = read(localStorage, LEGACY_KEY);
-      const base = { action: 'profile_create' as const, ...input, guest: isUntouched(local) ? undefined : local };
-      let res;
-      try {
-        res = await callGame(legacy ? { ...base, recover: legacy } : base);
-      } catch (e) {
-        // il codice del vecchio profilo non vale più (già ripreso): profilo nuovo
-        if (!(legacy && e instanceof ApiError && e.code === 'bad_recovery')) throw e;
-        res = await callGame(base);
-      }
-      write(localStorage, LEGACY_KEY, null);
-      return finish(res);
+      return finish(await callGame({ action: 'profile_create', ...input, guest: isUntouched(local) ? undefined : local }));
     },
     [ensureSession, finish],
   );
@@ -213,7 +191,10 @@ export function useAccount(
 
   const updateProfile = useCallback(async (input: Partial<ProfileInput>) => {
     const res = await callGame({ action: 'profile_update', ...input });
-    if (res.profile) setProfile(res.profile);
+    if (res.profile) {
+      setProfile(res.profile);
+      setIncomplete(false);
+    }
   }, []);
 
   const newRecoveryCode = useCallback(async () => (await callGame({ action: 'recovery_new' })).recoveryCode ?? null, []);
@@ -223,16 +204,17 @@ export function useAccount(
     setLater(true);
   }, []);
 
-  // con il vecchio accesso Google si aspetta di essere usciti (e di avere il codice del vecchio profilo)
-  const needsProfile = ready && !later && !profile && !google && (!session || missing);
+  // con il vecchio accesso Google si aspetta di essere usciti
+  const needsProfile = ready && !later && !profile && !incomplete && !google && (!session || missing);
 
   return {
     session,
     profile,
     name: profile?.nickname ?? null,
     status,
-    online: !!profile && !!session && !google,
+    online: (!!profile || incomplete) && !!session && !google,
     needsProfile,
+    incomplete: incomplete && !later,
     track,
     resync,
     createProfile,

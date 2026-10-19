@@ -5,11 +5,12 @@ import { starterProgress, withDecks, type Progress } from '../game/collection';
 import { autoFillDeck } from '../game/collection';
 import { dailyChallenge, dailyLoanDeck, seededRng, themeMode, themePool } from '../game/daily';
 import { deckProblems } from '../game/deckRules';
+import { hashRecoveryCode } from '../game/profile';
 import { FIRST_WIN_CREDITS, MATCH_CREDITS } from '../game/collection';
 import { CLASSIC, fillDeck } from '../game/deckRules';
 import { PVP_REVEAL_MS, PVP_TURN_MS, handle, type AccountRow, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type Store } from './actions';
 
-const AVATAR = { base: '#e10600', design: 'stars', accent: '#ffffff', visor: '#11131a', number: 44 } as const;
+const AVATAR = { skin: 2, hair: 3, hairColor: 1, eyes: 0, eyeColor: 1, brows: 0, mouth: 0, beard: 4, glasses: 0, suit: 0 };
 const NEW_PROFILE = { nickname: 'Joaquim', avatar: { ...AVATAR }, favorite: 'lewis-hamilton' };
 
 // database finto in memoria, con gli stessi controlli di versione di quello vero; più utenti
@@ -53,10 +54,6 @@ function memoryDb() {
     },
     async findByRecovery(hash) {
       return [...accounts].find(([, a]) => !a.movedTo && a.recoveryHash === hash)?.[0] ?? null;
-    },
-    async nextLegacy() {
-      const list = [...accounts].filter(([, a]) => !a.movedTo && a.legacy !== null).sort((a, b) => a[1].legacy! - b[1].legacy!);
-      return list[0]?.[0] ?? null;
     },
     async transferProfile(from, fields) {
       const src = profiles.get(from);
@@ -400,44 +397,42 @@ describe('server: partita', () => {
 });
 
 describe('server: account senza Google (nickname, avatar, pilota preferito)', () => {
-  // due vecchi profili del login con Google: prima Joaquim, poi Claudia, amici tra loro
-  function legacyDb() {
+  // due vecchi profili del login con Google (Joaquim e Claudia, amici), ciascuno con un codice creato apposta
+  async function legacyDb() {
     const db = memoryDb();
     const joaquim = { ...starterProgress(seededRng('j')), credits: 19, wins: 65 };
     const claudia = { ...starterProgress(seededRng('c')), credits: 147, wins: 163 };
     db.profiles.set('google-j', { progress: joaquim, version: 279 });
     db.profiles.set('google-c', { progress: claudia, version: 454 });
-    db.accounts.set('google-j', { nickname: null, avatar: null, favorite: null, movedTo: null, recoveryHash: null, legacy: 1 });
-    db.accounts.set('google-c', { nickname: null, avatar: null, favorite: null, movedTo: null, recoveryHash: null, legacy: 2 });
+    const blank = { nickname: null, avatar: null, favorite: null, movedTo: null, legacy: null };
+    db.accounts.set('google-j', { ...blank, recoveryHash: await hashRecoveryCode('JOAQ-UIM1-2345') });
+    db.accounts.set('google-c', { ...blank, recoveryHash: await hashRecoveryCode('CLAU-DIA6-7899') });
     db.friendships.add('google-j|google-c').add('google-c|google-j');
     return { db, joaquim, claudia };
   }
 
-  it('i primi due account creati riprendono, in ordine, i profili del vecchio accesso con Google (con gli amici)', async () => {
-    const { db, joaquim, claudia } = legacyDb();
-    const first = await call(db.as('anon-1'), { action: 'profile_create', ...NEW_PROFILE });
-    expect(first.progress!.wins).toBe(joaquim.wins);
-    expect(Object.keys(first.progress!.owned).sort()).toEqual(Object.keys(joaquim.owned).sort());
-    const second = await call(db.as('anon-2'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Claudia' });
-    expect(second.progress!.credits).toBe(claudia.credits);
-    expect(second.profile!.nickname).toBe('Claudia');
+  it('le carte del vecchio accesso con Google tornano con il loro codice; poi si completa il profilo', async () => {
+    const { db, joaquim, claudia } = await legacyDb();
+    // un account nuovo senza codice non prende le carte di nessuno
+    const stranger = await call(db.as('anon-x'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Marco' });
+    expect(stranger.progress!.wins).toBe(0);
+    // Joaquim recupera con il suo codice: carte tornate, mancano nickname e avatar
+    const jo = await call(db.as('anon-j'), { action: 'profile_create', recover: 'joaq-uim1-2345' });
+    expect(jo.progress!.wins).toBe(joaquim.wins);
+    expect(Object.keys(jo.progress!.owned).sort()).toEqual(Object.keys(joaquim.owned).sort());
+    expect(jo.needsProfile).toBe(true);
+    expect((await call(db.as('anon-j'), { action: 'sync' })).needsProfile).toBe(true);
+    const done = await call(db.as('anon-j'), { action: 'profile_update', nickname: 'Jojo', avatar: { ...AVATAR }, favorite: 'charles-leclerc' });
+    expect(done.profile!.nickname).toBe('Jojo');
+    expect((await call(db.as('anon-j'), { action: 'sync' })).needsProfile).toBe(false);
+    // Claudia con il suo
+    const cl = await call(db.as('anon-c'), { action: 'profile_create', recover: 'CLAU-DIA6-7899' });
+    expect(cl.progress!.credits).toBe(claudia.credits);
     // amici anche con i nuovi account; i vecchi profili restano come copia ma non si usano più
-    expect(db.friendships).toEqual(new Set(['anon-1|anon-2', 'anon-2|anon-1']));
+    expect(db.friendships).toEqual(new Set(['anon-j|anon-c', 'anon-c|anon-j']));
     await expect(call(db.as('google-j'), { action: 'sync' })).rejects.toThrow('account_moved');
-    // dal terzo in poi: account nuovi con il mazzo iniziale
-    const third = await call(db.as('anon-3'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Marco' });
-    expect(third.progress!.wins).toBe(0);
-  });
-
-  it('dal vecchio accesso con Google: il codice preso prima di uscire porta sul nuovo account proprio quel profilo', async () => {
-    const { db, claudia } = legacyDb();
-    const { recoveryCode } = await call(db.as('google-c'), { action: 'recovery_new' });
-    const res = await call(db.as('anon-c'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Claudia', recover: recoveryCode });
-    expect(res.progress!.wins).toBe(claudia.wins);
-    expect(res.profile!.nickname).toBe('Claudia');
-    // Joaquim, che arriva dopo, riprende comunque il suo
-    const j = await call(db.as('anon-j'), { action: 'profile_create', ...NEW_PROFILE });
-    expect(j.progress!.wins).toBe(65);
+    // il codice vale una volta sola
+    await expect(call(db.as('anon-z'), { action: 'profile_create', recover: 'JOAQ-UIM1-2345' })).rejects.toThrow('bad_recovery');
   });
 
   it('nickname unico (senza distinguere maiuscole), valido; avatar e pilota controllati', async () => {
@@ -447,7 +442,7 @@ describe('server: account senza Google (nickname, avatar, pilota preferito)', ()
     await expect(call(db.as('b'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'x' })).rejects.toThrow('bad_nickname');
     await expect(call(db.as('b'), { action: 'profile_create', ...NEW_PROFILE, nickname: '<script>' })).rejects.toThrow('bad_nickname');
     await expect(
-      call(db.as('b'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Bea', avatar: { ...AVATAR, base: 'red' } as never }),
+      call(db.as('b'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Bea', avatar: { ...AVATAR, hair: 99 } }),
     ).rejects.toThrow('bad_avatar');
     const ok = await call(db.as('b'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Bea', favorite: 'nessuno' });
     expect(ok.profile!.favorite).toBeNull();

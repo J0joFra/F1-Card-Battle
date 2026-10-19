@@ -126,11 +126,11 @@ Le card rare si riconoscono anche dal bordo: *Argento* metallico, *Oro* in lamin
 
 Niente login con Google: ogni giocatore crea il suo **profilo** alla prima apertura (dopo il tutorial). Account e salvataggio usano [Supabase](https://supabase.com) (progetto `f1-card-battle`, piano gratuito).
 
-- **Profilo**: *nickname* (3–16 caratteri, unico), **avatar** (un casco disegnato dal giocatore: colore, motivo, secondo colore, visiera, numero) e **pilota preferito**. Si modifica da *Impostazioni → Account*. Il nickname è quello che vedono amici e avversari.
+- **Profilo**: *nickname* (3–16 caratteri, unico), **avatar umano** da costruire perché ti somigli (carnagione, 12 acconciature, colore dei capelli, occhi e colore degli occhi, sopracciglia, bocca, barba, occhiali, colore della tuta da pilota; `src/components/PlayerAvatar.tsx`) e **pilota preferito**. Si modifica da *Impostazioni → Account*. Il nickname è quello che vedono amici e avversari.
 - **Account anonimo**: il profilo è legato a un account anonimo di Supabase, creato sul telefono quando si crea il profilo. Niente email né password.
 - **Codice di recupero** (es. `ABCD-EFGH-JKLM`): si mostra alla creazione del profilo e se ne può fare uno nuovo dalle impostazioni (quello vecchio smette di valere). Serve per riavere account e carte su un altro telefono: nella creazione del profilo, *Hai già un account? Recuperalo con il codice*. Sul server si salva solo l'impronta SHA-256 del codice.
 - Si può rimandare con *Più tardi*: si gioca sul dispositivo (come prima, da ospite) e la creazione si ripropone alla prossima apertura. Le carte del dispositivo passano al profilo quando lo crei, se plausibili.
-- **Passaggio dal vecchio accesso con Google**: i profili creati con Google sono segnati come "da riprendere" (`legacy_slot`, in ordine di creazione). Se il telefono ha ancora l'accesso Google, l'app chiede al server un codice per quel profilo, esce da Google e alla creazione del profilo nuovo riprende proprio quello. Senza accesso Google, i primi account creati riprendono i vecchi profili nell'ordine in cui erano stati creati. Il trasferimento (funzione SQL `transfer_profile`) sposta carte, progressi e amici; il vecchio profilo resta come copia, segnato come spostato.
+- **Carte del vecchio accesso con Google**: per i profili creati con Google è stato fatto un codice di recupero apposta (si salva solo l'impronta). Nell'app: *Hai già un account? Recuperalo con il codice* → le carte tornano, poi si completa il profilo con nickname e avatar. Il trasferimento (funzione SQL `transfer_profile`) sposta carte, progressi e amici; il vecchio profilo resta come copia, segnato come spostato. Un telefono che ha ancora l'accesso Google esce da solo.
 - **Decide il server.** Pacchetti, crediti, acquisti, Jolly, premi delle missioni e partite passano dalla Edge Function `game`: il telefono chiede un'azione, il server la controlla con le stesse regole del gioco e salva. Nelle partite il server gioca un round alla volta, quindi il telefono non conosce mai in anticipo le carte della CPU. I telefoni possono solo leggere il proprio profilo, non scriverlo.
 - Tabelle: `profiles` (una riga per account, con un numero di `version` per evitare che due richieste contemporanee si sovrascrivano), `matches`, `pvp_matches`, `friends`. Lo schema è in `supabase/migrations/`.
 - Codice del server: la logica è in `src/server/actions.ts` (con i test), l'aggancio a Supabase in `server/edge.ts`. `npm run build:server` crea `supabase/functions/game/index.js`, che si pubblica come Edge Function `game` (entrypoint `index.js`, JWT obbligatorio). Il catalogo delle card il server lo scarica da `src/data/cards.json` sul branch `main`.
@@ -138,7 +138,7 @@ Niente login con Google: ogni giocatore crea il suo **profilo** alla prima apert
 
 ### Configurazione (una volta sola)
 
-**Supabase** → progetto `f1-card-battle` → *Authentication* → *Sign In / Providers* → attiva **Allow anonymous sign-ins**. Il provider Google si può spegnere quando i vecchi profili sono stati ripresi.
+**Supabase** → progetto `f1-card-battle` → *Authentication* → *Sign In / Providers* → attiva **Allow anonymous sign-ins**. Il provider Google si può spegnere: l'app non lo usa più.
 
 ## App Android
 

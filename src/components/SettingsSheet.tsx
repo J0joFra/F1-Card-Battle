@@ -5,7 +5,7 @@ import type { ThemePref } from '../lib/theme';
 import type { Account } from '../hooks/useAccount';
 import { CARDS_DATA } from '../game/cards';
 import { LangPicker } from './LangPicker';
-import { AvatarHelmet } from './DriverArt';
+import { PlayerAvatar } from './PlayerAvatar';
 import { DRIVERS } from '../game/profile';
 
 interface Props {
@@ -53,7 +53,7 @@ export function SettingsSheet({ theme, onTheme, seasons, onSeasons, account, onP
           {account.profile ? (
             <>
               <div className="profile-row">
-                <AvatarHelmet avatar={account.profile.avatar} size={52} />
+                <PlayerAvatar avatar={account.profile.avatar} size={52} />
                 <div className="account-info">
                   <b>{account.profile.nickname}</b>
                   {favoriteName && <small>❤️ {favoriteName}</small>}

@@ -35,7 +35,7 @@ import { useI18n } from "./lib/i18n";
 import { useTheme } from "./lib/theme";
 import { coin, useSeason } from "./lib/season";
 import { SeasonFx } from "./components/SeasonFx";
-import { AvatarHelmet } from "./components/DriverArt";
+import { PlayerAvatar } from "./components/PlayerAvatar";
 import { ProfileEditor, RecoveryCode } from "./components/ProfileEditor";
 import { useAccount } from "./hooks/useAccount";
 import { haptic, setMusicMode, sfx } from "./lib/feedback";
@@ -186,17 +186,20 @@ export default function App() {
   const [settings, setSettings] = useState(false);
   const [intro, setIntro] = useState(() => !onboardingDone());
   // profilo: creazione (anche da "Crea il tuo profilo") o modifica, e codice di recupero da mostrare
-  const [profileEditor, setProfileEditor] = useState<{ mode: "create" | "edit"; auto?: boolean } | null>(null);
+  const [profileEditor, setProfileEditor] = useState<{ mode: "create" | "edit" | "complete"; auto?: boolean } | null>(null);
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
   // il gioco è pronto: la busta dell'animazione di apertura (in index.html) si può togliere
   useEffect(() => {
     (window as Window & { __introReady?: () => void }).__introReady?.();
   }, []);
   const account = useAccount(progress, setProgressRaw, setToast);
-  // nessun profilo: alla prima apertura (dopo il tutorial) si apre la creazione del profilo
+  // nessun profilo: alla prima apertura (dopo il tutorial) si apre la creazione del profilo;
+  // account ripreso con il codice: si completa con nickname e avatar
   useEffect(() => {
-    if (account.needsProfile && !intro) setProfileEditor((cur) => cur ?? { mode: "create", auto: true });
-  }, [account.needsProfile, intro]);
+    if (intro || profileEditor) return;
+    if (account.incomplete) setProfileEditor({ mode: "complete", auto: true });
+    else if (account.needsProfile) setProfileEditor({ mode: "create", auto: true });
+  }, [account.needsProfile, account.incomplete, intro, profileEditor]);
 
   useEffect(() => saveProgress(progress), [progress]);
   useEffect(() => {
@@ -889,7 +892,7 @@ export default function App() {
               aria-label={t("nav_settings")}
             >
               {account.profile ? (
-                <AvatarHelmet avatar={account.profile.avatar} size={34} />
+                <PlayerAvatar avatar={account.profile.avatar} size={34} />
               ) : (
                 <Settings size={22} />
               )}

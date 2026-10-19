@@ -172,18 +172,6 @@ function storeFor(userId: string, displayName: string | null): Store {
       if (error) throw error;
       return (data?.id as string | undefined) ?? null;
     },
-    async nextLegacy() {
-      const { data, error } = await admin
-        .from('profiles')
-        .select('id')
-        .not('legacy_slot', 'is', null)
-        .is('moved_to', null)
-        .order('legacy_slot')
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      return (data?.id as string | undefined) ?? null;
-    },
     async transferProfile(from, fields) {
       const { data, error } = await admin.rpc('transfer_profile', {
         from_id: from,

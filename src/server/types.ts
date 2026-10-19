@@ -156,8 +156,6 @@ export interface Store {
   updateAccount(fields: { nickname?: string; avatar?: Avatar; favorite?: string | null; recoveryHash?: string }): Promise<void>;
   // profilo (non ancora spostato) con questo codice di recupero
   findByRecovery(hash: string): Promise<string | null>;
-  // profilo del vecchio accesso con Google ancora da riprendere (il più vecchio)
-  nextLegacy(): Promise<string | null>;
   // sposta tutto il profilo `from` (carte, progressi, amici) su chi fa la richiesta; null = tieni i dati vecchi
   transferProfile(
     from: string,

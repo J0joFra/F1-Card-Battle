@@ -4,22 +4,33 @@ import { useI18n } from '../lib/i18n';
 import { errorMessage } from '../lib/api';
 import { flagEmoji } from '../game/cards';
 import {
-  AVATAR_ACCENTS,
-  AVATAR_BASES,
-  AVATAR_VISORS,
+  AVATAR_OPTIONS,
   DRIVERS,
-  HELMET_DESIGNS,
   NICK_MAX,
   cleanNickname,
   randomAvatar,
   type Avatar,
+  type AvatarPart,
   type PlayerProfile,
 } from '../game/profile';
 import type { ProfileInput } from '../hooks/useAccount';
-import { AvatarHelmet } from './DriverArt';
+import { PlayerAvatar } from './PlayerAvatar';
+import type { TKey } from '../lib/i18n';
+
+// schede dell'avatar: per ognuna le parti da scegliere (a colori o con le miniature)
+const TABS: { key: TKey; parts: AvatarPart[] }[] = [
+  { key: 'av_face', parts: ['skin'] },
+  { key: 'av_hair', parts: ['hair', 'hairColor'] },
+  { key: 'av_eyes', parts: ['eyes', 'eyeColor', 'brows'] },
+  { key: 'av_mouth', parts: ['mouth'] },
+  { key: 'av_beard', parts: ['beard'] },
+  { key: 'av_glasses', parts: ['glasses'] },
+  { key: 'av_suit', parts: ['suit'] },
+];
+const COLOR_PARTS: AvatarPart[] = ['skin', 'hairColor', 'eyeColor', 'suit'];
 
 interface Props {
-  mode: 'create' | 'edit';
+  mode: 'create' | 'edit' | 'complete'; // complete: account ripreso con il codice, mancano nickname e avatar
   initial?: PlayerProfile | null;
   onCreate?: (input: ProfileInput) => Promise<string | null>; // restituisce il codice di recupero
   onRecover?: (code: string) => Promise<string | null>;
@@ -43,6 +54,7 @@ export function ProfileEditor({ mode, initial, onCreate, onRecover, onSave, onLa
   const [recovering, setRecovering] = useState(false);
   const [code, setCode] = useState('');
   const [newCode, setNewCode] = useState<string | null>(null); // codice di recupero da mostrare
+  const [tab, setTab] = useState(0);
 
   const nickOk = !!cleanNickname(nickname);
   const matches = useMemo(() => {
@@ -79,8 +91,9 @@ export function ProfileEditor({ mode, initial, onCreate, onRecover, onSave, onLa
             <X size={20} />
           </button>
         )}
-        <h2>{mode === 'create' ? t('pr_createTitle') : t('pr_editTitle')}</h2>
+        <h2>{mode === 'create' ? t('pr_createTitle') : mode === 'complete' ? t('pr_completeTitle') : t('pr_editTitle')}</h2>
         {mode === 'create' && <p className="muted center">{t('pr_createSub')}</p>}
+        {mode === 'complete' && <p className="muted center">{t('pr_completeSub')}</p>}
 
         {recovering ? (
           <section className="pr-recover">
@@ -109,7 +122,7 @@ export function ProfileEditor({ mode, initial, onCreate, onRecover, onSave, onLa
         ) : (
           <>
             <div className="pr-preview">
-              <AvatarHelmet avatar={avatar} size={112} />
+              <PlayerAvatar avatar={avatar} size={128} />
               <b>{nickname.trim() || t('pr_nickPlaceholder')}</b>
               {favorite && <small className="muted">❤️ {driverName(favorite)}</small>}
             </div>
@@ -129,49 +142,35 @@ export function ProfileEditor({ mode, initial, onCreate, onRecover, onSave, onLa
 
             <section className="pr-field">
               <span className="pr-row">
-                {t('pr_helmet')}
+                {t('pr_avatar')}
                 <button className="btn ghost small" onClick={() => setAvatar(randomAvatar())}>
                   <Dices size={16} /> {t('pr_random')}
                 </button>
               </span>
-              <small className="muted">{t('pr_color')}</small>
-              <div className="swatches">
-                {AVATAR_BASES.map((c) => (
-                  <button key={c} className={avatar.base === c ? 'on' : ''} style={{ background: c }} onClick={() => set('base', c)} aria-label={c} />
-                ))}
-              </div>
-              <small className="muted">{t('pr_design')}</small>
-              <div className="designs">
-                {HELMET_DESIGNS.map((d) => (
-                  <button key={d} className={avatar.design === d ? 'on' : ''} onClick={() => set('design', d)} aria-label={d}>
-                    <AvatarHelmet avatar={{ ...avatar, design: d }} size={46} />
+              <div className="av-tabs" role="tablist">
+                {TABS.map((tb, i) => (
+                  <button key={tb.key} role="tab" aria-selected={tab === i} className={tab === i ? 'on' : ''} onClick={() => setTab(i)}>
+                    {t(tb.key)}
                   </button>
                 ))}
               </div>
-              <small className="muted">{t('pr_accent')}</small>
-              <div className="swatches">
-                {AVATAR_ACCENTS.map((c) => (
-                  <button key={c} className={avatar.accent === c ? 'on' : ''} style={{ background: c }} onClick={() => set('accent', c)} aria-label={c} />
-                ))}
-              </div>
-              <small className="muted">{t('pr_visor')}</small>
-              <div className="swatches">
-                {AVATAR_VISORS.map((c) => (
-                  <button key={c} className={avatar.visor === c ? 'on' : ''} style={{ background: c }} onClick={() => set('visor', c)} aria-label={c} />
-                ))}
-              </div>
-              <label className="pr-number">
-                <small className="muted">{t('pr_number')}</small>
-                <input
-                  className="pr-input"
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  max={99}
-                  value={avatar.number}
-                  onChange={(e) => set('number', Math.max(0, Math.min(99, Math.floor(Number(e.target.value) || 0))))}
-                />
-              </label>
+              {TABS[tab].parts.map((part) =>
+                COLOR_PARTS.includes(part) ? (
+                  <div key={part} className="swatches">
+                    {AVATAR_OPTIONS[part].map((c, i) => (
+                      <button key={c} className={avatar[part] === i ? 'on' : ''} style={{ background: c }} onClick={() => set(part, i)} aria-label={c} />
+                    ))}
+                  </div>
+                ) : (
+                  <div key={part} className="av-options">
+                    {AVATAR_OPTIONS[part].map((name, i) => (
+                      <button key={name} className={avatar[part] === i ? 'on' : ''} onClick={() => set(part, i)} aria-label={name}>
+                        <PlayerAvatar avatar={{ ...avatar, [part]: i }} size={58} zoom={part === 'hair' ? 'head' : 'face'} />
+                      </button>
+                    ))}
+                  </div>
+                ),
+              )}
             </section>
 
             <section className="pr-field">
@@ -211,8 +210,13 @@ export function ProfileEditor({ mode, initial, onCreate, onRecover, onSave, onLa
 
             {error && <p className="pr-error">{error}</p>}
             <button className="btn primary big block" disabled={busy || !nickOk} onClick={submit}>
-              <Check size={18} /> {mode === 'create' ? t('pr_create') : t('pr_save')}
+              <Check size={18} /> {mode === 'edit' ? t('pr_save') : t('pr_create')}
             </button>
+            {mode === 'complete' && onLater && (
+              <button className="btn text block muted" onClick={onLater}>
+                {t('pr_later')}
+              </button>
+            )}
             {mode === 'create' && (
               <>
                 <button className="btn text block" onClick={() => setRecovering(true)}>

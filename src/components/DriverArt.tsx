@@ -2,7 +2,7 @@ import { useId } from 'react';
 import type { Card } from '../types';
 import { teamColor } from '../game/teamColors';
 import { seasonNow, type Season } from '../lib/season';
-import { HELMET_DESIGNS, type Avatar, type HelmetDesign } from '../game/profile';
+import { HELMET_DESIGNS, type HelmetDesign } from '../game/profile';
 
 /*
  * Illustrazione della card.
@@ -181,15 +181,6 @@ function Helmet({ card }: { card: Card }) {
   const { design, accent, visor } = helmetStyle(card.driver.id, base);
   const label = card.kind === 'career' ? '★' : (card.number ?? card.driver.abbreviation.slice(0, 2));
   return <HelmetSvg className="art-helmet" base={base} design={design} accent={accent} visor={visor} label={label} />;
-}
-
-// L'avatar del giocatore: il casco che ha disegnato lui (in un cerchio).
-export function AvatarHelmet({ avatar, size = 40, className = '' }: { avatar: Avatar; size?: number; className?: string }) {
-  return (
-    <span className={`avatar-helmet ${className}`} style={{ width: size, height: size, background: avatar.base }} aria-hidden>
-      <HelmetSvg base={avatar.base} design={avatar.design} accent={avatar.accent} visor={avatar.visor} label={String(avatar.number)} />
-    </span>
-  );
 }
 
 interface HelmetProps {
