@@ -4,7 +4,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { GameError, handle, type GameRequest, type MatchRecord, type PvpRecord, type Store } from '../src/server/actions';
 import type { Progress } from '../src/game/collection';
-import type { Avatar } from '../src/game/profile';
+import { usernameOf, type Avatar } from '../src/game/profile';
 
 declare const Deno: { env: { get(k: string): string | undefined }; serve(h: (r: Request) => Response | Promise<Response>): void };
 
@@ -41,9 +41,25 @@ async function signal(topics: string[]) {
 const pvpTopic = (id: string) => `pvp-${id}`;
 const userTopic = (id: string) => `user-${id}`;
 
-function storeFor(userId: string, displayName: string | null): Store {
+// L'account di gioco di un dispositivo: quello a cui ha fatto l'accesso (username e codice), altrimenti il suo,
+// seguendo gli spostamenti dei vecchi recuperi (moved_to).
+async function accountOf(device: string): Promise<string> {
+  const { data: link, error } = await admin.from('account_links').select('account_id').eq('user_id', device).maybeSingle();
+  if (error) throw error;
+  let id = (link?.account_id as string | undefined) ?? device;
+  for (let i = 0; i < 5; i++) {
+    const { data, error: e2 } = await admin.from('profiles').select('moved_to').eq('id', id).maybeSingle();
+    if (e2) throw e2;
+    if (!data?.moved_to) break;
+    id = data.moved_to as string;
+  }
+  return id;
+}
+
+function storeFor(userId: string, device: string, displayName: string | null): Store {
   return {
     me: { id: userId, name: displayName },
+    device,
     async getProfile(uid = userId) {
       const { data, error } = await admin.from('profiles').select('progress, version').eq('id', uid).maybeSingle();
       if (error) throw error;
@@ -116,11 +132,11 @@ function storeFor(userId: string, displayName: string | null): Store {
       if (error) throw error;
       return ((data ?? []) as { id: string; data: PvpRecord }[]).map((r) => ({ id: r.id, rec: r.data }));
     },
-    async getAccount() {
+    async getAccount(uid = userId) {
       const { data, error } = await admin
         .from('profiles')
         .select('nickname, avatar, favorite_driver, moved_to')
-        .eq('id', userId)
+        .eq('id', uid)
         .maybeSingle();
       if (error) throw error;
       if (!data) return null;
@@ -135,7 +151,7 @@ function storeFor(userId: string, displayName: string | null): Store {
       const { count, error } = await admin
         .from('profiles')
         .select('id', { count: 'exact', head: true })
-        .eq('nickname_key', nickname.toLowerCase())
+        .eq('username', usernameOf(nickname))
         .is('moved_to', null)
         .neq('id', userId);
       if (error) throw error;
@@ -168,8 +184,8 @@ function storeFor(userId: string, displayName: string | null): Store {
       if (error) throw error;
     },
     async deleteAccount() {
-      // l'account e le copie dei profili da cui è stato recuperato (moved_to): eliminando l'utente si eliminano
-      // a cascata profilo, amicizie e partite
+      // l'account, le copie dei profili da cui era stato recuperato (moved_to) e i dispositivi collegati:
+      // eliminando gli utenti si eliminano a cascata profilo, amicizie, partite e collegamenti
       const ids = [userId];
       for (let frontier = [userId]; frontier.length; ) {
         const { data, error } = await admin.from('profiles').select('id').in('moved_to', frontier);
@@ -177,28 +193,33 @@ function storeFor(userId: string, displayName: string | null): Store {
         frontier = ((data ?? []) as { id: string }[]).map((r) => r.id).filter((id) => !ids.includes(id));
         ids.push(...frontier);
       }
+      const { data: devices, error } = await admin.from('account_links').select('user_id').in('account_id', ids);
+      if (error) throw error;
+      for (const d of (devices ?? []) as { user_id: string }[]) if (!ids.includes(d.user_id)) ids.push(d.user_id);
+      if (!ids.includes(device)) ids.push(device);
       for (const id of ids.reverse()) {
         const { error } = await admin.auth.admin.deleteUser(id);
         if (error && error.status !== 404) throw error;
       }
     },
     async findByRecovery(hash) {
-      const { data, error } = await admin.from('profiles').select('id').eq('recovery_hash', hash).is('moved_to', null).maybeSingle();
+      const { data, error } = await admin
+        .from('profiles')
+        .select('id, nickname')
+        .eq('recovery_hash', hash)
+        .is('moved_to', null)
+        .maybeSingle();
       if (error) throw error;
-      return (data?.id as string | undefined) ?? null;
+      return data ? { id: data.id as string, nickname: (data.nickname as string | null) ?? null } : null;
     },
-    async transferProfile(from, fields) {
-      const { data, error } = await admin.rpc('transfer_profile', {
-        from_id: from,
-        to_id: userId,
-        new_nickname: fields.nickname,
-        new_avatar: fields.avatar,
-        new_favorite: fields.favorite,
-        new_recovery_hash: fields.recoveryHash,
-      });
-      if (error?.code === '23505') throw new GameError('nickname_taken', 409);
-      if (error) throw error;
-      return data === true;
+    async linkDevice(account) {
+      if (account && account !== device) {
+        const { error } = await admin.from('account_links').upsert({ user_id: device, account_id: account });
+        if (error) throw error;
+      } else {
+        const { error } = await admin.from('account_links').delete().eq('user_id', device);
+        if (error) throw error;
+      }
     },
     async touch(now) {
       const { error } = await admin.from('profiles').update({ last_seen: new Date(now).toISOString() }).eq('id', userId);
@@ -281,11 +302,12 @@ Deno.serve(async (req) => {
     const { data: auth, error: authError } = await admin.auth.getUser(token);
     if (authError || !auth.user) return json({ error: 'unauthorized' }, 401);
     const user = auth.user;
+    const account = await accountOf(user.id);
     // nome mostrato all'avversario: il nickname del profilo
-    const { data: me } = await admin.from('profiles').select('display_name').eq('id', user.id).maybeSingle();
+    const { data: me } = await admin.from('profiles').select('display_name').eq('id', account).maybeSingle();
     const name = (me?.display_name as string | null | undefined) ?? null;
     const body = (await req.json()) as GameRequest;
-    const res = await handle(body, storeFor(user.id, name), { today: utcToday(), rng: Math.random });
+    const res = await handle(body, storeFor(account, user.id, name), { today: utcToday(), rng: Math.random });
     return json(res);
   } catch (e) {
     if (e instanceof GameError) return json({ error: e.code }, e.status);

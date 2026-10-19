@@ -1329,3 +1329,13 @@ b.over-pack { color: #e8b931; }
 .av-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 8px; }
 .av-options button { background: none; border: 3px solid transparent; border-radius: 50%; padding: 0; display: grid; place-items: center; aspect-ratio: 1; }
 .av-options button.on { border-color: var(--accent); }
+
+/* dati di accesso: username e codice di recupero */
+.access-data { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; margin: 0; width: 100%; }
+.access-data dt { color: var(--muted); font-size: 13px; font-weight: 700; }
+.access-data dd { margin: 0; min-width: 0; }
+.access-data code { font-size: 15px; font-weight: 800; letter-spacing: 0.04em; word-break: break-all; }
+.access-data .recovery-code { display: inline-block; font-size: 17px; letter-spacing: 2px; padding: 6px 10px; }
+.access-box { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2, var(--surface)); }
+.access-head { display: flex; align-items: center; gap: 6px; }
+.access-head .icon-btn { margin-left: auto; }

@@ -9,6 +9,7 @@ import {
   NICK_MAX,
   cleanNickname,
   randomAvatar,
+  usernameOf,
   type Avatar,
   type AvatarPart,
   type PlayerProfile,
@@ -33,7 +34,7 @@ interface Props {
   mode: 'create' | 'edit' | 'complete'; // complete: account ripreso con il codice, mancano nickname e avatar
   initial?: PlayerProfile | null;
   onCreate?: (input: ProfileInput) => Promise<string | null>; // restituisce il codice di recupero
-  onRecover?: (code: string) => Promise<string | null>;
+  onLogin?: (username: string, code: string) => Promise<void>; // accesso a un account esistente
   onSave?: (input: ProfileInput) => Promise<void>;
   onLater?: () => void;
   onClose: () => void;
@@ -41,9 +42,9 @@ interface Props {
 
 const driverName = (id: string | null) => DRIVERS.find((d) => d.id === id)?.name ?? null;
 
-// Creazione (o modifica) del profilo: nickname, casco-avatar, pilota preferito. In creazione si può anche
-// riprendere un account con il codice di recupero.
-export function ProfileEditor({ mode, initial, onCreate, onRecover, onSave, onLater, onClose }: Props) {
+// Creazione (o modifica) del profilo: nickname, avatar, pilota preferito. In creazione si può anche
+// accedere a un account esistente con username e codice di recupero.
+export function ProfileEditor({ mode, initial, onCreate, onLogin, onSave, onLater, onClose }: Props) {
   const { t } = useI18n();
   const [nickname, setNickname] = useState(initial?.nickname ?? '');
   const [avatar, setAvatar] = useState<Avatar>(() => initial?.avatar ?? randomAvatar());
@@ -53,6 +54,7 @@ export function ProfileEditor({ mode, initial, onCreate, onRecover, onSave, onLa
   const [error, setError] = useState<string | null>(null);
   const [recovering, setRecovering] = useState(false);
   const [code, setCode] = useState('');
+  const [username, setUsername] = useState('');
   const [newCode, setNewCode] = useState<string | null>(null); // codice di recupero da mostrare
   const [tab, setTab] = useState(0);
 
@@ -81,7 +83,7 @@ export function ProfileEditor({ mode, initial, onCreate, onRecover, onSave, onLa
   const submit = () => run(async () => (mode === 'create' ? onCreate!(input()) : onSave!(input())));
 
   // codice di recupero appena creato: si mostra una volta, va salvato
-  if (newCode) return <RecoveryCode code={newCode} onDone={onClose} />;
+  if (newCode) return <RecoveryCode code={newCode} username={usernameOf(cleanNickname(nickname) ?? nickname)} onDone={onClose} />;
 
   return (
     <div className="overlay profile-backdrop">
@@ -91,29 +93,47 @@ export function ProfileEditor({ mode, initial, onCreate, onRecover, onSave, onLa
             <X size={20} />
           </button>
         )}
-        <h2>{mode === 'create' ? t('pr_createTitle') : mode === 'complete' ? t('pr_completeTitle') : t('pr_editTitle')}</h2>
-        {mode === 'create' && <p className="muted center">{t('pr_createSub')}</p>}
+        <h2>
+          {recovering ? t('pr_login') : mode === 'create' ? t('pr_createTitle') : mode === 'complete' ? t('pr_completeTitle') : t('pr_editTitle')}
+        </h2>
+        {mode === 'create' && !recovering && <p className="muted center">{t('pr_createSub')}</p>}
         {mode === 'complete' && <p className="muted center">{t('pr_completeSub')}</p>}
 
         {recovering ? (
           <section className="pr-recover">
-            <p className="muted">{t('pr_recoverHelp')}</p>
-            <input
-              className="pr-input code"
+            <p className="muted">{t('pr_loginHelp')}</p>
+            <label className="pr-field">
+              <span>{t('pr_username')}</span>
+              <input
+                className="pr-input"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="nickname_minuscolo"
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="username"
+                spellCheck={false}
+              />
+            </label>
+            <label className="pr-field">
+              <span>{t('pr_password')}</span>
+              <input
+                className="pr-input code"
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
               placeholder="ABCD-EFGH-JKLM"
               autoCapitalize="characters"
-              autoComplete="off"
-              maxLength={16}
-            />
+                autoComplete="current-password"
+                maxLength={16}
+              />
+            </label>
             {error && <p className="pr-error">{error}</p>}
             <button
               className="btn primary big block"
-              disabled={busy || code.replace(/[^A-Z0-9]/gi, '').length !== 12}
-              onClick={() => run(() => onRecover!(code))}
+              disabled={busy || !username.trim() || code.replace(/[^A-Z0-9]/gi, '').length !== 12}
+              onClick={() => run(() => onLogin!(username, code))}
             >
-              {t('pr_recover')}
+              {t('pr_login')}
             </button>
             <button className="btn text block" onClick={() => setRecovering(false)}>
               {t('back')}
@@ -138,6 +158,7 @@ export function ProfileEditor({ mode, initial, onCreate, onRecover, onSave, onLa
                 autoComplete="nickname"
               />
               <small className={nickname && !nickOk ? 'pr-error' : 'muted'}>{t('pr_nickRules', { max: NICK_MAX })}</small>
+              {nickOk && <small className="muted">{t('pr_usernameIs', { user: usernameOf(nickname) })}</small>}
             </label>
 
             <section className="pr-field">
@@ -236,8 +257,8 @@ export function ProfileEditor({ mode, initial, onCreate, onRecover, onSave, onLa
   );
 }
 
-// Il codice di recupero, appena creato: da copiare e tenere da parte.
-export function RecoveryCode({ code, onDone }: { code: string; onDone: () => void }) {
+// Dati di accesso, appena creato l'account: username e codice di recupero (la password), da tenere da parte.
+export function RecoveryCode({ code, username, onDone }: { code: string; username: string | null; onDone: () => void }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   return (
@@ -245,11 +266,13 @@ export function RecoveryCode({ code, onDone }: { code: string; onDone: () => voi
       <div className="modal recovery" role="dialog" aria-modal="true">
         <h2>🔑 {t('pr_codeTitle')}</h2>
         <p className="muted center">{t('pr_codeHelp')}</p>
-        <code className="recovery-code">{code}</code>
+        <AccessData username={username} code={code} />
         <button
           className="btn ghost block"
           onClick={() => {
-            void navigator.clipboard?.writeText(code).then(() => setCopied(true));
+            void navigator.clipboard
+              ?.writeText(`${t('pr_username')}: ${username ?? ''}\n${t('pr_password')}: ${code}`)
+              .then(() => setCopied(true));
           }}
         >
           <Copy size={16} /> {copied ? t('pr_copied') : t('pr_copy')}
@@ -259,5 +282,22 @@ export function RecoveryCode({ code, onDone }: { code: string; onDone: () => voi
         </button>
       </div>
     </div>
+  );
+}
+
+// username e codice (password) in chiaro
+export function AccessData({ username, code }: { username: string | null; code: string | null }) {
+  const { t } = useI18n();
+  return (
+    <dl className="access-data">
+      <dt>{t('pr_username')}</dt>
+      <dd>
+        <code>{username ?? '—'}</code>
+      </dd>
+      <dt>{t('pr_password')}</dt>
+      <dd>
+        <code className="recovery-code">{code ?? '—'}</code>
+      </dd>
+    </dl>
   );
 }
