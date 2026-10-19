@@ -43,6 +43,12 @@ export function cleanNickname(raw: unknown): string | null {
   return /^[\p{L}\p{N}][\p{L}\p{N} ._-]*$/u.test(nick) ? nick : null;
 }
 
+// Username per accedere da un altro dispositivo: il nickname tutto minuscolo, con _ al posto degli spazi.
+// Cambia da solo quando cambia il nickname; insieme al codice di recupero (la password) apre l'account.
+export const normalizeUsername = (raw: unknown): string =>
+  typeof raw === 'string' ? raw.normalize('NFC').trim().toLowerCase().replace(/\s+/g, '_') : '';
+export const usernameOf = (nickname: string) => normalizeUsername(nickname);
+
 export function parseAvatar(raw: unknown): Avatar | null {
   if (!raw || typeof raw !== 'object') return null;
   const a = raw as Record<string, unknown>;
@@ -71,7 +77,8 @@ export function randomAvatar(rng: () => number = Math.random): Avatar {
   return out;
 }
 
-// Codice di recupero: per riavere l'account su un altro telefono. Sul server si salva solo l'impronta (hash).
+// Codice di recupero: la password dell'account, creata una volta e uguale per sempre. Sul server si salva solo
+// l'impronta (hash); il telefono lo ricorda per mostrarlo nelle impostazioni.
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export function newRecoveryCode(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(12));

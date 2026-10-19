@@ -1,4 +1,4 @@
-import { KeyRound, Monitor, Moon, Music, PartyPopper, Pencil, RotateCcw, ShieldCheck, Smartphone, Sun, Trash2, Volume2, X } from 'lucide-react';
+import { Eye, EyeOff, KeyRound, LogOut, Monitor, Moon, Music, PartyPopper, Pencil, RotateCcw, ShieldCheck, Smartphone, Sun, Trash2, Volume2, X } from 'lucide-react';
 import { hasMusic, setFeedback, useFeedbackSettings, type FeedbackSettings } from '../lib/feedback';
 import { useI18n, type TKey } from '../lib/i18n';
 import type { ThemePref } from '../lib/theme';
@@ -8,12 +8,14 @@ import { LangPicker } from './LangPicker';
 import { PlayerAvatar } from './PlayerAvatar';
 import { DRIVERS } from '../game/profile';
 import { PRIVACY_URL } from '../lib/links';
+import { AccessData } from './ProfileEditor';
+import { useState } from 'react';
 
 interface Props {
   theme: ThemePref;
   onTheme: (t: ThemePref) => void;
   onProfile: () => void; // crea o modifica il profilo
-  onRecoveryCode: () => void; // nuovo codice di recupero
+  onLogout: () => void; // esce dall'account su questo telefono
   seasons: boolean; // temi delle feste accesi
   onSeasons: (on: boolean) => void;
   account: Account;
@@ -37,7 +39,7 @@ export function SettingsSheet({
   onSeasons,
   account,
   onProfile,
-  onRecoveryCode,
+  onLogout,
   onIntro,
   onReset,
   onDeleteAccount,
@@ -77,10 +79,10 @@ export function SettingsSheet({
                   <Pencil size={16} /> {t('pr_edit')}
                 </button>
               </div>
-              <button className="btn ghost block" onClick={onRecoveryCode}>
-                <KeyRound size={16} /> {t('pr_newCode')}
+              <AccessBox username={account.username} code={account.code} />
+              <button className="btn ghost block" onClick={onLogout}>
+                <LogOut size={16} /> {t('acc_logout')}
               </button>
-              <small className="muted">{t('pr_newCodeHelp')}</small>
             </>
           ) : (
             <button className="btn primary block" onClick={onProfile}>
@@ -149,6 +151,26 @@ export function SettingsSheet({
           {!CARDS_DATA.seasonComplete && t('footer_season', { y: CARDS_DATA.latestSeason })}. {t('footer_unofficial')}
         </footer>
       </div>
+    </div>
+  );
+}
+
+// dati di accesso nelle impostazioni: username sempre, codice nascosto finché non lo chiedi
+function AccessBox({ username, code }: { username: string | null; code: string | null }) {
+  const { t } = useI18n();
+  const [show, setShow] = useState(false);
+  return (
+    <div className="access-box">
+      <div className="access-head">
+        <KeyRound size={16} /> <b>{t('pr_codeTitle')}</b>
+        {code && (
+          <button className="icon-btn" onClick={() => setShow((v) => !v)} aria-label={t(show ? 'acc_hide' : 'acc_show')}>
+            {show ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        )}
+      </div>
+      <AccessData username={username} code={code ? (show ? code : '••••-••••-••••') : null} />
+      <small className="muted">{code ? t('acc_codeHelp') : t('acc_codeUnknown')}</small>
     </div>
   );
 }

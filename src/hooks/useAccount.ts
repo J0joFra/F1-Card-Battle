@@ -4,13 +4,20 @@ import { supabase } from '../lib/supabase';
 import { translate } from '../lib/i18n';
 import { ApiError, callGame } from '../lib/api';
 import { isUntouched, type Progress } from '../game/collection';
-import type { Avatar, PlayerProfile } from '../game/profile';
+import { normalizeRecoveryCode, usernameOf, type Avatar, type PlayerProfile } from '../game/profile';
+
+const formatCode = (raw: string) => {
+  const c = normalizeRecoveryCode(raw);
+  return `${c.slice(0, 4)}-${c.slice(4, 8)}-${c.slice(8, 12)}`;
+};
 
 export type SyncStatus = 'offline' | 'loading' | 'saving' | 'saved' | 'error';
 
 const RETRY_MS = 20_000;
 // "Più tardi" sulla creazione del profilo: vale fino alla prossima apertura dell'app
 const LATER_KEY = 'f1-card-battle:profile-later';
+// codice di recupero dell'account usato su questo telefono, per mostrarlo nelle impostazioni
+const CODE_KEY = 'f1-card-battle:access-code';
 
 const read = (storage: Storage, key: string) => {
   try {
@@ -48,21 +55,28 @@ export interface Account {
   // da chiamare intorno a ogni richiesta al server, per lo stato "Salvataggio… / Salvato online"
   track: <T>(p: Promise<T>) => Promise<T>;
   resync: () => void;
-  // crea il profilo (o riprende un account con il codice di recupero); restituisce il nuovo codice di recupero
+  // id dell'account di gioco (può essere diverso dall'utente del telefono, dopo l'accesso)
+  accountId: string | null;
+  // username per accedere da un altro dispositivo (il nickname minuscolo, con _ al posto degli spazi)
+  username: string | null;
+  // codice di recupero (la password), se questo telefono lo conosce
+  code: string | null;
+  // crea il profilo; restituisce il codice di recupero (uguale per sempre)
   createProfile: (input: ProfileInput) => Promise<string | null>;
-  recover: (code: string) => Promise<string | null>;
+  // accesso a un account esistente con username e codice di recupero
+  login: (username: string, code: string) => Promise<void>;
+  // esce dall'account su questo telefono (l'account resta, si rientra con username e codice)
+  logout: () => Promise<void>;
   updateProfile: (input: Partial<ProfileInput>) => Promise<void>;
-  newRecoveryCode: () => Promise<string | null>;
   // elimina l'account sul server (carte, progressi, amici) ed esce
   deleteAccount: () => Promise<void>;
   later: () => void;
 }
 
 /**
- * Account senza Google: ogni telefono ha un account anonimo di Supabase con un profilo di gioco
- * (nickname, avatar, pilota preferito). La copia "vera" della collezione è sul server.
- * Per riavere l'account su un altro telefono c'è il codice di recupero.
- * Le carte del vecchio accesso con Google si riprendono con un codice di recupero creato apposta.
+ * Account senza Google: ogni telefono ha un utente anonimo di Supabase. Chi crea il profilo (nickname, avatar,
+ * pilota preferito) riceve un codice di recupero, uguale per sempre: con username (il nickname) e codice si
+ * accede allo stesso account da qualsiasi altro dispositivo. La copia "vera" della collezione è sul server.
  */
 export function useAccount(
   progress: Progress,
@@ -77,6 +91,19 @@ export function useAccount(
   const [later, setLater] = useState(() => read(sessionStorage, LATER_KEY) === '1');
   const [status, setStatus] = useState<SyncStatus>('offline');
   const [attempt, setAttempt] = useState(0);
+  const [accountId, setAccountId] = useState<string | null>(null);
+  const [saved, setSaved] = useState<{ account: string; code: string } | null>(() => {
+    try {
+      return JSON.parse(read(localStorage, CODE_KEY) ?? 'null');
+    } catch {
+      return null;
+    }
+  });
+  const remember = useCallback((account: string | undefined, code: string | null) => {
+    const value = account && code ? { account, code } : null;
+    write(localStorage, CODE_KEY, value && JSON.stringify(value));
+    setSaved(value);
+  }, []);
   const progressRef = useRef(progress);
   progressRef.current = progress;
 
@@ -119,6 +146,7 @@ export function useAccount(
         replaceProgress(res.progress);
         setProfile(res.profile ?? null);
         setIncomplete(!res.profile);
+        setAccountId(res.account ?? userId);
         setStatus('saved');
       })
       .catch((e) => {
@@ -166,6 +194,7 @@ export function useAccount(
     (res: Awaited<ReturnType<typeof callGame>>) => {
       if (res.progress) replaceProgress(res.progress);
       if (res.profile) setProfile(res.profile);
+      if (res.account) setAccountId(res.account);
       setMissing(!res.progress);
       setIncomplete(!!res.progress && !res.profile);
       setStatus(res.progress ? 'saved' : 'offline');
@@ -178,18 +207,33 @@ export function useAccount(
     async (input: ProfileInput) => {
       await ensureSession();
       const local = progressRef.current;
-      return finish(await callGame({ action: 'profile_create', ...input, guest: isUntouched(local) ? undefined : local }));
+      const res = await callGame({ action: 'profile_create', ...input, guest: isUntouched(local) ? undefined : local });
+      remember(res.account, res.recoveryCode ?? null);
+      return finish(res);
     },
-    [ensureSession, finish],
+    [ensureSession, finish, remember],
   );
 
-  const recover = useCallback(
-    async (code: string) => {
+  const login = useCallback(
+    async (username: string, code: string) => {
       await ensureSession();
-      return finish(await callGame({ action: 'profile_create', recover: code }));
+      const res = await callGame({ action: 'login', username, code });
+      remember(res.account, formatCode(code));
+      finish(res);
     },
-    [ensureSession, finish],
+    [ensureSession, finish, remember],
   );
+
+  const logout = useCallback(async () => {
+    await callGame({ action: 'logout' }).catch(() => {});
+    remember(undefined, null);
+    setProfile(null);
+    setIncomplete(false);
+    setAccountId(null);
+    write(sessionStorage, LATER_KEY, null);
+    setLater(false);
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+  }, [remember]);
 
   const updateProfile = useCallback(async (input: Partial<ProfileInput>) => {
     const res = await callGame({ action: 'profile_update', ...input });
@@ -199,17 +243,17 @@ export function useAccount(
     }
   }, []);
 
-  const newRecoveryCode = useCallback(async () => (await callGame({ action: 'recovery_new' })).recoveryCode ?? null, []);
-
   const deleteAccount = useCallback(async () => {
     await callGame({ action: 'account_delete', confirm: true });
+    remember(undefined, null);
     setProfile(null);
+    setAccountId(null);
     setIncomplete(false);
     write(sessionStorage, LATER_KEY, null);
     setLater(false);
     // l'utente non esiste più sul server: basta dimenticare la sessione sul telefono
     await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
-  }, []);
+  }, [remember]);
 
   const skip = useCallback(() => {
     write(sessionStorage, LATER_KEY, '1');
@@ -229,10 +273,13 @@ export function useAccount(
     incomplete: incomplete && !later,
     track,
     resync,
+    accountId,
+    username: profile ? usernameOf(profile.nickname) : null,
+    code: saved && saved.account === accountId ? saved.code : null,
     createProfile,
-    recover,
+    login,
+    logout,
     updateProfile,
-    newRecoveryCode,
     deleteAccount,
     later: skip,
   };

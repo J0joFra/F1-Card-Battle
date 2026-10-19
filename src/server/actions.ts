@@ -20,7 +20,17 @@ import { cardOrThrow, checkDate, GameError, validDeck, withProfile, type Ctx } f
 import { handlePvp } from './pvp';
 import { buyAndOpen, buyFromStore, storeFor, storePrice } from '../game/shop';
 import type { AccountRow, GameRequest, GameResponse, Store } from './types';
-import { cleanNickname, hashRecoveryCode, newRecoveryCode, parseAvatar, validFavorite, type PlayerProfile } from '../game/profile';
+import {
+  cleanNickname,
+  hashRecoveryCode,
+  newRecoveryCode,
+  normalizeRecoveryCode,
+  normalizeUsername,
+  parseAvatar,
+  usernameOf,
+  validFavorite,
+  type PlayerProfile,
+} from '../game/profile';
 
 export * from './types';
 export { GameError, type Ctx } from './common';
@@ -62,6 +72,25 @@ export const LEGACY_VERSION = 0;
 const profileOf = (a: AccountRow | null): PlayerProfile | undefined =>
   a?.nickname && a.avatar ? { nickname: a.nickname, avatar: a.avatar, favorite: a.favorite } : undefined;
 
+const formatCode = (raw: string) => {
+  const c = normalizeRecoveryCode(raw);
+  return `${c.slice(0, 4)}-${c.slice(4, 8)}-${c.slice(8, 12)}`;
+};
+
+// Accesso da un altro dispositivo: username + codice di recupero. Il dispositivo viene collegato all'account
+// (le carte restano dove sono). Per gli account senza nickname (vecchio accesso con Google) basta il codice.
+async function login(store: Store, username: string | null, code: string): Promise<GameResponse> {
+  const found = typeof code === 'string' ? await store.findByRecovery(await hashRecoveryCode(code)) : null;
+  if (!found) throw new GameError('bad_login', 404);
+  if (found.nickname && username !== null && usernameOf(found.nickname) !== normalizeUsername(username))
+    throw new GameError('bad_login', 404);
+  await store.linkDevice(found.id);
+  const row = await store.getProfile(found.id);
+  if (!row) throw new GameError('bad_login', 404);
+  const profile = profileOf(await store.getAccount(found.id));
+  return { progress: normalizeProgress(row.progress), profile, needsProfile: !profile, account: found.id };
+}
+
 export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<GameResponse> {
   const pvp = await handlePvp(req, store, ctx);
   if (pvp) return pvp;
@@ -70,6 +99,7 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       const row = await store.getProfile();
       const account = row ? await store.getAccount() : null;
       if (account?.movedTo) throw new GameError('account_moved', 409); // le carte sono passate a un altro account
+      const id = store.me.id;
       if (row && row.version === LEGACY_VERSION) {
         // passaggio dalla vecchia app: un'ultima volta si uniscono i dati del telefono a quelli online
         // (come faceva la vecchia app), poi decide solo il server
@@ -78,44 +108,44 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
         const merged = device ? mergeProgress(server, device) : server;
         const progress = { ...merged, updatedAt: Date.now() };
         const saved = (await store.putProfile(progress, row.version)) ? progress : normalizeProgress((await store.getProfile())!.progress);
-        return { progress: saved, profile: profileOf(account), needsProfile: !profileOf(account) };
+        return { progress: saved, profile: profileOf(account), needsProfile: !profileOf(account), account: id };
       }
-      // profilo ripreso con il codice ma ancora senza nickname e avatar: il telefono li fa completare
-      if (row) return { progress: normalizeProgress(row.progress), profile: profileOf(account), needsProfile: !profileOf(account) };
+      // account ripreso con il codice ma ancora senza nickname e avatar: il telefono li fa completare
+      if (row) return { progress: normalizeProgress(row.progress), profile: profileOf(account), needsProfile: !profileOf(account), account: id };
       // nessun profilo: il telefono chiede nickname, avatar e pilota preferito (profile_create)
       return { needsProfile: true };
     }
 
     case 'profile_create': {
+      // app vecchie: "recupera con il codice" = accesso con il solo codice (il codice non cambia)
+      if (req.recover) return { ...(await login(store, null, req.recover)), recoveryCode: formatCode(req.recover) };
       if (await store.getProfile()) throw new GameError('has_profile', 409);
-      const nickname = req.nickname === undefined ? null : cleanNickname(req.nickname);
-      if (req.nickname !== undefined && !nickname) throw new GameError('bad_nickname');
-      const avatar = req.avatar === undefined ? null : parseAvatar(req.avatar);
-      if (req.avatar !== undefined && !avatar) throw new GameError('bad_avatar');
+      const nickname = cleanNickname(req.nickname);
+      if (!nickname) throw new GameError('bad_nickname');
+      const avatar = parseAvatar(req.avatar);
+      if (!avatar) throw new GameError('bad_avatar');
       const favorite = validFavorite(req.favorite);
-      if (!req.recover && (!nickname || !avatar)) throw new GameError('bad_nickname');
-      if (nickname && (await store.nicknameTaken(nickname))) throw new GameError('nickname_taken', 409);
+      if (await store.nicknameTaken(nickname)) throw new GameError('nickname_taken', 409);
+      // il codice di recupero nasce qui e resta lo stesso per sempre: è la password dell'account
       const recoveryCode = newRecoveryCode();
       const recoveryHash = await hashRecoveryCode(recoveryCode);
-      // con il codice di recupero si riprende un account (nuovo telefono, o le carte del vecchio accesso con Google);
-      // altrimenti profilo nuovo, dai progressi del dispositivo (se plausibili) o dal mazzo iniziale
-      const from = req.recover ? await store.findByRecovery(await hashRecoveryCode(req.recover)) : null;
-      if (req.recover && !from) throw new GameError('bad_recovery', 404);
-      if (from) {
-        if (!(await store.transferProfile(from, { nickname, avatar, favorite, recoveryHash }))) throw new GameError('busy', 409);
-      } else {
-        if (!nickname || !avatar) throw new GameError('bad_nickname');
-        const progress = { ...acceptGuest(req.guest, ctx.rng), updatedAt: Date.now() };
-        if (!(await store.createProfile({ progress, nickname, avatar, favorite, recoveryHash }))) {
-          throw new GameError((await store.nicknameTaken(nickname)) ? 'nickname_taken' : 'has_profile', 409);
-        }
+      // profilo nuovo, dai progressi del dispositivo (se plausibili) o dal mazzo iniziale
+      const progress = { ...acceptGuest(req.guest, ctx.rng), updatedAt: Date.now() };
+      if (!(await store.createProfile({ progress, nickname, avatar, favorite, recoveryHash }))) {
+        throw new GameError((await store.nicknameTaken(nickname)) ? 'nickname_taken' : 'has_profile', 409);
       }
       const row = await store.getProfile();
       if (!row) throw new GameError('busy', 409);
       const profile = profileOf(await store.getAccount());
-      // account ripreso senza nickname (vecchio accesso con Google): il telefono lo fa completare
-      return { progress: normalizeProgress(row.progress), profile, needsProfile: !profile, recoveryCode };
+      return { progress: normalizeProgress(row.progress), profile, needsProfile: !profile, recoveryCode, account: store.me.id };
     }
+
+    case 'login':
+      return login(store, req.username, req.code);
+
+    case 'logout':
+      await store.linkDevice(null);
+      return {};
 
     case 'profile_update': {
       const account = await store.getAccount();
@@ -124,7 +154,8 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       if (req.nickname !== undefined) {
         const nickname = cleanNickname(req.nickname);
         if (!nickname) throw new GameError('bad_nickname');
-        if (nickname.toLowerCase() !== account.nickname?.toLowerCase() && (await store.nicknameTaken(nickname)))
+        // lo username segue il nickname: deve restare libero
+        if (usernameOf(nickname) !== usernameOf(account.nickname ?? '') && (await store.nicknameTaken(nickname)))
           throw new GameError('nickname_taken', 409);
         fields.nickname = nickname;
       }
@@ -138,13 +169,9 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       return { profile: profileOf(await store.getAccount()) };
     }
 
-    case 'recovery_new': {
-      // nuovo codice di recupero (quello vecchio non vale più)
-      if (!(await store.getProfile())) throw new GameError('no_profile', 409);
-      const recoveryCode = newRecoveryCode();
-      await store.updateAccount({ recoveryHash: await hashRecoveryCode(recoveryCode) });
-      return { recoveryCode };
-    }
+    case 'recovery_new':
+      // il codice di recupero è la password dell'account: non cambia mai
+      throw new GameError('code_permanent');
 
     case 'account_delete':
       if (req.confirm !== true) throw new GameError('bad_request');

@@ -45,6 +45,8 @@ const MESSAGES: Record<string, TKey> = {
   nickname_taken: 'err_nickname_taken',
   bad_nickname: 'err_bad_nickname',
   bad_recovery: 'err_bad_recovery',
+  bad_login: 'err_bad_login',
+  code_permanent: 'err_code_permanent',
   anon_disabled: 'err_anon_disabled',
   has_profile: 'err_has_profile',
   account_moved: 'err_account_moved',

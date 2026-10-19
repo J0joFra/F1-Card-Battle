@@ -39,7 +39,7 @@ import { useTheme } from "./lib/theme";
 import { coin, useSeason } from "./lib/season";
 import { SeasonFx } from "./components/SeasonFx";
 import { PlayerAvatar } from "./components/PlayerAvatar";
-import { ProfileEditor, RecoveryCode } from "./components/ProfileEditor";
+import { ProfileEditor } from "./components/ProfileEditor";
 import { useAccount } from "./hooks/useAccount";
 import { haptic, setMusicMode, sfx } from "./lib/feedback";
 import { HomeScreen } from "./screens/HomeScreen";
@@ -192,7 +192,6 @@ export default function App() {
   const [intro, setIntro] = useState(() => !onboardingDone());
   // profilo: creazione (anche da "Crea il tuo profilo") o modifica, e codice di recupero da mostrare
   const [profileEditor, setProfileEditor] = useState<{ mode: "create" | "edit" | "complete"; auto?: boolean } | null>(null);
-  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
   // il gioco è pronto: la busta dell'animazione di apertura (in index.html) si può togliere
   useEffect(() => {
     (window as Window & { __introReady?: () => void }).__introReady?.();
@@ -558,7 +557,7 @@ export default function App() {
     };
     ping();
     // l'invito di un amico arriva subito (segnale dal server); il ping ogni 20 secondi tiene acceso il pallino verde
-    const uid = account.session?.user.id;
+    const uid = account.accountId;
     const live = uid ? listen(userTopic(uid), ping) : null;
     const id = setInterval(ping, 20_000);
     document.addEventListener("visibilitychange", ping);
@@ -567,7 +566,7 @@ export default function App() {
       clearInterval(id);
       document.removeEventListener("visibilitychange", ping);
     };
-  }, [account.online]);
+  }, [account.online, account.accountId]);
 
   async function acceptInvite() {
     if (!invite || starting) return;
@@ -826,6 +825,16 @@ export default function App() {
     setSettings(false);
     setScreen("home");
     setToast(t("del_done"));
+  }
+
+  // Uscita dall'account su questo telefono: l'account resta e si rientra con username e codice.
+  async function logout() {
+    if (!(await askConfirm(t("acc_logoutConfirm", { user: account.username ?? "" }), { confirmLabel: t("acc_logout") }))) return;
+    await account.logout();
+    resetProgress();
+    setProgress(starterProgress());
+    setSettings(false);
+    setScreen("home");
   }
 
   // cambio schermata dai pulsanti di navigazione, con tocco sonoro e vibrazione leggera
@@ -1104,13 +1113,7 @@ export default function App() {
               setSettings(false);
               setProfileEditor({ mode: account.profile ? "edit" : "create" });
             }}
-            onRecoveryCode={async () => {
-              const code = await account.newRecoveryCode().catch(() => null);
-              if (code) {
-                setSettings(false);
-                setRecoveryCode(code);
-              } else setToast(t("err_network"));
-            }}
+            onLogout={logout}
             onIntro={() => {
               setSettings(false);
               setIntro(true);
@@ -1128,7 +1131,7 @@ export default function App() {
           mode={profileEditor.mode}
           initial={account.profile}
           onCreate={account.createProfile}
-          onRecover={account.recover}
+          onLogin={account.login}
           onSave={account.updateProfile}
           onLater={
             profileEditor.auto
@@ -1141,7 +1144,6 @@ export default function App() {
           onClose={() => setProfileEditor(null)}
         />
       )}
-      {recoveryCode && <RecoveryCode code={recoveryCode} onDone={() => setRecoveryCode(null)} />}
       {/* invito di un amico: tendina in alto che resta finché non rispondi */}
       {invite && screen !== "match" && (
         <div className="invite-drop" role="alertdialog" aria-live="assertive">
