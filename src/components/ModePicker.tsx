@@ -1,7 +1,7 @@
 import type { Card } from '../types';
 import { Check } from 'lucide-react';
 import { CARDS_DATA, RARITIES, flagEmoji, rarityLabel } from '../game/cards';
-import { CLASSIC, DECADES, NATIONS, deckProblems, fillDeck, fitsMode, type MatchMode } from '../game/deckRules';
+import { CLASSIC, DECADES, NATIONS, deckProblems, decksProblems, fillDeck, fitsMode, type MatchMode } from '../game/deckRules';
 import { DECK_SIZE } from '../game/engine';
 import { getLang, useI18n, type TFn } from '../lib/i18n';
 
@@ -86,7 +86,7 @@ export function ModePicker({ mode, owned, decks, slot, onMode, onDeck }: Props) 
           {decks.map((d, i) => (
             <button key={i} role="tab" aria-selected={i === slot} className={i === slot ? 'on' : ''} onClick={() => onDeck(i)}>
               {i + 1}
-              {d.length === DECK_SIZE && !deckProblems(d).length && <Check size={12} />}
+              {d.length === DECK_SIZE && !deckProblems(d).length && !decksProblems(decks, i).length && <Check size={12} />}
             </button>
           ))}
         </div>

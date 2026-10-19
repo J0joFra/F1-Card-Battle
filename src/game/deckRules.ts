@@ -107,19 +107,99 @@ export function deckProblems(deck: Card[], mode: MatchMode = CLASSIC): string[] 
   return problems;
 }
 
+// I 3 mazzi devono essere davvero diversi: due mazzi hanno al massimo MAX_SHARED card in comune
+// (cioè almeno 5 diverse) e nessuna card può stare in tutti e 3.
+export const MIN_DIFFERENT = 5;
+export const MAX_SHARED = DECK_SIZE - MIN_DIFFERENT;
+
+const has = (deck: Card[], card: Card) => deck.some((c) => c.id === card.id);
+const shared = (a: Card[], b: Card[]) => a.filter((c) => has(b, c)).length;
+
+export type SlotBlock = 'full' | 'rarity' | 'allDecks' | 'similar';
+
+// Perché la card non si può aggiungere al mazzo (null = si può). `others` sono gli altri mazzi salvati.
+export function addBlock(deck: Card[], card: Card, mode: MatchMode = CLASSIC, others: Card[][] = []): SlotBlock | null {
+  if (deck.length >= DECK_SIZE) return 'full';
+  if (has(deck, card) || !fitsMode(mode, card)) return 'rarity';
+  if (limited(mode) && rarityProblems([...deck, card]).length) return 'rarity';
+  const withCard = others.filter((d) => has(d, card));
+  if (others.length >= 2 && withCard.length === others.length) return 'allDecks';
+  if (withCard.some((d) => shared(deck, d) >= MAX_SHARED)) return 'similar';
+  return null;
+}
+
 // Si può aggiungere questa card senza sforare i limiti?
-export function canAdd(deck: Card[], card: Card, mode: MatchMode = CLASSIC): boolean {
-  if (deck.length >= DECK_SIZE || deck.some((c) => c.id === card.id) || !fitsMode(mode, card)) return false;
-  return !limited(mode) || !rarityProblems([...deck, card]).length;
+export const canAdd = (deck: Card[], card: Card, mode: MatchMode = CLASSIC, others: Card[][] = []) =>
+  addBlock(deck, card, mode, others) === null;
+
+// Cosa non va tra i mazzi (solo le coppie che riguardano `slot`, se indicato): troppe card in comune
+// o card presenti in tutti i mazzi.
+export function decksProblems(decks: Card[][], slot?: number): string[] {
+  const problems: string[] = [];
+  for (let i = 0; i < decks.length; i++)
+    for (let j = i + 1; j < decks.length; j++) {
+      if (slot !== undefined && slot !== i && slot !== j) continue;
+      const n = shared(decks[i], decks[j]);
+      if (n > MAX_SHARED) problems.push(translate('deck_similar', { a: i + 1, b: j + 1, n, max: MAX_SHARED }));
+    }
+  if (decks.length >= 3) {
+    const inAll = (decks[slot ?? 0] ?? []).filter((c) => decks.every((d) => has(d, c)));
+    if (inAll.length) {
+      const names = inAll.slice(0, 3).map((c) => c.driver.lastName).join(', ') + (inAll.length > 3 ? '…' : '');
+      problems.push(translate('deck_inAll', { n: inAll.length, names }));
+    }
+  }
+  return problems;
+}
+
+// Quanto i mazzi violano la regola (0 = tutto a posto): serve al server per accettare le modifiche
+// che sistemano mazzi già troppo simili, anche un passo alla volta.
+export function decksOverlap(decks: Card[][]): number {
+  let score = 0;
+  for (let i = 0; i < decks.length; i++)
+    for (let j = i + 1; j < decks.length; j++) score += Math.max(0, shared(decks[i], decks[j]) - MAX_SHARED);
+  if (decks.length >= 3) score += decks[0].filter((c) => decks.every((d) => has(d, c))).length;
+  return score;
 }
 
 // Completa il mazzo con le card date (a caso, oppure dalla valutazione più alta), rispettando le regole.
-export function fillDeck(cards: Card[], deck: Card[], mode: MatchMode = CLASSIC, rng: Rng = Math.random, best = false): Card[] {
-  const result = deck.filter((c) => fitsMode(mode, c));
+// Con gli altri mazzi: prima prova con card nuove; se non bastano, riusa quelle degli altri mazzi.
+export function fillDeck(
+  cards: Card[],
+  deck: Card[],
+  mode: MatchMode = CLASSIC,
+  rng: Rng = Math.random,
+  best = false,
+  others: Card[][] = [],
+  reuseFirst = false,
+): Card[] {
   const order = best ? shuffle(cards, rng).sort((a, b) => b.ovr - a.ovr) : shuffle(cards, rng);
-  for (const c of order) {
-    if (result.length >= DECK_SIZE) break;
-    if (canAdd(result, c, mode)) result.push(c);
-  }
-  return result;
+  const run = (list: Card[]) => {
+    const result = deck.filter((c) => fitsMode(mode, c));
+    for (const c of list) {
+      if (result.length >= DECK_SIZE) break;
+      if (canAdd(result, c, mode, others)) result.push(c);
+    }
+    return result;
+  };
+  const inOthers = (c: Card) => others.some((d) => has(d, c));
+  const reused = [...order.filter(inOthers), ...order.filter((c) => !inOthers(c))];
+  if (reuseFirst) return run(reused);
+  const first = run(order);
+  return first.length >= DECK_SIZE || !others.length ? first : run(reused);
+}
+
+// Completa tutti i mazzi insieme. Con poche card (es. il mazzo iniziale) conviene riusare subito il massimo
+// consentito dagli altri mazzi, così restano card nuove per l'ultimo.
+export function fillDecks(cards: Card[], decks: Card[][], rng: Rng = Math.random): Card[][] {
+  const attempt = (reuseFirst: boolean) => {
+    const out = decks.map((d) => [...d]);
+    for (let i = 0; i < out.length; i++)
+      if (out[i].length < DECK_SIZE)
+        out[i] = fillDeck(cards, out[i], CLASSIC, rng, false, out.filter((_, j) => j !== i), reuseFirst);
+    return out;
+  };
+  const complete = (ds: Card[][]) => ds.every((d) => d.length === DECK_SIZE);
+  const first = attempt(false);
+  return complete(first) ? first : attempt(true);
 }

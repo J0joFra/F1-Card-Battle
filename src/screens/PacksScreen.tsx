@@ -154,7 +154,6 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
                 {t('done')}
               </button>
             </div>
-            {progress.jolly > 0 && <JollyPicker progress={progress} onPick={onUseJolly} />}
           </>
         ) : (
           <div className="actions">
@@ -262,35 +261,66 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
   );
 }
 
+// Jolly accumulati: restano salvati finché vuoi. Le card mancanti si possono girare per confrontare le metriche
+// e si sceglie con calma; prima di usarlo si chiede conferma.
 function JollyPicker({ progress, onPick }: { progress: Progress; onPick: (card: Card) => void }) {
   const { t } = useI18n();
-  const targets = jollyTargets(progress).slice(0, 6); // i piloti più vicini al completamento
+  const [open, setOpen] = useState(false);
+  const [all, setAll] = useState(false);
+  const targets = jollyTargets(progress);
+  const shown = all ? targets : targets.slice(0, 4); // prima i piloti più vicini al completamento
+  async function pick(c: Card) {
+    const ok = await askConfirm(t('j_confirm', { card: `${c.driver.name} · ${c.team.name} ${c.period}` }), {
+      confirmLabel: t('j_use'),
+    });
+    if (ok) onPick(c);
+  }
   return (
     <div className="jolly-picker">
-      <h3>{t('j_title', { n: progress.jolly })}</h3>
-      <p className="muted">{t('j_desc')}</p>
-      {targets.length === 0 ? (
-        <p className="muted">{t('j_none')}</p>
-      ) : (
-        <ul>
-          {targets.map((tg) => {
-            const driver = CARD_BY_ID.get(`${tg.driverId}__career`)!.driver;
-            return (
-              <li key={tg.driverId}>
-                <div>
-                  <b>{driver.name}</b> <span className="muted">{t('j_teams', { a: tg.owned, b: tg.total })}</span>
-                </div>
-                <div className="jolly-options">
-                  {tg.missing.map((c) => (
-                    <button key={c.id} className="chip" onClick={() => onPick(c)}>
-                      {c.team.name} · {c.period}
-                    </button>
-                  ))}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+      <div className="jolly-head">
+        <h3>{t('j_title', { n: progress.jolly })}</h3>
+        {targets.length > 0 && (
+          <button className="btn ghost small" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+            {open ? t('j_hide') : t('j_choose')}
+          </button>
+        )}
+      </div>
+      <p className="muted">{targets.length ? t('j_keep') : t('j_none')}</p>
+      {open && (
+        <>
+          <p className="muted small">{t('j_desc')}</p>
+          <ul>
+            {shown.map((tg) => {
+              const driver = CARD_BY_ID.get(`${tg.driverId}__career`)!.driver;
+              return (
+                <li key={tg.driverId}>
+                  <div>
+                    <b>{driver.name}</b> <span className="muted">{t('j_teams', { a: tg.owned, b: tg.total })}</span>
+                  </div>
+                  <div className="jolly-options">
+                    {tg.missing.map((c) => (
+                      <div key={c.id} className="jolly-option">
+                        <FlipCard
+                          card={c}
+                          action={
+                            <button className="btn primary" onClick={() => void pick(c)}>
+                              🃏 {t('j_take')}
+                            </button>
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {targets.length > shown.length && (
+            <button className="btn text block" onClick={() => setAll(true)}>
+              {t('j_more', { n: targets.length - shown.length })}
+            </button>
+          )}
+        </>
       )}
     </div>
   );

@@ -167,6 +167,21 @@ function storeFor(userId: string, displayName: string | null): Store {
       if (error?.code === '23505') throw new GameError('nickname_taken', 409);
       if (error) throw error;
     },
+    async deleteAccount() {
+      // l'account e le copie dei profili da cui è stato recuperato (moved_to): eliminando l'utente si eliminano
+      // a cascata profilo, amicizie e partite
+      const ids = [userId];
+      for (let frontier = [userId]; frontier.length; ) {
+        const { data, error } = await admin.from('profiles').select('id').in('moved_to', frontier);
+        if (error) throw error;
+        frontier = ((data ?? []) as { id: string }[]).map((r) => r.id).filter((id) => !ids.includes(id));
+        ids.push(...frontier);
+      }
+      for (const id of ids.reverse()) {
+        const { error } = await admin.auth.admin.deleteUser(id);
+        if (error && error.status !== 404) throw error;
+      }
+    },
     async findByRecovery(hash) {
       const { data, error } = await admin.from('profiles').select('id').eq('recovery_hash', hash).is('moved_to', null).maybeSingle();
       if (error) throw error;

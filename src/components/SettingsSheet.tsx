@@ -1,4 +1,4 @@
-import { KeyRound, Monitor, Moon, Music, PartyPopper, Pencil, RotateCcw, Smartphone, Sun, Volume2, X } from 'lucide-react';
+import { KeyRound, Monitor, Moon, Music, PartyPopper, Pencil, RotateCcw, ShieldCheck, Smartphone, Sun, Trash2, Volume2, X } from 'lucide-react';
 import { hasMusic, setFeedback, useFeedbackSettings, type FeedbackSettings } from '../lib/feedback';
 import { useI18n, type TKey } from '../lib/i18n';
 import type { ThemePref } from '../lib/theme';
@@ -7,6 +7,7 @@ import { CARDS_DATA } from '../game/cards';
 import { LangPicker } from './LangPicker';
 import { PlayerAvatar } from './PlayerAvatar';
 import { DRIVERS } from '../game/profile';
+import { PRIVACY_URL } from '../lib/links';
 
 interface Props {
   theme: ThemePref;
@@ -18,6 +19,7 @@ interface Props {
   account: Account;
   onIntro: () => void;
   onReset: () => void;
+  onDeleteAccount: () => void;
   onClose: () => void;
 }
 
@@ -28,7 +30,19 @@ const THEMES: { id: ThemePref; icon: typeof Sun; label: TKey }[] = [
 ];
 
 // Pannello impostazioni che sale dal basso: tema, lingua, account, introduzione.
-export function SettingsSheet({ theme, onTheme, seasons, onSeasons, account, onProfile, onRecoveryCode, onIntro, onReset, onClose }: Props) {
+export function SettingsSheet({
+  theme,
+  onTheme,
+  seasons,
+  onSeasons,
+  account,
+  onProfile,
+  onRecoveryCode,
+  onIntro,
+  onReset,
+  onDeleteAccount,
+  onClose,
+}: Props) {
   const { t } = useI18n();
   const fb = useFeedbackSettings();
   const favoriteName = DRIVERS.find((d) => d.id === account.profile?.favorite)?.name;
@@ -120,6 +134,14 @@ export function SettingsSheet({ theme, onTheme, seasons, onSeasons, account, onP
               <RotateCcw size={14} /> {t('reset')}
             </button>
           )}
+          {account.online && (
+            <button className="btn text danger block" onClick={onDeleteAccount}>
+              <Trash2 size={14} /> {t('del_button')}
+            </button>
+          )}
+          <a className="btn text block muted" href={PRIVACY_URL} target="_blank" rel="noopener noreferrer">
+            <ShieldCheck size={14} /> {t('set_privacy')}
+          </a>
         </section>
 
         <footer className="credits">

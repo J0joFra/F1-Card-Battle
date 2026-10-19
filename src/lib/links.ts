@@ -2,9 +2,13 @@ import { Capacitor } from '@capacitor/core';
 
 /*
  * Link diretto a una sfida tra amici: https://…/?sfida=CODICE.
- * Chi lo apre entra nella sfida (dopo l'accesso con Google). Dall'app Android si condivide il link del sito.
+ * Chi lo apre entra nella sfida. Dall'app Android si condivide il link del sito.
  */
 const WEB_URL = 'https://j0jofra.github.io/F1-Card-Battle/';
+
+// pagine pubbliche (servono anche per Google Play): informativa sulla privacy ed eliminazione dell'account
+export const PRIVACY_URL = `${WEB_URL}privacy.html`;
+export const DELETE_ACCOUNT_URL = `${WEB_URL}elimina-account.html`;
 const PARAM = 'sfida';
 
 const baseUrl = () =>
@@ -17,7 +21,7 @@ export const challengeLink = (code: string) => `${baseUrl()}?${PARAM}=${encodeUR
 const KEY = 'f1-card-battle:challenge-code';
 
 // Codice della sfida arrivato con il link (se c'è): lo toglie dalla barra degli indirizzi e lo ricorda
-// finché non si entra in partita (l'accesso con Google ricarica la pagina senza il link).
+// finché non si entra in partita (anche se nel frattempo la pagina si ricarica).
 export function takeChallengeCode(): string | null {
   try {
     const url = new URL(window.location.href);

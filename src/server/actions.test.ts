@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { ALL_CARDS, CARD_BY_ID, STATS } from '../game/cards';
 import { PACK_TYPES, storePrice, teamOfDay } from '../game/shop';
 import { starterProgress, withDecks, type Progress } from '../game/collection';
-import { autoFillDeck } from '../game/collection';
+import { autoFillDeck, autoFillDecks, savedDecks } from '../game/collection';
 import { dailyChallenge, dailyLoanDeck, seededRng, themeMode, themePool } from '../game/daily';
-import { deckProblems } from '../game/deckRules';
+import { deckProblems, decksProblems } from '../game/deckRules';
 import { hashRecoveryCode } from '../game/profile';
 import { FIRST_WIN_CREDITS, MATCH_CREDITS } from '../game/collection';
 import { CLASSIC, fillDeck } from '../game/deckRules';
@@ -51,6 +51,20 @@ function memoryDb() {
       const a = accounts.get(id) ?? { nickname: null, avatar: null, favorite: null, movedTo: null, recoveryHash: null, legacy: null };
       accounts.set(id, { ...a, ...fields });
       if (fields.nickname) names.set(id, fields.nickname);
+    },
+    async deleteAccount() {
+      // anche le copie da cui l'account è stato recuperato
+      const chain = new Set([id]);
+      for (let grew = true; grew; ) {
+        grew = false;
+        for (const [k, a] of accounts) if (a.movedTo && chain.has(a.movedTo) && !chain.has(k)) chain.add(k), (grew = true);
+      }
+      for (const k of chain) {
+        profiles.delete(k);
+        accounts.delete(k);
+        names.delete(k);
+      }
+      for (const f of [...friendships]) if (f.split('|').some((x) => chain.has(x))) friendships.delete(f);
     },
     async findByRecovery(hash) {
       return [...accounts].find(([, a]) => !a.movedTo && a.recoveryHash === hash)?.[0] ?? null;
@@ -470,7 +484,7 @@ describe('server: sfida tra amici (al meglio di 3)', () => {
   // profilo con i 3 mazzi salvati e validi
   const ready = (seed: string) => {
     const p = starterProgress(seededRng(seed));
-    const decks = [1, 2, 3].map((i) => autoFillDeck(p, [], seededRng(`${seed}${i}`)).map((c) => c.id));
+    const decks = autoFillDecks(p, seededRng(seed)).map((d) => d.map((c) => c.id));
     return withDecks(p, decks, 0);
   };
 
@@ -545,8 +559,10 @@ describe('server: sfida tra amici (al meglio di 3)', () => {
     expect(ra.pvp!.results.length).toBeLessThanOrEqual(3);
     expect(wins >= 2 || losses >= 2 || ra.pvp!.results.length === 3).toBe(true);
     const expected = { player: 10, draw: 5, cpu: 0 } as const;
-    expect(ra.rewards!.credits).toBe(expected[ra.pvp!.seriesOutcome!]);
-    expect(rb.rewards!.credits).toBe(expected[rb.pvp!.seriesOutcome!]);
+    // più il premio della prima vittoria del giorno, per chi vince
+    const bonus = (r: typeof ra) => (r.rewards!.firstWin ? FIRST_WIN_CREDITS : 0);
+    expect(ra.rewards!.credits).toBe(expected[ra.pvp!.seriesOutcome!] + bonus(ra));
+    expect(rb.rewards!.credits).toBe(expected[rb.pvp!.seriesOutcome!] + bonus(rb));
     const pa = t.db.profiles.get('anna')!.progress;
     expect(pa.wins + pa.losses + pa.draws).toBe(1); // la serie conta come una partita
   });
@@ -684,5 +700,46 @@ describe('server: modalità di partita', () => {
     const deck = fillDeck(pool.filter((c) => p.owned[c.id]), [], themeMode(theme)).map((c) => c.id);
     expect(deck).toHaveLength(7);
     await call(db.store, { action: 'match_start', deck, daily: true, date, mode: CLASSIC });
+  });
+});
+
+describe('server: mazzi diversi ed eliminazione account', () => {
+  it('i 3 mazzi devono restare diversi; si accettano i passi che sistemano mazzi già troppo simili', async () => {
+    const db = memoryDb();
+    const p = starterProgress(seededRng('decks'));
+    db.profiles.set('me', { progress: p, version: 1 });
+    const me = db.as('me');
+    const good = autoFillDecks(p, seededRng('fill')).map((d) => d.map((c) => c.id));
+    expect(decksProblems(savedDecks(withDecks(p, good, 0)))).toEqual([]);
+    const same = [good[0], good[0], []];
+    await expect(call(me, { action: 'set_decks', decks: same, active: 0 })).rejects.toThrow('decks_similar');
+    await call(me, { action: 'set_decks', decks: good, active: 0 });
+    // mazzi vecchi troppo simili (salvati prima della regola): togliere card è permesso anche se non basta ancora
+    db.profiles.set('me', { progress: withDecks(p, [good[0], good[0], good[0]], 0), version: 2 });
+    await call(me, { action: 'set_decks', decks: [good[0], good[0].slice(0, 3), good[0]], active: 0 });
+    // i mazzi vecchi si possono ancora giocare (l'app aggiornata chiede prima di sistemarli)…
+    await call(me, { action: 'match_start', deck: good[0], daily: false, slot: 0, date: ctx.today, mode: CLASSIC });
+    // …ma una partita non può rendere i mazzi più simili
+    db.profiles.set('me', { progress: withDecks(p, good, 0), version: 9 });
+    await expect(
+      call(me, { action: 'match_start', deck: good[1], daily: false, slot: 0, date: ctx.today, mode: CLASSIC }),
+    ).rejects.toThrow('decks_similar');
+  });
+
+  it('eliminazione: sparisce l’account con le copie da cui era stato recuperato, gli altri restano', async () => {
+    const db = memoryDb();
+    const created = await call(db.as('phone-1'), { action: 'profile_create', ...NEW_PROFILE });
+    await call(db.as('phone-2'), { action: 'profile_create', recover: created.recoveryCode });
+    await call(db.as('claudia'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Claudia' });
+    db.friendships.add('phone-2|claudia').add('claudia|phone-2');
+    await expect(call(db.as('phone-2'), { action: 'account_delete' } as unknown as GameRequest)).rejects.toThrow('bad_request');
+    expect((await call(db.as('phone-2'), { action: 'account_delete', confirm: true })).deleted).toBe(true);
+    expect(db.profiles.has('phone-1')).toBe(false);
+    expect(db.profiles.has('phone-2')).toBe(false);
+    expect(db.profiles.has('claudia')).toBe(true);
+    expect([...db.friendships]).toEqual([]);
+    expect((await call(db.as('phone-2'), { action: 'sync' })).needsProfile).toBe(true);
+    // il nickname torna libero
+    await call(db.as('phone-3'), { action: 'profile_create', ...NEW_PROFILE });
   });
 });

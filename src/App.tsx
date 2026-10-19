@@ -17,6 +17,9 @@ import {
   buyPack,
   DECK_SLOTS,
   autoFillDeck,
+  autoFillDecks,
+  otherDecks,
+  savedDecks,
   deckSlots,
   loadProgress,
   savedDeck,
@@ -62,7 +65,9 @@ import {
 import { CARD_BY_ID, PLAYABLE_CARDS } from "./game/cards";
 import {
   CLASSIC,
+  MIN_DIFFERENT,
   deckProblems,
+  decksProblems,
   fitsMode,
   parseMode,
   type MatchMode,
@@ -274,8 +279,14 @@ export default function App() {
     }
     const slot = activeSlot(progress);
     let deck = savedDeck(progress, slot);
-    if (deck.length < DECK_SIZE) deck = autoFillDeck(progress, deck);
+    if (deck.length < DECK_SIZE) deck = autoFillDeck(progress, deck, Math.random, otherDecks(progress, slot));
     if (deck.length < DECK_SIZE) return;
+    const all = savedDecks(progress).map((d, i) => (i === slot ? deck : d));
+    if (decksProblems(all, slot).length) {
+      setToast(t("toast_decksSimilar", { n: slot + 1, m: MIN_DIFFERENT }));
+      go("builder");
+      return;
+    }
     if (deckProblems(deck).length) {
       setToast(t("toast_deckInvalid", { n: slot + 1 }));
       go("builder");
@@ -474,10 +485,8 @@ export default function App() {
   // Per la sfida tra amici servono 3 mazzi validi: se mancano li completiamo noi, così si entra subito in partita.
   async function ensureDecks(): Promise<boolean> {
     if (seriesDecks(progress)) return true;
-    const decks = Array.from({ length: DECK_SLOTS }, (_, i) =>
-      autoFillDeck(progress, savedDeck(progress, i))
-    );
-    if (decks.some((d) => d.length < DECK_SIZE || deckProblems(d).length)) {
+    const decks = autoFillDecks(progress);
+    if (decks.some((d) => d.length < DECK_SIZE || deckProblems(d).length) || decksProblems(decks).length) {
       setToast(t("fr_decksNeeded", { n: DECK_SLOTS }));
       go("builder");
       return false;
@@ -800,6 +809,25 @@ export default function App() {
     setScreen("home");
   }
 
+  // Eliminazione dell'account (richiesta da Google Play): due conferme, poi si cancella tutto anche sul server
+  // e si riparte da zero sul telefono.
+  async function deleteAccount() {
+    const name = account.profile?.nickname ?? "";
+    if (!(await askConfirm(t("del_confirm1", { name }), { danger: true, confirmLabel: t("del_continue") }))) return;
+    if (!(await askConfirm(t("del_confirm2"), { danger: true, confirmLabel: t("del_button") }))) return;
+    try {
+      await account.deleteAccount();
+    } catch (e) {
+      setToast(errorMessage(e));
+      return;
+    }
+    resetProgress();
+    setProgress(starterProgress());
+    setSettings(false);
+    setScreen("home");
+    setToast(t("del_done"));
+  }
+
   // cambio schermata dai pulsanti di navigazione, con tocco sonoro e vibrazione leggera
   const go = (s: Screen) => {
     if (s !== screen) {
@@ -997,6 +1025,7 @@ export default function App() {
               progress={progress}
               today={today}
               onShop={() => go("packs")}
+              onUseJolly={applyJolly}
             />
           )}
           {screen === "friend" && (
@@ -1087,6 +1116,7 @@ export default function App() {
               setIntro(true);
             }}
             onReset={reset}
+            onDeleteAccount={deleteAccount}
             onClose={() => setSettings(false)}
           />
         </Suspense>

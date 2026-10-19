@@ -53,6 +53,8 @@ export interface Account {
   recover: (code: string) => Promise<string | null>;
   updateProfile: (input: Partial<ProfileInput>) => Promise<void>;
   newRecoveryCode: () => Promise<string | null>;
+  // elimina l'account sul server (carte, progressi, amici) ed esce
+  deleteAccount: () => Promise<void>;
   later: () => void;
 }
 
@@ -199,6 +201,16 @@ export function useAccount(
 
   const newRecoveryCode = useCallback(async () => (await callGame({ action: 'recovery_new' })).recoveryCode ?? null, []);
 
+  const deleteAccount = useCallback(async () => {
+    await callGame({ action: 'account_delete', confirm: true });
+    setProfile(null);
+    setIncomplete(false);
+    write(sessionStorage, LATER_KEY, null);
+    setLater(false);
+    // l'utente non esiste più sul server: basta dimenticare la sessione sul telefono
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+  }, []);
+
   const skip = useCallback(() => {
     write(sessionStorage, LATER_KEY, '1');
     setLater(true);
@@ -221,6 +233,7 @@ export function useAccount(
     recover,
     updateProfile,
     newRecoveryCode,
+    deleteAccount,
     later: skip,
   };
 }
