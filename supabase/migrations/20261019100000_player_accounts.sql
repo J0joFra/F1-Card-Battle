@@ -60,14 +60,9 @@ begin
     new_recovery_hash,
     now()
   );
-  -- gli amici passano al nuovo account
-  insert into public.friends (user_id, friend_id)
-    select to_id, friend_id from public.friends where user_id = from_id and friend_id <> to_id
-    on conflict do nothing;
-  insert into public.friends (user_id, friend_id)
-    select user_id, to_id from public.friends where friend_id = from_id and user_id <> to_id
-    on conflict do nothing;
-  delete from public.friends where user_id = from_id or friend_id = from_id;
+  -- gli amici passano al nuovo account (che è appena nato, quindi non ha amici suoi)
+  update public.friends set user_id = to_id where user_id = from_id;
+  update public.friends set friend_id = to_id where friend_id = from_id;
   return true;
 end;
 $$;
@@ -75,8 +70,3 @@ $$;
 -- solo il server (Edge Function "game", chiave di servizio) può usarla
 revoke execute on function public.transfer_profile(uuid, uuid, text, jsonb, text, text) from public, anon, authenticated;
 grant execute on function public.transfer_profile(uuid, uuid, text, jsonb, text, text) to service_role;
-
--- Con gli account anonimi chiunque può avere una sessione: i telefoni non scrivono più il profilo
--- direttamente (lo fa solo il server, che controlla ogni azione). Resta la lettura del proprio profilo.
-drop policy if exists "profilo: creazione propria" on public.profiles;
-drop policy if exists "profilo: modifica propria" on public.profiles;
