@@ -9,8 +9,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         // numero e nome di versione: per Google Play ogni pacchetto deve avere un versionCode più alto del precedente
         // (Codemagic lo passa con -PversionCode=numero della build)
-        versionCode (project.findProperty('versionCode') ?: '1').toInteger()
-        versionName (project.findProperty('versionName') ?: '1.0')
+        versionCode Integer.parseInt((project.findProperty('versionCode') ?: '1').toString())
+        versionName((project.findProperty('versionName') ?: '1.0').toString())
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
