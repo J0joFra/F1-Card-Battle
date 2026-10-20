@@ -7,6 +7,7 @@ import {
   isAvailable,
   matchOutcome,
   newMatch,
+  passTurn,
   playRound,
   TURN_SECONDS,
   type MatchState,
@@ -93,6 +94,15 @@ async function pvpResponse(store: Store, id: string, rec: PvpRecord, now: number
 
 // Applica una mossa (o un abbandono). Se la partita finisce si passa alla successiva della serie;
 // se finisce la serie si assegnano i premi a entrambi.
+// Tempo scaduto per chi doveva scegliere: la scelta passa all'avversario, con un tempo nuovo.
+async function passChoice(store: Store, ctx: Ctx, id: string, rec: PvpRecord, rev: number, state: MatchState) {
+  const games = [...rec.games];
+  games[games.length - 1] = storeMatch(passTurn(state));
+  const saved: PvpRecord = { ...rec, games, deadline: nowOf(ctx) + PVP_TURN_MS };
+  if (!(await store.updatePvp(id, saved, rev))) throw new GameError('busy', 409);
+  return saved;
+}
+
 async function advance(store: Store, ctx: Ctx, id: string, rec: PvpRecord, rev: number, next: MatchState | null, forfeit?: Side) {
   const now = nowOf(ctx);
   const games = [...rec.games];
@@ -236,13 +246,17 @@ export async function handlePvp(req: GameRequest, store: Store, ctx: Ctx): Promi
 
     case 'pvp_state': {
       let { rec, rev } = await loadPvp(store, req.match);
-      // tempo scaduto: il server sceglie la metrica migliore per chi doveva scegliere
+      // tempo scaduto: la scelta passa all'avversario; se scade anche il suo, il server sceglie la metrica
+      // migliore per lui
       if (rec.status === 'playing' && rec.deadline !== null && now > rec.deadline) {
         const state = loadMatch(rec.games[rec.games.length - 1]);
         const { player, cpu } = currentCards(state);
-        const next = playRound(state, bestStat(state.chooser === 'player' ? player : cpu, availableStats(state)));
         try {
-          rec = await advance(store, ctx, req.match, rec, rev, next);
+          if (!state.passed && !matchOutcome(state)) rec = await passChoice(store, ctx, req.match, rec, rev, state);
+          else {
+            const next = playRound(state, bestStat(state.chooser === 'player' ? player : cpu, availableStats(state)));
+            rec = await advance(store, ctx, req.match, rec, rev, next);
+          }
         } catch (e) {
           if (!(e instanceof GameError && e.code === 'busy')) throw e;
           rec = (await loadPvp(store, req.match)).rec; // l'ha già fatto un'altra richiesta
@@ -260,6 +274,17 @@ export async function handlePvp(req: GameRequest, store: Store, ctx: Ctx): Promi
       if (state.chooser !== side) throw new GameError('not_your_turn', 409);
       if (!req.stat || !STATS.some((s) => s.key === req.stat) || !isAvailable(state, req.stat)) throw new GameError('bad_stat');
       const next = await advance(store, ctx, req.match, rec, rev, playRound(state, req.stat));
+      return pvpResponse(store, req.match, next, now, req.game);
+    }
+
+    case 'pvp_pass': {
+      // il telefono di chi doveva scegliere segnala che il suo tempo è finito
+      const { rec, rev } = await loadPvp(store, req.match);
+      if (rec.status !== 'playing') throw new GameError('match_finished');
+      if (req.game !== rec.games.length - 1) throw new GameError('not_your_turn', 409);
+      const state = loadMatch(rec.games[req.game]);
+      if (state.chooser !== sideOf(rec, store.me.id) || state.passed) throw new GameError('not_your_turn', 409);
+      const next = await passChoice(store, ctx, req.match, rec, rev, state);
       return pvpResponse(store, req.match, next, now, req.game);
     }
 

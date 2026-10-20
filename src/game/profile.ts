@@ -12,7 +12,11 @@ export type HelmetDesign = (typeof HELMET_DESIGNS)[number];
 // Ogni parte è il numero dell'opzione scelta nell'elenco qui sotto.
 export const AVATAR_OPTIONS = {
   skin: ['#ffdfc8', '#f3c6a5', '#e2aa84', '#c98a62', '#aa6c45', '#8c5333', '#6c3e24', '#4a2a17'],
-  hair: ['bald', 'buzz', 'short', 'sidepart', 'curly', 'afro', 'long', 'ponytail', 'bun', 'mohawk', 'wavy', 'spiky'],
+  // (le nuove acconciature si aggiungono in fondo: gli avatar salvati usano il numero della posizione)
+  hair: [
+    'bald', 'buzz', 'short', 'sidepart', 'curly', 'afro', 'long', 'ponytail', 'bun', 'mohawk', 'wavy', 'spiky',
+    'bob', 'longbangs', 'pigtails', 'braid', 'spacebuns', 'highpony', 'curlylong', 'pixie', 'afropuffs', 'longfront',
+  ],
   hairColor: ['#1b1b1d', '#3b2418', '#6b3f1f', '#9a6233', '#c99a5b', '#e8cf8a', '#b5482a', '#8f8f94', '#e9e9ec', '#2f5bea', '#e0457b'],
   eyes: ['round', 'happy', 'narrow', 'big', 'wink'],
   eyeColor: ['#3a2a1e', '#6b4a2b', '#3d7a3d', '#3a6fb0', '#6b7b8c'],

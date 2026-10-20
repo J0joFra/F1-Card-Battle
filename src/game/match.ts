@@ -1,7 +1,7 @@
 import type { Card, StatKey } from '../types';
 import { CARD_BY_ID } from './cards';
 import { DAILY_REWARD_CREDITS, finishDaily, missionDone, missionsAfterMatch, missionsFor } from './daily';
-import { cpuChooseStat, matchOutcome, playRound, type MatchOutcome, type MatchState, type Side } from './engine';
+import { cpuChooseStat, matchOutcome, passTurn, playRound, type MatchOutcome, type MatchState, type Side } from './engine';
 import { FIRST_WIN_CREDITS, FRIEND_DRAW_CREDITS, FRIEND_WIN_CREDITS, MATCH_CREDITS, recordMatch, type Progress } from './collection';
 
 /*
@@ -27,6 +27,7 @@ export interface MatchView {
   history: RoundView[];
   current: string | null; // la tua card di questo round (quella della CPU resta coperta)
   outcome: MatchOutcome;
+  passed?: boolean; // tempo scaduto in questo round: la scelta è passata all'avversario
   opponentLeft?: boolean; // sfida tra amici: l'avversario ha abbandonato
   sinceMove?: number; // sfida tra amici: ms passati dall'ultima mossa (per cambiare carta insieme)
 }
@@ -47,6 +48,7 @@ export function toView(s: MatchState): MatchView {
     })),
     current: outcome ? null : (s.player[s.round]?.id ?? null),
     outcome,
+    ...(s.passed ? { passed: true } : {}),
   };
 }
 
@@ -59,6 +61,7 @@ export interface StoredMatch {
   usedStats: StatKey[];
   score: Record<Side, number>;
   history: RoundView[];
+  passed?: boolean;
 }
 
 const card = (id: string): Card => {
@@ -77,6 +80,7 @@ export function storeMatch(s: MatchState): StoredMatch {
     usedStats: s.usedStats,
     score: s.score,
     history: v.history,
+    ...(s.passed ? { passed: true } : {}),
   };
 }
 
@@ -88,6 +92,7 @@ export function loadMatch(m: StoredMatch): MatchState {
     chooser: m.chooser,
     usedStats: m.usedStats,
     score: m.score,
+    passed: !!m.passed,
     history: m.history.map((h) => ({
       stat: h.stat,
       chooser: h.chooser,
@@ -157,6 +162,7 @@ export function flipMatch(s: MatchState): MatchState {
     chooser: other(s.chooser),
     usedStats: s.usedStats,
     score: { player: s.score.cpu, cpu: s.score.player },
+    passed: s.passed,
     history: s.history.map((h) => ({
       stat: h.stat,
       chooser: other(h.chooser),
@@ -175,6 +181,8 @@ export interface MatchDriver {
   start: MatchView;
   // gioca il round: con la metrica scelta dal giocatore, o senza quando tocca alla CPU
   play(stat?: StatKey): Promise<MatchView>;
+  // tempo scaduto: la scelta passa all'avversario
+  pass(): Promise<MatchView>;
   quit(): void;
 }
 
@@ -187,6 +195,10 @@ export function localDriver(initial: MatchState, onEnd: (final: MatchState) => v
       if (!chosen) throw new Error('metrica mancante');
       state = playRound(state, chosen);
       if (matchOutcome(state)) onEnd(state);
+      return toView(state);
+    },
+    async pass() {
+      state = passTurn(state);
       return toView(state);
     },
     quit() {},

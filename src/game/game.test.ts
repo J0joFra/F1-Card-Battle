@@ -275,11 +275,11 @@ describe('collezione', () => {
     expect(spendJolly(p, ferrari)!.unlockedCareers.map((c) => c.id)).toEqual(['lewis-hamilton__career']);
   });
 
-  it('Jolly: esce in circa un pacchetto su 5', () => {
+  it('Jolly: esce in circa un pacchetto su 10', () => {
     let jolly = 0;
     for (let i = 1; i <= 400; i++) if (openPack({ ...starterProgress(seeded(i)), packs: 1 }, seeded(i * 7))!.jolly) jolly++;
-    expect(jolly).toBeGreaterThan(40);
-    expect(jolly).toBeLessThan(140);
+    expect(jolly).toBeGreaterThan(20);
+    expect(jolly).toBeLessThan(70);
   });
 });
 

@@ -21,7 +21,7 @@ https://f1cardbattle.vercel.app/
 - Il primo round sceglie sempre il giocatore; poi **la metrica la sceglie chi ha vinto il round precedente** (in caso di pareggio il turno passa all'altro).
 - **Ogni metrica si usa una sola volta per partita**: all'ultimo round resta quella rimasta.
 - Vince il round il valore più alto (↓ = vince il più basso) e prende un punto. Chi fa più punti vince la partita.
-- Per scegliere la metrica hai **30 secondi**: allo scadere il gioco gioca per te la metrica migliore della tua card.
+- Per scegliere la metrica hai **30 secondi**: allo scadere la scelta passa all'avversario (contro un amico: se scade anche il suo tempo, il server gioca per lui la metrica migliore della sua card).
 - La CPU gioca con la stessa composizione di rarità del tuo mazzo, ma sceglie le sue card per coprire più metriche possibile; quando tocca a lei sceglie, tra le metriche rimaste, la migliore della sua card (non vede la tua).
 
 ### Metriche
@@ -44,8 +44,8 @@ Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per 
 
 ## Negozio
 
-- **Pacchetti**: *Classico* (5 card, 🪙 40, va tra i pacchetti da aprire, come quello vinto ogni 10 vittorie), *Premium* (5 card, 🪙 150: niente Bronzo, l'ultima almeno Oro) e *Scuderia* (4 card, 🪙 80: solo card della scuderia del giorno, che cambia ogni giorno ed è uguale per tutti). Premium e Scuderia si aprono subito.
-- **Carte del giorno**: 6 card da comprare con i crediti (Bronzo 15, Argento 40, Oro 120, Platino 200), scelte una volta al giorno e fisse fino a mezzanotte. Soprattutto card scuderia che ti mancano per completare un pilota (🎯 *Ti serve*), poi altre card che non hai (al massimo un Oro o Platino). Ogni card si compra una volta. Dalla Collezione non si comprano più card a scelta: solo nel negozio.
+- **Pacchetti**: *Classico* (5 card, 🪙 120, va tra i pacchetti da aprire, come quello vinto ogni 10 vittorie), *Premium* (5 card, 🪙 450: niente Bronzo, l'ultima almeno Oro) e *Scuderia* (4 card, 🪙 250: solo card della scuderia del giorno, che cambia ogni giorno ed è uguale per tutti). Premium e Scuderia si aprono subito.
+- **Carte del giorno**: 6 card da comprare con i crediti (Bronzo 40, Argento 100, Oro 300, Platino 700), scelte una volta al giorno e fisse fino a mezzanotte. Soprattutto card scuderia che ti mancano per completare un pilota (🎯 *Ti serve*), poi altre card che non hai (al massimo un Oro o Platino). Ogni card si compra una volta. Dalla Collezione non si comprano più card a scelta: solo nel negozio.
 - Toccando una card (nel negozio o nel costruttore del mazzo) si gira e si ingrandisce, con il diagramma a ragnatela.
 
 ## Sfida un amico
@@ -72,7 +72,8 @@ Vittorie, podi, pole e mondiali restano sulla card come palmarès e servono per 
 - **Crediti a ogni partita contro la CPU** giocata fino in fondo: vittoria +8, pareggio +5, sconfitta +3 (abbandonare non dà nulla). La **prima vittoria del giorno** vale +25 in più (anche contro un amico). Premi, avanzamento verso il pacchetto e **Rivincita** sono nella schermata di fine partita.
 - **Ogni 10 vittorie** (contro la CPU o contro un amico) si riceve un pacchetto da 5 card (59% Bronzo, 3% Pioniere, 3% Classica, 22% Argento, 9% Oro, 3% Platino, 1% Leggendaria; l'ultima card è sempre almeno Argento).
 - I doppioni diventano **crediti**, che servono a comprare una card a scelta o un pacchetto.
-- Nel 20% dei pacchetti c'è anche un **Jolly** 🃏: una card scuderia a scelta di un pilota che stai completando (ne devi già avere almeno una). I Jolly si accumulano: si usano quando vuoi, dal Negozio o dalla Collezione, dopo aver confrontato le card (con conferma).
+- **Economia**: in una giornata di gioco (una decina di partite, missioni e sfida del giorno) si guadagnano circa 150 crediti, poco più di un pacchetto Classico. Nei pacchetti Classici un Platino esce circa una volta ogni 17 pacchetti e una Leggendaria una ogni 65; nei Premium circa una volta ogni 3 e ogni 10 (valori in `src/game/collection.ts` e `src/game/shop.ts`).
+- Nel 10% dei pacchetti c'è anche un **Jolly** 🃏: una card scuderia a scelta di un pilota che stai completando (ne devi già avere almeno una). I Jolly si accumulano: si usano quando vuoi, dal Negozio o dalla Collezione, dopo aver confrontato le card (con conferma).
 - Un pilota ha una card per ogni scuderia (es. Hamilton: McLaren, Mercedes, Ferrari) più una card **Carriera** leggendaria. Completando tutte le card scuderia di un pilota si sblocca la sua Carriera.
 - Rarità: *Leggendaria* = Carriera. Le card scuderia hanno una **valutazione (OVR, 0-100)**, il numero in basso a destra sulla card: è la media dei percentili delle 7 metriche rispetto a tutte le card scuderia (per Best e Griglia vale il valore più basso). Da 87 in su è *Platino*, da 76 *Oro*, da 61 *Argento*, sotto *Bronzo* (soglie in `RARITY_THRESHOLDS`, `src/game/cards.ts`). La valutazione si calcola all'avvio sia nell'app sia sul server, quindi i due sono sempre d'accordo.
 - **Tre epoche**, decise dai dati (vedi sotto): ogni card ha l'epoca degli anni in cui il pilota ha corso, quindi chi è stato in pista in più epoche ha una card per ognuna (es. Graham Hill: Pioniere, Classica e due card moderne).

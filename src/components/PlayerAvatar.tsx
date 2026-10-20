@@ -26,6 +26,77 @@ function HairBack({ style, color }: { style: string; color: string }) {
       return <path d="M80 34 C96 36 100 56 94 76 C92 82 86 80 87 74 C90 60 88 46 78 42 Z" fill={color} />;
     case 'bun':
       return <circle cx="60" cy="19" r="10" fill={color} />;
+    case 'bob':
+      return <path d="M30 50 C28 24 44 14 60 14 C76 14 92 24 90 50 L91 76 C87 82 81 82 79 77 L41 77 C39 82 33 82 29 76 Z" fill={color} />;
+    case 'longbangs':
+    case 'longfront':
+      return <path d="M32 50 C30 26 44 16 60 16 C76 16 90 26 88 50 L92 92 C80 98 72 94 70 84 L50 84 C48 94 40 98 28 92 Z" fill={color} />;
+    case 'pigtails':
+      return (
+        <g>
+          <path d="M36 40 C21 43 15 62 19 80 C21 87 28 85 28 78 C26 65 28 53 37 47 Z" fill={color} />
+          <path d="M84 40 C99 43 105 62 101 80 C99 87 92 85 92 78 C94 65 92 53 83 47 Z" fill={color} />
+          <circle cx="35" cy="44" r="3.4" fill="#e0457b" />
+          <circle cx="85" cy="44" r="3.4" fill="#e0457b" />
+        </g>
+      );
+    case 'spacebuns':
+      return (
+        <g fill={color}>
+          <circle cx="40" cy="21" r="11" />
+          <circle cx="80" cy="21" r="11" />
+        </g>
+      );
+    case 'afropuffs':
+      return (
+        <g fill={color}>
+          <circle cx="31" cy="27" r="15" />
+          <circle cx="89" cy="27" r="15" />
+        </g>
+      );
+    case 'highpony':
+      return (
+        <g>
+          <path d="M64 18 C86 6 106 22 101 50 C99 66 93 78 95 92 C86 88 83 72 86 57 C89 41 83 29 70 27 Z" fill={color} />
+          <circle cx="68" cy="20" r="3.4" fill="#e0457b" />
+        </g>
+      );
+    case 'curlylong':
+      return (
+        <g fill={color}>
+          {[
+            [34, 30], [86, 30], [29, 42], [91, 42], [28, 54], [92, 54], [28, 66], [92, 66], [30, 78], [90, 78], [35, 88], [85, 88],
+            [46, 20], [60, 16], [74, 20],
+          ].map(([x, y], i) => (
+            <circle key={i} cx={x} cy={y} r="10" />
+          ))}
+        </g>
+      );
+    default:
+      return null;
+  }
+}
+
+// capelli davanti alle spalle (trecce, ciocche lunghe): sopra la tuta ma sotto il viso
+function HairOver({ style, color }: { style: string; color: string }) {
+  switch (style) {
+    case 'braid':
+      return (
+        <g fill={color}>
+          {[62, 70, 78, 86, 94, 102].map((y, i) => (
+            <ellipse key={y} cx={80 + i * 1.4} cy={y} rx={6.5 - i * 0.4} ry="5.2" stroke="rgba(0,0,0,0.18)" strokeWidth="1" />
+          ))}
+          <circle cx="88.4" cy="108" r="3" fill="#e0457b" />
+          <path d="M86 110 C84 116 88 118 90 116 C92 118 95 114 91 110 Z" />
+        </g>
+      );
+    case 'longfront':
+      return (
+        <g fill={color}>
+          <path d="M36 58 C31 72 29 88 25 106 C31 109 38 106 40 99 C41 86 43 74 43 62 Z" />
+          <path d="M84 58 C89 72 91 88 95 106 C89 109 82 106 80 99 C79 86 77 74 77 62 Z" />
+        </g>
+      );
     default:
       return null;
   }
@@ -43,6 +114,7 @@ function HairFront({ style, color }: { style: string; color: string }) {
         <path d="M35 52 C31 28 45 18 62 18 C79 18 90 29 85 50 C82 40 76 33 67 31 C58 33 46 37 40 42 C37 45 36 48 35 52 Z M62 18 C56 22 52 28 50 34" fill={color} />
       );
     case 'curly':
+    case 'curlylong':
       return (
         <g fill={color}>
           {[
@@ -59,7 +131,22 @@ function HairFront({ style, color }: { style: string; color: string }) {
       return <path d="M34 54 C30 28 45 18 60 18 C75 18 90 28 86 54 C82 40 74 32 64 30 C56 36 44 40 34 54 Z" fill={color} />;
     case 'ponytail':
     case 'bun':
+    case 'pigtails':
+    case 'spacebuns':
+    case 'afropuffs':
+    case 'highpony':
       return <path d="M35 50 C33 28 46 21 60 21 C74 21 87 28 85 50 C81 38 72 31 60 31 C48 31 39 38 35 50 Z" fill={color} />;
+    case 'bob':
+    case 'longbangs':
+      // frangia dritta
+      return <path d="M34 54 C31 27 45 17 60 17 C75 17 89 27 86 54 L84 42 L36 42 Z" fill={color} />;
+    case 'braid':
+    case 'longfront':
+      return <path d="M34 54 C30 28 45 18 60 18 C75 18 90 28 86 54 C82 40 74 32 64 30 C56 36 44 40 34 54 Z" fill={color} />;
+    case 'pixie':
+      return (
+        <path d="M35 52 C32 28 46 18 62 18 C78 18 89 28 85 47 C81 38 72 33 61 34 C53 35 46 39 42 46 C40 44 37 47 35 52 Z M41 45 C47 31 66 27 79 35 C68 33 55 38 45 48 Z" fill={color} />
+      );
     case 'mohawk':
       return <path d="M53 34 C51 22 54 10 60 6 C66 10 69 22 67 34 C64 31 56 31 53 34 Z" fill={color} />;
     case 'spiky':
@@ -254,6 +341,7 @@ export function AvatarSvg({ avatar, zoom = 'full' }: { avatar: Avatar; zoom?: Av
       <path d="M60 92 L60 122" stroke={light ? '#2a2d34' : '#ffffff'} strokeOpacity="0.45" strokeWidth="1.5" />
       {/* collo e orecchie */}
       <path d="M50 72 L70 72 L70 86 C66 90 54 90 50 86 Z" fill={shade(skin, 0.86)} />
+      <HairOver style={hairStyle} color={hair} />
       <ellipse cx="35.5" cy="57" rx="5" ry="6.5" fill={shade(skin, 0.92)} />
       <ellipse cx="84.5" cy="57" rx="5" ry="6.5" fill={shade(skin, 0.92)} />
       {/* viso */}

@@ -5,7 +5,7 @@ import { Flag, RotateCcw } from 'lucide-react';
 import { CARD_BY_ID, STATS, STAT_BY_KEY, formatStat, statLabel, statShort } from '../game/cards';
 import { useI18n, type TKey } from '../lib/i18n';
 import { errorMessage } from '../lib/api';
-import { ROUNDS, TURN_SECONDS, bestStat, type Side } from '../game/engine';
+import { ROUNDS, TURN_SECONDS, type Side } from '../game/engine';
 import type { MatchDriver, MatchRewards, MatchView } from '../game/match';
 import { FIRST_WIN_CREDITS, WINS_PER_PACK } from '../game/collection';
 import { DAILY_REWARD_CREDITS } from '../game/daily';
@@ -77,6 +77,8 @@ export function MatchScreen({
     m_cpuThinking: 'pv_thinking',
     m_cpuCard: 'pv_card',
     m_quitConfirm: 'pv_quitConfirm',
+    m_timeUp: 'pv_timeUp',
+    m_oppTimeUp: 'pv_oppTimeUp',
   };
   const t = (key: TKey, params: Record<string, string | number> = {}) => {
     if (!opponent) return tr(key, params);
@@ -167,10 +169,10 @@ export function MatchScreen({
     return () => clearTimeout(tm);
   }, [cpuPick]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 30 secondi per scegliere: allo scadere si gioca la metrica migliore della tua card
+  // 30 secondi per scegliere: allo scadere la scelta passa all'avversario
   const myTurn = choosing && view.chooser === 'player' && !busy && !!current;
   const [left, setLeft] = useState(TURN_SECONDS);
-  const pickRef = useRef<(s: StatKey) => void>(() => {});
+  const passRef = useRef<() => void>(() => {});
   useEffect(() => {
     if (!myTurn) return;
     const start = Date.now();
@@ -180,7 +182,7 @@ export function MatchScreen({
       setLeft(Math.max(0, l));
       if (l <= 0) {
         clearInterval(id);
-        pickRef.current(bestStat(current!, free));
+        passRef.current();
       }
     }, 250);
     return () => clearInterval(id);
@@ -193,7 +195,19 @@ export function MatchScreen({
     return () => clearTimeout(tm);
   }, [synced, showResult, settled]);
 
-  pickRef.current = pick;
+  passRef.current = passTurn;
+  function passTurn() {
+    if (busy || view.chooser !== 'player') return;
+    haptic('error');
+    setError(null);
+    setBusy(true);
+    driver.pass().then((next) => {
+      if (!alive.current) return;
+      setBusy(false);
+      show(next);
+    }, fail);
+  }
+
   function pick(stat: StatKey) {
     if (busy || view.chooser !== 'player') return;
     sfx('select');
@@ -410,14 +424,18 @@ export function MatchScreen({
           )}
           <div className={`banner ${view.chooser === 'cpu' ? 'banner-cpu-turn' : ''}`}>
             {view.chooser === 'player'
-              ? free.length === 1
+              ? view.passed
+                ? t('m_oppTimeUp')
+                : free.length === 1
                 ? t('m_last', { stat: statLabel(free[0]) })
                 : view.round === 0
                   ? t('m_first')
                   : t('m_yourTurn')
               : cpuPick
                 ? t('m_cpuPicks', { stat: statLabel(cpuPick) })
-                : t('m_cpuThinking')}
+                : view.passed
+                  ? t('m_timeUp')
+                  : t('m_cpuThinking')}
           </div>
           {hint && view.chooser === 'player' && <p className="match-hint">{tr('m_hint')}</p>}
           {error && (
