@@ -335,6 +335,9 @@ export default function App() {
           if (r.rewards) setRewards(r.rewards);
           return r.view!;
         },
+        async pass() {
+          return (await account.track(callGame({ action: "match_pass", match: id }))).view!;
+        },
         quit() {
           void callGame({ action: "match_quit", match: id }).catch(() => {});
         },
@@ -435,11 +438,22 @@ export default function App() {
           try {
             const r = await state();
             failures = 0;
-            if (r.view && (r.view.round !== last.round || r.view.outcome))
+            // nuova mossa, oppure l'amico ha lasciato scadere il tempo e la scelta è passata a te
+            if (r.view && (r.view.round !== last.round || r.view.chooser !== last.chooser || r.view.outcome))
               return adopt(r);
           } catch (e) {
             if (++failures >= 3) throw e;
           }
+        }
+      },
+      async pass() {
+        try {
+          return adopt(await account.track(callGame({ action: "pvp_pass", match: id, game })));
+        } catch (e) {
+          // il server ha già deciso (tempo scaduto anche lì, o mossa arrivata): si riparte dallo stato vero
+          if (e instanceof ApiError && ["not_your_turn", "match_finished", "busy"].includes(e.code))
+            return adopt(await state());
+          throw e;
         }
       },
       quit() {

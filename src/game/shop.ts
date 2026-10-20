@@ -32,18 +32,18 @@ export const PACK_TYPES: Record<PackKind, PackType> = {
   classic: { price: PACK_PRICE, size: PACK_SIZE, odds: PACK_ODDS, minLast: 'argento' },
   // niente Bronzo, molto più Oro e Leggendarie
   premium: {
-    price: 150,
+    price: 450,
     size: PACK_SIZE,
     odds: [
-      ['argento', 0.5],
-      ['oro', 0.32],
-      ['platino', 0.12],
-      ['leggendaria', 0.06],
+      ['argento', 0.58],
+      ['oro', 0.33],
+      ['platino', 0.07], // ~1 pacchetto su 3
+      ['leggendaria', 0.02], // ~1 pacchetto su 10
     ],
     minLast: 'oro',
   },
   // solo card della scuderia del giorno: per completare le scuderie
-  team: { price: 80, size: 4, odds: PACK_ODDS.map(([r, p]) => [r === 'pioniere' || r === 'classica' ? 'bronzo' : r, p]), minLast: 'argento' },
+  team: { price: 250, size: 4, odds: PACK_ODDS.map(([r, p]) => [r === 'pioniere' || r === 'classica' ? 'bronzo' : r, p]), minLast: 'argento' },
 };
 
 const RANK: Record<Rarity, number> = { bronzo: 0, argento: 1, pioniere: 1, classica: 1, oro: 2, platino: 3, leggendaria: 4 };

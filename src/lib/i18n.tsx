@@ -296,7 +296,7 @@ const it = {
   err_bad_code: 'Codice non valido o sfida già iniziata.',
   err_own_match: 'Questa è la tua sfida: manda il codice a un amico.',
   tut_friend_1: 'Prepara i tuoi 3 mazzi, poi sfida un amico dalla lista (il pallino verde indica chi è online) oppure crea una sfida con codice.',
-  tut_friend_2: 'Si gioca al meglio di 3: la partita 1 con il mazzo 1, la 2 con il 2, la 3 con il 3. Chi vince il round sceglie la metrica; hai {s} secondi, poi il gioco usa la migliore della tua card.',
+  tut_friend_2: 'Si gioca al meglio di 3: la partita 1 con il mazzo 1, la 2 con il 2, la 3 con il 3. Chi vince il round sceglie la metrica; hai {s} secondi, poi la scelta passa all’avversario.',
   tut_friend_3: 'Vincere la serie vale +{w} 🪙 e conta per il pacchetto; il pareggio vale +{d} 🪙. Chi abbandona perde. A fine sfida puoi aggiungere l\'avversario agli amici.',
   deck_slots: 'Mazzi salvati',
   deck_save: 'Salva mazzi',
@@ -391,6 +391,10 @@ const it = {
   acc_codeUnknown: 'Il codice è quello che hai salvato quando hai creato l’account: non cambia mai.',
   err_bad_login: 'Username o codice sbagliati.',
   err_code_permanent: 'Il codice di recupero non cambia: è la password del tuo account.',
+  m_timeUp: '⏱ Tempo scaduto: sceglie la CPU',
+  m_oppTimeUp: '⏱ Tempo scaduto per l’avversario: scegli tu',
+  pv_timeUp: '⏱ Tempo scaduto: sceglie {name}',
+  pv_oppTimeUp: '⏱ {name} non ha scelto in tempo: scegli tu',
 };
 
 export type TKey = keyof typeof it;
@@ -529,7 +533,7 @@ const en: Dict = {
   err_bad_code: 'Invalid code or the challenge already started.',
   err_own_match: 'This is your own challenge: send the code to a friend.',
   tut_friend_1: 'Prepare your 3 decks, then challenge a friend from the list (the green dot shows who’s online) or create a challenge with a code.',
-  tut_friend_2: 'It’s best of 3: game 1 with deck 1, game 2 with deck 2, game 3 with deck 3. The round winner picks the stat; you have {s} seconds, then the game plays your card’s best one.',
+  tut_friend_2: 'It’s best of 3: game 1 with deck 1, game 2 with deck 2, game 3 with deck 3. The round winner picks the stat; you have {s} seconds, then the choice passes to your opponent.',
   tut_friend_3: 'Winning the series is worth +{w} 🪙 and counts toward your pack; a draw +{d} 🪙. Leaving means losing. At the end you can add your opponent as a friend.',
   deck_slots: 'Saved decks',
   deck_save: 'Save decks',
@@ -624,6 +628,10 @@ const en: Dict = {
   acc_codeUnknown: 'Your code is the one you saved when you created the account: it never changes.',
   err_bad_login: 'Wrong username or code.',
   err_code_permanent: 'The recovery code doesn’t change: it’s your account password.',
+  m_timeUp: '⏱ Time’s up: the CPU picks',
+  m_oppTimeUp: '⏱ Your opponent ran out of time: you pick',
+  pv_timeUp: '⏱ Time’s up: {name} picks',
+  pv_oppTimeUp: '⏱ {name} ran out of time: you pick',
 };
 
 const fr: Dict = {
@@ -759,7 +767,7 @@ const fr: Dict = {
   err_bad_code: 'Code invalide ou défi déjà commencé.',
   err_own_match: 'C’est ton propre défi : envoie le code à un ami.',
   tut_friend_1: 'Prépare tes 3 decks, puis défie un ami de la liste (le point vert indique qui est en ligne) ou crée un défi avec un code.',
-  tut_friend_2: 'Au meilleur des 3 : partie 1 avec le deck 1, partie 2 avec le deck 2, partie 3 avec le deck 3. Le gagnant de la manche choisit la stat ; tu as {s} secondes, sinon le jeu joue la meilleure de ta carte.',
+  tut_friend_2: 'Au meilleur des 3 : partie 1 avec le deck 1, partie 2 avec le deck 2, partie 3 avec le deck 3. Le gagnant de la manche choisit la stat ; tu as {s} secondes, sinon le choix passe à l’adversaire.',
   tut_friend_3: 'Gagner la série rapporte +{w} 🪙 et compte pour le paquet ; le nul +{d} 🪙. Abandonner, c’est perdre. À la fin tu peux ajouter ton adversaire en ami.',
   deck_slots: 'Decks enregistrés',
   deck_save: 'Enregistrer les decks',
@@ -854,6 +862,10 @@ const fr: Dict = {
   acc_codeUnknown: 'Ton code est celui que tu as enregistré en créant le compte : il ne change jamais.',
   err_bad_login: 'Nom d’utilisateur ou code incorrect.',
   err_code_permanent: 'Le code de récupération ne change pas : c’est le mot de passe de ton compte.',
+  m_timeUp: '⏱ Temps écoulé : le CPU choisit',
+  m_oppTimeUp: '⏱ Temps écoulé pour l’adversaire : à toi de choisir',
+  pv_timeUp: '⏱ Temps écoulé : {name} choisit',
+  pv_oppTimeUp: '⏱ {name} n’a pas choisi à temps : à toi de choisir',
 };
 
 const es: Dict = {
@@ -989,7 +1001,7 @@ const es: Dict = {
   err_bad_code: 'Código no válido o el desafío ya empezó.',
   err_own_match: 'Es tu propio desafío: envía el código a un amigo.',
   tut_friend_1: 'Prepara tus 3 mazos y desafía a un amigo de la lista (el punto verde indica quién está en línea) o crea un desafío con código.',
-  tut_friend_2: 'Es al mejor de 3: partida 1 con el mazo 1, la 2 con el 2, la 3 con el 3. Quien gana la ronda elige la estadística; tienes {s} segundos, si no el juego usa la mejor de tu carta.',
+  tut_friend_2: 'Es al mejor de 3: partida 1 con el mazo 1, la 2 con el 2, la 3 con el 3. Quien gana la ronda elige la estadística; tienes {s} segundos, si no la elección pasa al rival.',
   tut_friend_3: 'Ganar la serie vale +{w} 🪙 y cuenta para el sobre; el empate +{d} 🪙. Quien abandona pierde. Al final puedes añadir a tu rival como amigo.',
   deck_slots: 'Mazos guardados',
   deck_save: 'Guardar mazos',
@@ -1084,6 +1096,10 @@ const es: Dict = {
   acc_codeUnknown: 'Tu código es el que guardaste al crear la cuenta: nunca cambia.',
   err_bad_login: 'Usuario o código incorrectos.',
   err_code_permanent: 'El código de recuperación no cambia: es la contraseña de tu cuenta.',
+  m_timeUp: '⏱ Se acabó el tiempo: elige la CPU',
+  m_oppTimeUp: '⏱ Al rival se le acabó el tiempo: eliges tú',
+  pv_timeUp: '⏱ Se acabó el tiempo: elige {name}',
+  pv_oppTimeUp: '⏱ A {name} se le acabó el tiempo: eliges tú',
 };
 
 const de: Dict = {
@@ -1219,7 +1235,7 @@ const de: Dict = {
   err_bad_code: 'Ungültiger Code oder die Herausforderung läuft schon.',
   err_own_match: 'Das ist deine eigene Herausforderung: Schick den Code einem Freund.',
   tut_friend_1: 'Bereite deine 3 Decks vor und fordere dann einen Freund aus der Liste heraus (der grüne Punkt zeigt, wer online ist) – oder erstelle eine Herausforderung mit Code.',
-  tut_friend_2: 'Best of 3: Spiel 1 mit Deck 1, Spiel 2 mit Deck 2, Spiel 3 mit Deck 3. Wer die Runde gewinnt, wählt den Wert; du hast {s} Sekunden, sonst spielt das Spiel den besten deiner Karte.',
+  tut_friend_2: 'Best of 3: Spiel 1 mit Deck 1, Spiel 2 mit Deck 2, Spiel 3 mit Deck 3. Wer die Runde gewinnt, wählt den Wert; du hast {s} Sekunden, sonst geht die Wahl an den Gegner.',
   tut_friend_3: 'Der Seriensieg bringt +{w} 🪙 und zählt für das Pack; ein Unentschieden +{d} 🪙. Wer aufgibt, verliert. Am Ende kannst du deinen Gegner als Freund hinzufügen.',
   deck_slots: 'Gespeicherte Decks',
   deck_save: 'Decks speichern',
@@ -1314,6 +1330,10 @@ const de: Dict = {
   acc_codeUnknown: 'Dein Code ist der, den du beim Erstellen des Kontos gespeichert hast: Er ändert sich nie.',
   err_bad_login: 'Benutzername oder Code falsch.',
   err_code_permanent: 'Der Wiederherstellungscode ändert sich nicht: Er ist das Passwort deines Kontos.',
+  m_timeUp: '⏱ Zeit abgelaufen: die CPU wählt',
+  m_oppTimeUp: '⏱ Die Zeit des Gegners ist abgelaufen: du wählst',
+  pv_timeUp: '⏱ Zeit abgelaufen: {name} wählt',
+  pv_oppTimeUp: '⏱ {name} hat nicht rechtzeitig gewählt: du wählst',
 };
 
 const DICT: Record<Lang, Dict> = { it, en, fr, es, de };

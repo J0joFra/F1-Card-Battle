@@ -13,7 +13,7 @@ import {
 } from '../game/collection';
 import { claimMission, dailyChallenge, dailyLoanDeck, dailyPlayed, missionsAfterPack, missionsFor, startDaily, themeMode } from '../game/daily';
 import { CLASSIC, decksOverlap, fitsMode, parseMode } from '../game/deckRules';
-import { buildCpuDeck, cpuChooseStat, isAvailable, matchOutcome, newMatch, playRound, type Rng } from '../game/engine';
+import { buildCpuDeck, cpuChooseStat, isAvailable, matchOutcome, newMatch, passTurn, playRound, type Rng } from '../game/engine';
 import { applyMatchEnd, loadMatch, storeMatch, toView, type MatchRewards, type MatchView, type StoredMatch } from '../game/match';
 import type { StatKey } from '../types';
 import { cardOrThrow, checkDate, GameError, validDeck, withProfile, type Ctx } from './common';
@@ -333,6 +333,19 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
         return { progress: end.progress };
       });
       return { ...res, view: toView(next), rewards };
+    }
+
+    case 'match_pass': {
+      // tempo scaduto: la scelta di questo round passa alla CPU
+      const rec = await store.getMatch(req.match);
+      if (!rec) throw new GameError('no_match', 404);
+      if (rec.finished) throw new GameError('match_finished');
+      const state = loadMatch(rec.state);
+      if (matchOutcome(state)) throw new GameError('match_finished');
+      if (state.chooser !== 'player' || state.passed) throw new GameError('not_your_turn', 409);
+      const next = passTurn(state);
+      if (!(await store.updateMatch(req.match, { ...rec, state: storeMatch(next) }, state.round))) throw new GameError('busy', 409);
+      return { view: toView(next) };
     }
 
     case 'match_quit': {

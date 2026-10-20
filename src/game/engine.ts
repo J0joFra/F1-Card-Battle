@@ -89,6 +89,7 @@ export interface MatchState {
   usedStats: StatKey[]; // ogni metrica si usa una sola volta per partita
   score: Record<Side, number>;
   history: RoundResult[];
+  passed?: boolean; // in questo round chi doveva scegliere ha lasciato scadere il tempo: sceglie l'avversario
 }
 
 // Contro la CPU il primo round lo sceglie sempre il giocatore.
@@ -128,7 +129,15 @@ export function playRound(state: MatchState, stat: StatKey): MatchState {
     usedStats: [...state.usedStats, stat],
     score: winner === 'tie' ? state.score : { ...state.score, [winner]: state.score[winner] + 1 },
     history: [...state.history, { stat, chooser: state.chooser, playerCard, cpuCard, winner }],
+    passed: false,
   };
+}
+
+// Tempo scaduto: la scelta della metrica passa all'avversario (una volta sola per round).
+export function passTurn(state: MatchState): MatchState {
+  if (matchOutcome(state)) throw new Error('Partita già finita');
+  if (state.passed) throw new Error('Turno già passato');
+  return { ...state, chooser: state.chooser === 'player' ? 'cpu' : 'player', passed: true };
 }
 
 export type MatchOutcome = Side | 'draw' | null;

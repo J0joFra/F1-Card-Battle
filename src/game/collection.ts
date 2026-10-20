@@ -13,26 +13,29 @@ export const MATCH_CREDITS = { player: 8, draw: 5, cpu: 3 } as const;
 // prima vittoria della giornata (contro la CPU o un amico)
 export const FIRST_WIN_CREDITS = 25;
 export const PACK_SIZE = 5;
-export const PACK_PRICE = 40;
+// Economia: in una giornata di gioco (una decina di partite, missioni, sfida del giorno) si guadagnano
+// circa 150 crediti, cioè poco più di un pacchetto base. Platino e Leggendarie sono rare: servono tanti
+// pacchetti, oppure i pacchetti Premium (cari) o i Jolly.
+export const PACK_PRICE = 120;
 // Probabilità che un pacchetto contenga anche un Jolly: una card scuderia a scelta
 // di un pilota che stai completando.
-export const JOLLY_CHANCE = 0.2;
+export const JOLLY_CHANCE = 0.1;
 
 // Probabilità di rarità per ogni card del pacchetto.
 // I Pionieri escono solo dai pacchetti (non dal negozio né dal pacchetto Scuderia).
 export const PACK_ODDS: [Rarity, number][] = [
-  ['bronzo', 0.59],
+  ['bronzo', 0.655],
   ['pioniere', 0.03],
   ['classica', 0.03],
-  ['argento', 0.22],
-  ['oro', 0.09],
-  ['platino', 0.03],
-  ['leggendaria', 0.01],
+  ['argento', 0.21],
+  ['oro', 0.06],
+  ['platino', 0.012], // ~1 pacchetto su 17
+  ['leggendaria', 0.003], // ~1 pacchetto su 65
 ];
 
 // Crediti ricevuti per un doppione e prezzo per comprare una card a scelta.
-export const DUPLICATE_CREDITS: Record<Rarity, number> = { bronzo: 2, argento: 5, oro: 15, platino: 25, leggendaria: 40, pioniere: 10, classica: 10 };
-export const CARD_PRICE: Record<Rarity, number> = { bronzo: 15, argento: 40, oro: 120, platino: 200, leggendaria: 300, pioniere: 100, classica: 100 };
+export const DUPLICATE_CREDITS: Record<Rarity, number> = { bronzo: 2, argento: 5, oro: 20, platino: 50, leggendaria: 80, pioniere: 15, classica: 15 };
+export const CARD_PRICE: Record<Rarity, number> = { bronzo: 40, argento: 100, oro: 300, platino: 700, leggendaria: 1200, pioniere: 250, classica: 250 };
 
 export interface Progress {
   owned: Record<string, number>; // id card → copie ottenute (doppioni inclusi)

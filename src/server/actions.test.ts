@@ -6,7 +6,7 @@ import { autoFillDeck, autoFillDecks, savedDecks } from '../game/collection';
 import { dailyChallenge, dailyLoanDeck, seededRng, themeMode, themePool } from '../game/daily';
 import { deckProblems, decksProblems } from '../game/deckRules';
 import { hashRecoveryCode, usernameOf } from '../game/profile';
-import { FIRST_WIN_CREDITS, MATCH_CREDITS } from '../game/collection';
+import { FIRST_WIN_CREDITS, MATCH_CREDITS, PACK_PRICE } from '../game/collection';
 import { CLASSIC, fillDeck } from '../game/deckRules';
 import { PVP_REVEAL_MS, PVP_TURN_MS, handle, type AccountRow, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type Store } from './actions';
 
@@ -299,7 +299,7 @@ describe('server: collezione', () => {
   });
 
   it('richieste contemporanee: riprova e non perde modifiche', async () => {
-    const db = memoryStore({ ...starterProgress(seededRng('a')), credits: 100 });
+    const db = memoryStore({ ...starterProgress(seededRng('a')), credits: PACK_PRICE + 60 });
     db.simulateConflicts(2);
     const res = await call(db.store, { action: 'buy_pack' });
     expect(res.progress!.credits).toBe(60);
@@ -573,14 +573,35 @@ describe('server: sfida tra amici (al meglio di 3)', () => {
     expect(pa.wins + pa.losses + pa.draws).toBe(1); // la serie conta come una partita
   });
 
-  it('tempo scaduto: il server gioca la metrica migliore per chi doveva scegliere', async () => {
+  it('tempo scaduto: la scelta passa all\'avversario; se scade anche il suo, il server gioca la metrica migliore', async () => {
     const t = await startPvp();
     const before = (await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c)).view!;
     t.tick(PVP_TURN_MS - 1000);
     expect((await handle({ action: 'pvp_state', match: t.id }, t.bruno, t.c)).view!.round).toBe(before.round);
     t.tick(2000);
+    const passed = (await handle({ action: 'pvp_state', match: t.id }, t.bruno, t.c)).view!;
+    expect(passed.round).toBe(before.round);
+    expect(passed.passed).toBe(true);
+    // Bruno vede la partita "dal suo lato": prima sceglieva Anna (cpu per lui), ora sceglie lui, o viceversa
+    const annaView = (await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c)).view!;
+    expect(annaView.chooser).not.toBe(before.chooser);
+    t.tick(PVP_TURN_MS + 1000);
     const after = await handle({ action: 'pvp_state', match: t.id }, t.bruno, t.c);
     expect(after.view!.round).toBe(before.round + 1);
+    expect(after.view!.passed).toBeUndefined();
+  });
+
+  it('chi lascia scadere il tempo passa la scelta all\'amico (una volta per round)', async () => {
+    const t = await startPvp();
+    const first = (await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c)).view!;
+    const [chooser, waiter] = first.chooser === 'player' ? [t.anna, t.bruno] : [t.bruno, t.anna];
+    await expect(handle({ action: 'pvp_pass', match: t.id, game: 0 }, waiter, t.c)).rejects.toThrow('not_your_turn');
+    const res = await handle({ action: 'pvp_pass', match: t.id, game: 0 }, chooser, t.c);
+    expect(res.view!.chooser).toBe('cpu');
+    expect(res.view!.passed).toBe(true);
+    const other = (await handle({ action: 'pvp_state', match: t.id }, waiter, t.c)).view!;
+    expect(other.chooser).toBe('player');
+    await expect(handle({ action: 'pvp_pass', match: t.id, game: 0 }, waiter, t.c)).rejects.toThrow('not_your_turn');
   });
 
   it('dopo una mossa i due telefoni sanno da quanto è stata fatta, e il turno dopo parte a fine rivelazione', async () => {
@@ -747,5 +768,22 @@ describe('server: mazzi diversi ed eliminazione account', () => {
     expect((await call(db.as('phone-2'), { action: 'sync' })).needsProfile).toBe(true);
     // il nickname torna libero
     await call(db.as('phone-3'), { action: 'profile_create', ...NEW_PROFILE });
+  });
+});
+
+describe('server: tempo scaduto contro la CPU', () => {
+  it('la scelta passa alla CPU, che gioca il round; una volta sola per round', async () => {
+    const p = starterProgress(seededRng('pass'));
+    const db = memoryStore(p);
+    const start = await call(db.store, { action: 'match_start', deck: deckIds(p), daily: false, date: ctx.today });
+    expect(start.view!.chooser).toBe('player');
+    const passed = await call(db.store, { action: 'match_pass', match: start.match! });
+    expect(passed.view!.chooser).toBe('cpu');
+    expect(passed.view!.passed).toBe(true);
+    await expect(call(db.store, { action: 'match_pass', match: start.match! })).rejects.toThrow('not_your_turn');
+    const played = await call(db.store, { action: 'match_play', match: start.match! });
+    expect(played.view!.round).toBe(1);
+    expect(played.view!.history[0].chooser).toBe('cpu');
+    expect(played.view!.passed).toBeUndefined();
   });
 });

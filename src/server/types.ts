@@ -29,6 +29,7 @@ export type GameRequest =
   | { action: 'claim_mission'; index: number; date: string }
   | { action: 'match_start'; deck: string[]; daily: boolean; date: string; slot?: number; mode?: MatchMode; loan?: boolean }
   | { action: 'match_play'; match: string; stat?: StatKey }
+  | { action: 'match_pass'; match: string } // tempo scaduto: sceglie la CPU
   | { action: 'match_quit'; match: string }
   // sfida tra amici (al meglio di 3, con i 3 mazzi salvati)
   | { action: 'pvp_create'; date: string; invite?: string }
@@ -37,6 +38,7 @@ export type GameRequest =
   | { action: 'pvp_decline'; match: string }
   | { action: 'pvp_state'; match: string; game?: number }
   | { action: 'pvp_play'; match: string; game: number; stat: StatKey }
+  | { action: 'pvp_pass'; match: string; game: number } // tempo scaduto: sceglie l'amico
   | { action: 'pvp_quit'; match: string }
   // amici e presenza online
   | { action: 'ping' }
