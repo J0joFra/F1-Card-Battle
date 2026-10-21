@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.j0jofra.f1cardbattle',
+  appId: 'com.driverclash.app',
   appName: 'F1 Card Battle',
   webDir: 'dist',
   android: {

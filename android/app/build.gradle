@@ -4,7 +4,8 @@ android {
     namespace "com.j0jofra.f1cardbattle"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.j0jofra.f1cardbattle"
+        // id dell'app su Google Play (non si può più cambiare dopo la pubblicazione)
+        applicationId "com.driverclash.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // numero e nome di versione: per Google Play ogni pacchetto deve avere un versionCode più alto del precedente
