@@ -1,0 +1,57 @@
+# Build dell'app Android su Codemagic (https://codemagic.io).
+# - android-test: APK di prova (firma di debug), da installare a mano sul telefono.
+# - android-play: pacchetto AAB firmato con la chiave di caricamento, da caricare su Google Play Console.
+#   Prima di usarlo: in Codemagic → Teams → Code signing identities → Android keystores carica (o fai generare)
+#   la chiave con il nome di riferimento "f1_upload_key". Non perdere mai questa chiave: serve per ogni aggiornamento.
+workflows:
+  android-test:
+    name: Android – APK di prova
+    instance_type: linux_x2
+    max_build_duration: 30
+    environment:
+      node: 22
+      java: 21
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+    scripts:
+      - name: Dipendenze
+        script: npm ci
+      - name: Test
+        script: npm test
+      - name: Build del sito
+        script: npm run build
+      - name: Progetto Android
+        script: npx cap sync android
+      - name: APK
+        script: cd android && ./gradlew assembleDebug --no-daemon
+    artifacts:
+      - android/app/build/outputs/apk/debug/*.apk
+
+  android-play:
+    name: Android – Google Play (AAB firmato)
+    instance_type: linux_x2
+    max_build_duration: 30
+    environment:
+      node: 22
+      java: 21
+      android_signing:
+        - f1_upload_key
+    scripts:
+      - name: Dipendenze
+        script: npm ci
+      - name: Test
+        script: npm test
+      - name: Build del sito
+        script: npm run build
+      - name: Progetto Android
+        script: npx cap sync android
+      - name: AAB firmato
+        # il versionCode è il numero della build di Codemagic: cresce da solo a ogni build
+        script: |
+          cd android
+          ./gradlew bundleRelease --no-daemon -PversionCode=$((BUILD_NUMBER + 1)) -PversionName=1.0.$BUILD_NUMBER
+    artifacts:
+      - android/app/build/outputs/bundle/release/*.aab

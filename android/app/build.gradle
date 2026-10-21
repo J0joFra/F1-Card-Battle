@@ -7,8 +7,10 @@ android {
         applicationId "com.j0jofra.f1cardbattle"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // numero e nome di versione: per Google Play ogni pacchetto deve avere un versionCode più alto del precedente
+        // (Codemagic lo passa con -PversionCode=numero della build)
+        versionCode Integer.parseInt((project.findProperty('versionCode') ?: '1').toString())
+        versionName((project.findProperty('versionName') ?: '1.0').toString())
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -25,12 +27,23 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        // chiave di caricamento per Google Play: la fornisce Codemagic (Code signing identities → Android keystores)
+        // con le variabili CM_KEYSTORE_*; senza, la build release resta senza firma
+        if (System.getenv('CM_KEYSTORE_PATH')) {
+            release {
+                storeFile file(System.getenv('CM_KEYSTORE_PATH'))
+                storePassword System.getenv('CM_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('CM_KEY_ALIAS')
+                keyPassword System.getenv('CM_KEY_PASSWORD')
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
+            if (System.getenv('CM_KEYSTORE_PATH')) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

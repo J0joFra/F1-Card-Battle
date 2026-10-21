@@ -1,0 +1,56 @@
+name: App Android per Google Play (AAB firmato)
+
+# Si avvia a mano: GitHub → Actions → "App Android per Google Play" → Run workflow.
+# Serve la chiave di caricamento nei Secrets del repository (Settings → Secrets and variables → Actions):
+#   ANDROID_KEYSTORE_BASE64   il file .jks codificato in base64
+#   ANDROID_KEYSTORE_PASSWORD la password del keystore
+#   ANDROID_KEY_ALIAS         l'alias della chiave
+#   ANDROID_KEY_PASSWORD      la password della chiave
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Nome della versione (es. 1.0.3)'
+        required: true
+        default: '1.0'
+
+jobs:
+  aab:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Chiave di caricamento
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then echo "Manca il secret ANDROID_KEYSTORE_BASE64" && exit 1; fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.jks"
+      - name: AAB firmato
+        working-directory: android
+        env:
+          # stesse variabili che usa Codemagic: build.gradle firma la release con queste
+          CM_KEYSTORE_PATH: ${{ runner.temp }}/upload.jks
+          CM_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          CM_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          CM_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        # il versionCode cresce da solo a ogni esecuzione (Google Play lo vuole sempre più alto)
+        run: ./gradlew bundleRelease --no-daemon -PversionCode=${{ github.run_number }} -PversionName=${{ inputs.version_name }}
+      - run: rm -f "$RUNNER_TEMP/upload.jks"
+        if: always()
+      - uses: actions/upload-artifact@v4
+        with:
+          name: f1-card-battle-play-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
