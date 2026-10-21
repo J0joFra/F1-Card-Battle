@@ -21,6 +21,11 @@ workflows:
         script: npm run build
       - name: Progetto Android
         script: npx cap sync android
+      - name: Componenti Android
+        # build-tools richiesti dal plugin Android: si installano prima, riprovando se il download arriva rotto
+        script: |
+          SDKM=$(command -v sdkmanager || echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager")
+          for i in 1 2 3; do yes | "$SDKM" "build-tools;34.0.0" > /dev/null && break; echo "nuovo tentativo $i"; sleep 10; done || true
       - name: APK
         script: cd android && ./gradlew assembleDebug --no-daemon
     artifacts:
@@ -44,6 +49,11 @@ workflows:
         script: npm run build
       - name: Progetto Android
         script: npx cap sync android
+      - name: Componenti Android
+        # build-tools richiesti dal plugin Android: si installano prima, riprovando se il download arriva rotto
+        script: |
+          SDKM=$(command -v sdkmanager || echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager")
+          for i in 1 2 3; do yes | "$SDKM" "build-tools;34.0.0" > /dev/null && break; echo "nuovo tentativo $i"; sleep 10; done || true
       - name: AAB firmato
         # il versionCode è il numero della build di Codemagic: cresce da solo a ogni build
         script: |
