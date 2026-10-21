@@ -1,4 +1,4 @@
-# Build dell'app Android su Codemagic (https://codemagic.io).
+# Build dell'app Android su Codemagic (https://codemagic.io). Macchine Mac M2: le uniche del piano gratuito.
 # - android-test: APK di prova (firma di debug), da installare a mano sul telefono.
 # - android-play: pacchetto AAB firmato con la chiave di caricamento, da caricare su Google Play Console.
 #   Prima di usarlo: in Codemagic → Teams → Code signing identities → Android keystores carica (o fai generare)
@@ -6,7 +6,7 @@
 workflows:
   android-test:
     name: Android – APK di prova
-    instance_type: linux_x2
+    instance_type: mac_mini_m2
     max_build_duration: 30
     environment:
       node: 22
@@ -32,7 +32,7 @@ workflows:
 
   android-play:
     name: Android – Google Play (AAB firmato)
-    instance_type: linux_x2
+    instance_type: mac_mini_m2
     max_build_duration: 30
     environment:
       node: 22
