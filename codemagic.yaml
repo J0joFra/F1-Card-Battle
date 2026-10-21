@@ -11,11 +11,7 @@ workflows:
     environment:
       node: 22
       java: 21
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: main
+    # si avvia a mano: i minuti gratuiti sono 500 al mese (l'APK di prova lo crea già GitHub a ogni modifica)
     scripts:
       - name: Dipendenze
         script: npm ci
