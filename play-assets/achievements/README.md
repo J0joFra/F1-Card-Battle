@@ -1,57 +1,58 @@
-# Obiettivi di Play Giochi
+# Play Games achievements
 
-Da inserire in Play Console → Play Games Services → Configurazione → Obiettivi.
-Totale punti: 995 su 1000. Icone: `<chiave>.png` in questa cartella.
+Import: Play Console → Play Games Services → Achievements → Import achievements, with the zip of
+`AchievementsMetadata.csv`, `AchievementsIconsMappings.csv` and the icons (`<key>.png`, 512×512).
+Total points: 995 of 1000.
 
-| # | Icona | Nome | Descrizione | Incrementale | Punti | Stato iniziale |
+| # | Icon | Name | Description | Incremental | Points | Initial state |
 |---|---|---|---|---|---|---|
-| 1 | `semaforo_verde.png` | Semaforo verde | Vinci la tua prima partita | no | 5 | Visibile |
-| 2 | `primo_sbustamento.png` | Primo sbustamento | Apri il tuo primo pacchetto | no | 5 | Visibile |
-| 3 | `box_perfetto.png` | Box perfetto | Prepara tutti e 3 i mazzi | no | 5 | Visibile |
-| 4 | `tuta_da_gara.png` | Tuta da gara | Crea il tuo profilo con avatar e pilota preferito | no | 5 | Visibile |
-| 5 | `asso_nella_manica.png` | Asso nella manica | Usa un Jolly | no | 10 | Visibile |
-| 6 | `shopping_ai_box.png` | Shopping ai box | Compra una carta nel negozio | no | 5 | Visibile |
-| 7 | `zona_punti.png` | Zona punti | Vinci 10 partite | sì, 10 passi | 10 | Visibile |
-| 8 | `veterano.png` | Veterano | Vinci 50 partite | sì, 50 passi | 10 | Visibile |
-| 9 | `campione_del_mondo.png` | Campione del mondo | Vinci 100 partite | sì, 100 passi | 20 | Visibile |
-| 10 | `dominatore.png` | Dominatore | Vinci 250 partite | sì, 250 passi | 30 | Visibile |
-| 11 | `hall_of_fame.png` | Hall of Fame | Vinci 500 partite | sì, 500 passi | 40 | Visibile |
-| 12 | `il_piu_grande.png` | Il più grande | Vinci 1000 partite | sì, 1000 passi | 50 | Visibile |
-| 13 | `stagione_completa.png` | Stagione completa | Gioca 100 partite | sì, 100 passi | 10 | Visibile |
-| 14 | `endurance.png` | Endurance | Gioca 500 partite | sì, 500 passi | 20 | Visibile |
-| 15 | `una_vita_in_pista.png` | Una vita in pista | Gioca 1500 partite | sì, 1500 passi | 40 | Visibile |
-| 16 | `cappotto.png` | Cappotto | Vinci una partita senza perdere nessun round | no | 15 | Visibile |
-| 17 | `rimonta.png` | Rimonta | Vinci una partita dopo essere stato sotto di 2 round | no | 15 | Nascosto |
-| 18 | `davide_contro_golia.png` | Davide contro Golia | Vinci una partita con un mazzo di sole carte Bronzo | no | 15 | Nascosto |
-| 19 | `tre_su_tre.png` | Tre su tre | Vinci la sfida del giorno 3 giorni di fila | no | 10 | Visibile |
-| 20 | `settimana_perfetta.png` | Settimana perfetta | Vinci la sfida del giorno 7 giorni di fila | no | 15 | Visibile |
-| 21 | `mese_da_campione.png` | Mese da campione | Vinci la sfida del giorno 30 giorni di fila | no | 40 | Visibile |
-| 22 | `ingegnere_di_pista.png` | Ingegnere di pista | Completa 50 missioni | sì, 50 passi | 10 | Visibile |
-| 23 | `capo_ingegnere.png` | Capo ingegnere | Completa 300 missioni | sì, 300 passi | 25 | Visibile |
-| 24 | `testa_a_testa.png` | Testa a testa | Vinci una sfida contro un altro giocatore | no | 10 | Visibile |
-| 25 | `rivale.png` | Rivale | Vinci 10 sfide contro altri giocatori | sì, 10 passi | 15 | Visibile |
-| 26 | `re_del_paddock.png` | Re del paddock | Vinci 50 sfide contro altri giocatori | sì, 50 passi | 30 | Visibile |
-| 27 | `compagno_di_squadra.png` | Compagno di squadra | Aggiungi un amico | no | 5 | Visibile |
-| 28 | `sbustatore.png` | Sbustatore | Apri 50 pacchetti | sì, 50 passi | 10 | Visibile |
-| 29 | `sbustatore_seriale.png` | Sbustatore seriale | Apri 250 pacchetti | sì, 250 passi | 20 | Visibile |
-| 30 | `montagna_di_carte.png` | Montagna di carte | Apri 1000 pacchetti | sì, 1000 passi | 35 | Visibile |
-| 31 | `oro_puro.png` | Oro puro | Trova una carta Oro | no | 10 | Visibile |
-| 32 | `platino.png` | Platino | Trova una carta Platino | no | 15 | Visibile |
-| 33 | `leggenda.png` | Leggenda | Ottieni una carta Leggendaria | no | 25 | Visibile |
-| 34 | `pioniere.png` | Pioniere | Trova una carta Pioniere (1950-1979) | no | 10 | Visibile |
-| 35 | `grande_classico.png` | Grande classico | Trova una carta Classica | no | 10 | Visibile |
-| 36 | `collezionista.png` | Collezionista | Possiedi 50 carte diverse | sì, 50 passi | 5 | Visibile |
-| 37 | `garage_pieno.png` | Garage pieno | Possiedi 150 carte diverse | sì, 150 passi | 10 | Visibile |
-| 38 | `archivio_storico.png` | Archivio storico | Possiedi 300 carte diverse | sì, 300 passi | 15 | Visibile |
-| 39 | `museo.png` | Museo | Possiedi 500 carte diverse | sì, 500 passi | 25 | Visibile |
-| 40 | `meta_griglia.png` | Metà griglia | Possiedi 750 carte diverse | sì, 750 passi | 30 | Visibile |
-| 41 | `enciclopedia.png` | Enciclopedia | Possiedi 1000 carte diverse | sì, 1000 passi | 40 | Visibile |
-| 42 | `tutta_la_storia.png` | Tutta la storia | Possiedi tutte le carte del gioco | no | 90 | Visibile |
-| 43 | `scuderia_completa.png` | Scuderia completa | Possiedi tutte le carte di una scuderia | no | 10 | Visibile |
-| 44 | `costruttore.png` | Costruttore | Completa 10 scuderie | sì, 10 passi | 20 | Visibile |
-| 45 | `tutto_l_oro.png` | Tutto l'oro | Possiedi tutte le carte Oro | no | 25 | Visibile |
-| 46 | `tutto_il_platino.png` | Tutto il platino | Possiedi tutte le carte Platino | no | 30 | Visibile |
-| 47 | `albo_d_oro.png` | Albo d'oro | Possiedi 25 carte Leggendarie | sì, 25 passi | 30 | Visibile |
-| 48 | `album_d_epoca.png` | Album d'epoca | Possiedi tutte le carte Pioniere | no | 30 | Visibile |
-| 49 | `tutti_i_classici.png` | Tutti i classici | Possiedi tutte le carte Classiche | no | 25 | Visibile |
-| 50 | `cassaforte.png` | Cassaforte | Accumula 5000 crediti | no | 5 | Visibile |
+| 1 | `lights_out.png` | Lights Out | Win your first match | no | 5 | Revealed |
+| 2 | `first_rip.png` | First Rip | Open your first pack | no | 5 | Revealed |
+| 3 | `perfect_pit_stop.png` | Perfect Pit Stop | Get all 3 decks ready | no | 5 | Revealed |
+| 4 | `suited_up.png` | Suited Up | Create your profile with an avatar and a favorite driver | no | 5 | Revealed |
+| 5 | `ace_up_your_sleeve.png` | Ace Up Your Sleeve | Use a Joker | no | 10 | Revealed |
+| 6 | `pit_lane_shopping.png` | Pit Lane Shopping | Buy a card in the Shop | no | 5 | Revealed |
+| 7 | `points_finish.png` | Points Finish | Win 10 matches | yes, 10 steps | 10 | Revealed |
+| 8 | `veteran.png` | Veteran | Win 50 matches | yes, 50 steps | 10 | Revealed |
+| 9 | `world_champion.png` | World Champion | Win 100 matches | yes, 100 steps | 20 | Revealed |
+| 10 | `dominator.png` | Dominator | Win 250 matches | yes, 250 steps | 30 | Revealed |
+| 11 | `hall_of_fame.png` | Hall of Fame | Win 500 matches | yes, 500 steps | 40 | Revealed |
+| 12 | `the_goat.png` | The GOAT | Win 1000 matches | yes, 1000 steps | 50 | Revealed |
+| 13 | `full_season.png` | Full Season | Play 100 matches | yes, 100 steps | 10 | Revealed |
+| 14 | `endurance.png` | Endurance | Play 500 matches | yes, 500 steps | 20 | Revealed |
+| 15 | `a_life_on_track.png` | A Life on Track | Play 1500 matches | yes, 1500 steps | 40 | Revealed |
+| 16 | `flawless_victory.png` | Flawless Victory | Win a match without losing a single round | no | 15 | Revealed |
+| 17 | `comeback.png` | Comeback | Win a match after falling 2 rounds behind | no | 15 | Hidden |
+| 18 | `david_vs_goliath.png` | David vs Goliath | Win a match with a deck of only Bronze cards | no | 15 | Hidden |
+| 19 | `hat_trick.png` | Hat Trick | Win the daily challenge 3 days in a row | no | 10 | Revealed |
+| 20 | `perfect_week.png` | Perfect Week | Win the daily challenge 7 days in a row | no | 15 | Revealed |
+| 21 | `month_of_glory.png` | Month of Glory | Win the daily challenge 30 days in a row | no | 40 | Revealed |
+| 22 | `race_engineer.png` | Race Engineer | Complete 50 missions | yes, 50 steps | 10 | Revealed |
+| 23 | `chief_engineer.png` | Chief Engineer | Complete 300 missions | yes, 300 steps | 25 | Revealed |
+| 24 | `head_to_head.png` | Head to Head | Win a challenge against another player | no | 10 | Revealed |
+| 25 | `rival.png` | Rival | Win 10 challenges against other players | yes, 10 steps | 15 | Revealed |
+| 26 | `king_of_the_paddock.png` | King of the Paddock | Win 50 challenges against other players | yes, 50 steps | 30 | Revealed |
+| 27 | `teammate.png` | Teammate | Add a friend | no | 5 | Revealed |
+| 28 | `pack_opener.png` | Pack Opener | Open 50 packs | yes, 50 steps | 10 | Revealed |
+| 29 | `pack_addict.png` | Pack Addict | Open 250 packs | yes, 250 steps | 20 | Revealed |
+| 30 | `mountain_of_cards.png` | Mountain of Cards | Open 1000 packs | yes, 1000 steps | 35 | Revealed |
+| 31 | `pure_gold.png` | Pure Gold | Find a Gold card | no | 10 | Revealed |
+| 32 | `platinum.png` | Platinum | Find a Platinum card | no | 15 | Revealed |
+| 33 | `legend.png` | Legend | Get a Legendary card | no | 25 | Revealed |
+| 34 | `pioneer.png` | Pioneer | Find a Pioneer card | no | 10 | Revealed |
+| 35 | `grand_classic.png` | Grand Classic | Find a Classic card | no | 10 | Revealed |
+| 36 | `collector.png` | Collector | Own 50 different cards | yes, 50 steps | 5 | Revealed |
+| 37 | `full_garage.png` | Full Garage | Own 150 different cards | yes, 150 steps | 10 | Revealed |
+| 38 | `historic_archive.png` | Historic Archive | Own 300 different cards | yes, 300 steps | 15 | Revealed |
+| 39 | `museum.png` | Museum | Own 500 different cards | yes, 500 steps | 25 | Revealed |
+| 40 | `half_the_grid.png` | Half the Grid | Own 750 different cards | yes, 750 steps | 30 | Revealed |
+| 41 | `encyclopedia.png` | Encyclopedia | Own 1000 different cards | yes, 1000 steps | 40 | Revealed |
+| 42 | `the_whole_story.png` | The Whole Story | Own every card in the game | no | 90 | Revealed |
+| 43 | `full_team.png` | Full Team | Own every card of a team | no | 10 | Revealed |
+| 44 | `constructor.png` | Constructor | Complete 10 teams | yes, 10 steps | 20 | Revealed |
+| 45 | `all_that_glitters.png` | All That Glitters | Own every Gold card | no | 25 | Revealed |
+| 46 | `platinum_collection.png` | Platinum Collection | Own every Platinum card | no | 30 | Revealed |
+| 47 | `roll_of_honour.png` | Roll of Honour | Own 25 Legendary cards | yes, 25 steps | 30 | Revealed |
+| 48 | `vintage_album.png` | Vintage Album | Own every Pioneer card | no | 30 | Revealed |
+| 49 | `all_the_classics.png` | All the Classics | Own every Classic card | no | 25 | Revealed |
+| 50 | `bank_vault.png` | Bank Vault | Save up 5000 credits | no | 5 | Revealed |

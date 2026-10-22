@@ -1,0 +1,50 @@
+Lights Out,Win your first match,False,,Revealed,5,1
+First Rip,Open your first pack,False,,Revealed,5,2
+Perfect Pit Stop,Get all 3 decks ready,False,,Revealed,5,3
+Suited Up,Create your profile with an avatar and a favorite driver,False,,Revealed,5,4
+Ace Up Your Sleeve,Use a Joker,False,,Revealed,10,5
+Pit Lane Shopping,Buy a card in the Shop,False,,Revealed,5,6
+Points Finish,Win 10 matches,True,10,Revealed,10,7
+Veteran,Win 50 matches,True,50,Revealed,10,8
+World Champion,Win 100 matches,True,100,Revealed,20,9
+Dominator,Win 250 matches,True,250,Revealed,30,10
+Hall of Fame,Win 500 matches,True,500,Revealed,40,11
+The GOAT,Win 1000 matches,True,1000,Revealed,50,12
+Full Season,Play 100 matches,True,100,Revealed,10,13
+Endurance,Play 500 matches,True,500,Revealed,20,14
+A Life on Track,Play 1500 matches,True,1500,Revealed,40,15
+Flawless Victory,Win a match without losing a single round,False,,Revealed,15,16
+Comeback,Win a match after falling 2 rounds behind,False,,Hidden,15,17
+David vs Goliath,Win a match with a deck of only Bronze cards,False,,Hidden,15,18
+Hat Trick,Win the daily challenge 3 days in a row,False,,Revealed,10,19
+Perfect Week,Win the daily challenge 7 days in a row,False,,Revealed,15,20
+Month of Glory,Win the daily challenge 30 days in a row,False,,Revealed,40,21
+Race Engineer,Complete 50 missions,True,50,Revealed,10,22
+Chief Engineer,Complete 300 missions,True,300,Revealed,25,23
+Head to Head,Win a challenge against another player,False,,Revealed,10,24
+Rival,Win 10 challenges against other players,True,10,Revealed,15,25
+King of the Paddock,Win 50 challenges against other players,True,50,Revealed,30,26
+Teammate,Add a friend,False,,Revealed,5,27
+Pack Opener,Open 50 packs,True,50,Revealed,10,28
+Pack Addict,Open 250 packs,True,250,Revealed,20,29
+Mountain of Cards,Open 1000 packs,True,1000,Revealed,35,30
+Pure Gold,Find a Gold card,False,,Revealed,10,31
+Platinum,Find a Platinum card,False,,Revealed,15,32
+Legend,Get a Legendary card,False,,Revealed,25,33
+Pioneer,Find a Pioneer card,False,,Revealed,10,34
+Grand Classic,Find a Classic card,False,,Revealed,10,35
+Collector,Own 50 different cards,True,50,Revealed,5,36
+Full Garage,Own 150 different cards,True,150,Revealed,10,37
+Historic Archive,Own 300 different cards,True,300,Revealed,15,38
+Museum,Own 500 different cards,True,500,Revealed,25,39
+Half the Grid,Own 750 different cards,True,750,Revealed,30,40
+Encyclopedia,Own 1000 different cards,True,1000,Revealed,40,41
+The Whole Story,Own every card in the game,False,,Revealed,90,42
+Full Team,Own every card of a team,False,,Revealed,10,43
+Constructor,Complete 10 teams,True,10,Revealed,20,44
+All That Glitters,Own every Gold card,False,,Revealed,25,45
+Platinum Collection,Own every Platinum card,False,,Revealed,30,46
+Roll of Honour,Own 25 Legendary cards,True,25,Revealed,30,47
+Vintage Album,Own every Pioneer card,False,,Revealed,30,48
+All the Classics,Own every Classic card,False,,Revealed,25,49
+Bank Vault,Save up 5000 credits,False,,Revealed,5,50
