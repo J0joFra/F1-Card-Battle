@@ -1,4 +1,4 @@
-import { Eye, EyeOff, KeyRound, LogOut, Monitor, Moon, Music, PartyPopper, Pencil, RotateCcw, ShieldCheck, Smartphone, Sun, Trash2, Volume2, X } from 'lucide-react';
+import { Eye, EyeOff, Gamepad2, KeyRound, LogOut, Monitor, Moon, Music, PartyPopper, Pencil, RotateCcw, ShieldCheck, Smartphone, Sun, Trash2, Volume2, X } from 'lucide-react';
 import { hasMusic, setFeedback, useFeedbackSettings, type FeedbackSettings } from '../lib/feedback';
 import { useI18n, type TKey } from '../lib/i18n';
 import type { ThemePref } from '../lib/theme';
@@ -8,6 +8,7 @@ import { LangPicker } from './LangPicker';
 import { PlayerAvatar } from './PlayerAvatar';
 import { DRIVERS } from '../game/profile';
 import { PRIVACY_URL } from '../lib/links';
+import { playGamesAvailable } from '../lib/playGames';
 import { AccessData } from './ProfileEditor';
 import { useState } from 'react';
 
@@ -47,6 +48,8 @@ export function SettingsSheet({
 }: Props) {
   const { t } = useI18n();
   const fb = useFeedbackSettings();
+  const [pgBusy, setPgBusy] = useState(false);
+  const [pgResult, setPgResult] = useState<string | null>(null);
   const favoriteName = DRIVERS.find((d) => d.id === account.profile?.favorite)?.name;
   const toggles: { key: keyof FeedbackSettings; icon: typeof Sun; label: TKey }[] = [
     { key: 'sound', icon: Volume2, label: 'fb_sound' },
@@ -80,6 +83,21 @@ export function SettingsSheet({
                 </button>
               </div>
               <AccessBox username={account.username} code={account.code} />
+              {playGamesAvailable() && (
+                <button
+                  className="btn ghost block"
+                  disabled={pgBusy}
+                  onClick={async () => {
+                    setPgBusy(true);
+                    const r = await account.connectPlayGames();
+                    setPgBusy(false);
+                    setPgResult(r.ok ? t('acc_pgLinked') : r.message === 'other' ? t('acc_pgOther') : t('acc_pgError', { e: r.message ?? '' }));
+                  }}
+                >
+                  <Gamepad2 size={16} /> {t('acc_pgConnect')}
+                </button>
+              )}
+              {pgResult && <small className="muted">{pgResult}</small>}
               <button className="btn ghost block" onClick={onLogout}>
                 <LogOut size={16} /> {t('acc_logout')}
               </button>

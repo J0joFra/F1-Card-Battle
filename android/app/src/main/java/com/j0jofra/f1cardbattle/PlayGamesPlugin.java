@@ -26,7 +26,7 @@ public class PlayGamesPlugin extends Plugin {
                 // accesso chiesto dal giocatore (es. dalle impostazioni): si mostra la finestra di Play Giochi
                 client.signIn().addOnCompleteListener(signIn -> {
                     if (signIn.isSuccessful() && signIn.getResult().isAuthenticated()) request(client, call);
-                    else call.reject("not_signed_in");
+                    else call.reject("not_signed_in: " + describe(signIn.getException()));
                 });
             } else {
                 call.reject("not_signed_in");
@@ -42,8 +42,13 @@ public class PlayGamesPlugin extends Plugin {
                 res.put("code", task.getResult());
                 call.resolve(res);
             } else {
-                call.reject("no_code");
+                call.reject("no_code: " + describe(task.getException()));
             }
         });
+    }
+
+    // motivo dell'errore di Play Giochi, per capire cosa non va nella configurazione
+    private static String describe(Exception e) {
+        return e == null ? "annullato" : e.getClass().getSimpleName() + " " + e.getMessage();
     }
 }

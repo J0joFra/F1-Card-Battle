@@ -396,6 +396,10 @@ const it = {
   pv_timeUp: '⏱ Tempo scaduto: sceglie {name}',
   pv_oppTimeUp: '⏱ {name} non ha scelto in tempo: scegli tu',
   acc_playGamesWelcome: '🎮 Bentornato {name}! Sei rientrato con Play Giochi.',
+  acc_pgConnect: 'Collega Play Giochi',
+  acc_pgLinked: '✅ Account collegato a Play Giochi: su un altro telefono rientri da solo.',
+  acc_pgOther: 'Questo account Play Giochi è già collegato a un altro account del gioco.',
+  acc_pgError: 'Play Giochi non ha permesso l’accesso: {e}',
 };
 
 export type TKey = keyof typeof it;
@@ -634,6 +638,10 @@ const en: Dict = {
   pv_timeUp: '⏱ Time’s up: {name} picks',
   pv_oppTimeUp: '⏱ {name} ran out of time: you pick',
   acc_playGamesWelcome: '🎮 Welcome back {name}! Signed in with Play Games.',
+  acc_pgConnect: 'Link Play Games',
+  acc_pgLinked: '✅ Account linked to Play Games: on another phone you’ll be signed in automatically.',
+  acc_pgOther: 'This Play Games account is already linked to another game account.',
+  acc_pgError: 'Play Games did not allow sign-in: {e}',
 };
 
 const fr: Dict = {
@@ -869,6 +877,10 @@ const fr: Dict = {
   pv_timeUp: '⏱ Temps écoulé : {name} choisit',
   pv_oppTimeUp: '⏱ {name} n’a pas choisi à temps : à toi de choisir',
   acc_playGamesWelcome: '🎮 Bon retour {name} ! Connexion avec Play Jeux.',
+  acc_pgConnect: 'Lier Play Jeux',
+  acc_pgLinked: '✅ Compte lié à Play Jeux : sur un autre téléphone, tu seras connecté automatiquement.',
+  acc_pgOther: 'Ce compte Play Jeux est déjà lié à un autre compte du jeu.',
+  acc_pgError: 'Play Jeux n’a pas autorisé la connexion : {e}',
 };
 
 const es: Dict = {
@@ -1104,6 +1116,10 @@ const es: Dict = {
   pv_timeUp: '⏱ Se acabó el tiempo: elige {name}',
   pv_oppTimeUp: '⏱ A {name} se le acabó el tiempo: eliges tú',
   acc_playGamesWelcome: '🎮 ¡Hola de nuevo, {name}! Has entrado con Play Juegos.',
+  acc_pgConnect: 'Vincular Play Juegos',
+  acc_pgLinked: '✅ Cuenta vinculada a Play Juegos: en otro teléfono entrarás automáticamente.',
+  acc_pgOther: 'Esta cuenta de Play Juegos ya está vinculada a otra cuenta del juego.',
+  acc_pgError: 'Play Juegos no permitió el acceso: {e}',
 };
 
 const de: Dict = {
@@ -1339,6 +1355,10 @@ const de: Dict = {
   pv_timeUp: '⏱ Zeit abgelaufen: {name} wählt',
   pv_oppTimeUp: '⏱ {name} hat nicht rechtzeitig gewählt: du wählst',
   acc_playGamesWelcome: '🎮 Willkommen zurück, {name}! Mit Play Spiele angemeldet.',
+  acc_pgConnect: 'Mit Play Spiele verknüpfen',
+  acc_pgLinked: '✅ Konto mit Play Spiele verknüpft: Auf einem anderen Handy wirst du automatisch angemeldet.',
+  acc_pgOther: 'Dieses Play-Spiele-Konto ist bereits mit einem anderen Spielkonto verknüpft.',
+  acc_pgError: 'Play Spiele hat die Anmeldung nicht erlaubt: {e}',
 };
 
 const DICT: Record<Lang, Dict> = { it, en, fr, es, de };
