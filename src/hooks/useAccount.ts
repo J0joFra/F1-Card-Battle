@@ -3,7 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { translate } from '../lib/i18n';
 import { ApiError, callGame } from '../lib/api';
-import { playGamesAvailable, playGamesCode } from '../lib/playGames';
+import { playGamesAvailable, playGamesCode, playGamesCodeOrError } from '../lib/playGames';
 import { isUntouched, type Progress } from '../game/collection';
 import { normalizeRecoveryCode, usernameOf, type Avatar, type PlayerProfile } from '../game/profile';
 
@@ -72,6 +72,8 @@ export interface Account {
   logout: () => Promise<void>;
   // quante volte si è rientrati in automatico con Play Giochi (per chiudere la creazione del profilo e salutare)
   playGamesSignIns: number;
+  // collegamento a Play Giochi chiesto dal giocatore (impostazioni): esito, o il motivo dell'errore
+  connectPlayGames: () => Promise<{ ok: boolean; message?: string }>;
   updateProfile: (input: Partial<ProfileInput>) => Promise<void>;
   // elimina l'account sul server (carte, progressi, amici) ed esce
   deleteAccount: () => Promise<void>;
@@ -224,6 +226,19 @@ export function useAccount(
     }
   }, [finish]);
 
+  const connectPlayGames = useCallback(async () => {
+    const { code, error } = await playGamesCodeOrError(true);
+    if (!code) return { ok: false, message: error };
+    try {
+      const res = await callGame({ action: 'play_games', code });
+      write(localStorage, PLAY_GAMES_OFF_KEY, null);
+      if (res.playGames === 'other') return { ok: false, message: 'other' };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, message: e instanceof ApiError ? e.code : String(e) };
+    }
+  }, []);
+
   useEffect(() => {
     if (!ready || google || playGamesTried.current || !playGamesAvailable()) return;
     if (read(localStorage, PLAY_GAMES_OFF_KEY) === '1') return;
@@ -316,6 +331,7 @@ export function useAccount(
     login,
     logout,
     playGamesSignIns,
+    connectPlayGames,
     updateProfile,
     deleteAccount,
     later: skip,
