@@ -24,6 +24,7 @@ function memoryDb() {
   // dati del profilo (nickname, avatar…), codici di recupero e profili del vecchio accesso con Google
   const accounts = new Map<string, AccountRow & { recoveryHash: string | null; legacy: number | null }>();
   const links = new Map<string, string>(); // dispositivo → account (accesso con username e codice)
+  const playGames = new Map<string, string>(); // giocatore Play Giochi → account
   let conflictsToSimulate = 0;
   // l'account di un dispositivo: quello a cui ha fatto l'accesso, oppure il suo (seguendo gli spostamenti)
   const accountOf = (device: string) => {
@@ -79,6 +80,7 @@ function memoryDb() {
       }
       for (const f of [...friendships]) if (f.split('|').some((x) => chain.has(x))) friendships.delete(f);
       for (const [d, a] of [...links]) if (chain.has(a)) links.delete(d);
+      for (const [pl, a] of [...playGames]) if (chain.has(a)) playGames.delete(pl);
     },
     async findByRecovery(hash) {
       const hit = [...accounts].find(([, a]) => !a.movedTo && a.recoveryHash === hash);
@@ -87,6 +89,16 @@ function memoryDb() {
     async linkDevice(account) {
       if (account && account !== device) links.set(device, account);
       else links.delete(device);
+    },
+    // nei test il "codice" Play Giochi è pg:<id del giocatore>
+    async playGamesPlayer(code) {
+      return code.startsWith('pg:') ? code.slice(3) : null;
+    },
+    async findByPlayGames(player) {
+      return playGames.get(player) ?? null;
+    },
+    async setPlayGames(player) {
+      if (!playGames.has(player)) playGames.set(player, id);
     },
     async listFriends() {
       return [...friendships].filter((f) => f.startsWith(`${id}|`)).map((f) => {
@@ -785,5 +797,25 @@ describe('server: tempo scaduto contro la CPU', () => {
     expect(played.view!.round).toBe(1);
     expect(played.view!.history[0].chooser).toBe('cpu');
     expect(played.view!.passed).toBeUndefined();
+  });
+});
+
+describe('server: rientro con Play Giochi', () => {
+  it('il primo accesso collega Play Giochi all\'account; su un telefono nuovo si rientra da soli', async () => {
+    const db = memoryDb();
+    // telefono nuovo, nessun account: Play Giochi non è ancora collegato a niente
+    expect((await call(db.as('phone-1'), { action: 'play_games', code: 'pg:p1' })).playGames).toBe('unlinked');
+    await call(db.as('phone-1'), { action: 'profile_create', ...NEW_PROFILE });
+    expect((await call(db.as('phone-1'), { action: 'play_games', code: 'pg:p1' })).playGames).toBe('linked');
+    // altro telefono (o app reinstallata): stesso giocatore Play Giochi → stesso account, con le sue carte
+    const back = await call(db.as('phone-2'), { action: 'play_games', code: 'pg:p1' });
+    expect(back.playGames).toBe('signed_in');
+    expect(back.profile!.nickname).toBe('Joaquim');
+    expect((await call(db.as('phone-2'), { action: 'sync' })).account).toBe(back.account);
+    // un dispositivo che ha già un suo account non viene spostato
+    await call(db.as('phone-3'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Altro' });
+    expect((await call(db.as('phone-3'), { action: 'play_games', code: 'pg:p1' })).playGames).toBe('other');
+    // codice non valido
+    await expect(call(db.as('phone-4'), { action: 'play_games', code: 'falso' })).rejects.toThrow('bad_play_games');
   });
 });

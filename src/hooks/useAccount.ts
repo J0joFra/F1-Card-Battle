@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { translate } from '../lib/i18n';
 import { ApiError, callGame } from '../lib/api';
+import { playGamesAvailable, playGamesCode } from '../lib/playGames';
 import { isUntouched, type Progress } from '../game/collection';
 import { normalizeRecoveryCode, usernameOf, type Avatar, type PlayerProfile } from '../game/profile';
 
@@ -18,6 +19,8 @@ const RETRY_MS = 20_000;
 const LATER_KEY = 'f1-card-battle:profile-later';
 // codice di recupero dell'account usato su questo telefono, per mostrarlo nelle impostazioni
 const CODE_KEY = 'f1-card-battle:access-code';
+// uscita voluta dall'account: Play Giochi non fa rientrare da solo finché non si accede di nuovo
+const PLAY_GAMES_OFF_KEY = 'f1-card-battle:play-games-off';
 
 const read = (storage: Storage, key: string) => {
   try {
@@ -67,6 +70,8 @@ export interface Account {
   login: (username: string, code: string) => Promise<void>;
   // esce dall'account su questo telefono (l'account resta, si rientra con username e codice)
   logout: () => Promise<void>;
+  // quante volte si è rientrati in automatico con Play Giochi (per chiudere la creazione del profilo e salutare)
+  playGamesSignIns: number;
   updateProfile: (input: Partial<ProfileInput>) => Promise<void>;
   // elimina l'account sul server (carte, progressi, amici) ed esce
   deleteAccount: () => Promise<void>;
@@ -92,6 +97,8 @@ export function useAccount(
   const [status, setStatus] = useState<SyncStatus>('offline');
   const [attempt, setAttempt] = useState(0);
   const [accountId, setAccountId] = useState<string | null>(null);
+  const [playGamesSignIns, setPlayGamesSignIns] = useState(0);
+  const playGamesTried = useRef(false);
   const [saved, setSaved] = useState<{ account: string; code: string } | null>(() => {
     try {
       return JSON.parse(read(localStorage, CODE_KEY) ?? 'null');
@@ -203,15 +210,41 @@ export function useAccount(
     [replaceProgress],
   );
 
+  // Play Giochi (app Android): collega l'account del gioco a quello Play Giochi, così su un telefono nuovo si rientra
+  // da soli. Se il dispositivo non ha ancora un account e Play Giochi ne conosce uno, si rientra in quello.
+  const playGames = useCallback(async () => {
+    const code = await playGamesCode();
+    if (!code) return;
+    const res = await callGame({ action: 'play_games', code });
+    if (res.playGames === 'signed_in') {
+      write(localStorage, PLAY_GAMES_OFF_KEY, null);
+      finish(res);
+      setPlayGamesSignIns((n) => n + 1);
+      setAttempt((n) => n + 1); // riallinea tutto con il server
+    }
+  }, [finish]);
+
+  useEffect(() => {
+    if (!ready || google || playGamesTried.current || !playGamesAvailable()) return;
+    if (read(localStorage, PLAY_GAMES_OFF_KEY) === '1') return;
+    playGamesTried.current = true;
+    void (async () => {
+      await ensureSession();
+      await playGames();
+    })().catch(() => {});
+  }, [ready, google, ensureSession, playGames]);
+
   const createProfile = useCallback(
     async (input: ProfileInput) => {
       await ensureSession();
       const local = progressRef.current;
       const res = await callGame({ action: 'profile_create', ...input, guest: isUntouched(local) ? undefined : local });
       remember(res.account, res.recoveryCode ?? null);
+      write(localStorage, PLAY_GAMES_OFF_KEY, null);
+      void playGames().catch(() => {});
       return finish(res);
     },
-    [ensureSession, finish, remember],
+    [ensureSession, finish, remember, playGames],
   );
 
   const login = useCallback(
@@ -219,14 +252,17 @@ export function useAccount(
       await ensureSession();
       const res = await callGame({ action: 'login', username, code });
       remember(res.account, formatCode(code));
+      write(localStorage, PLAY_GAMES_OFF_KEY, null);
       finish(res);
+      void playGames().catch(() => {});
     },
-    [ensureSession, finish, remember],
+    [ensureSession, finish, remember, playGames],
   );
 
   const logout = useCallback(async () => {
     await callGame({ action: 'logout' }).catch(() => {});
     remember(undefined, null);
+    write(localStorage, PLAY_GAMES_OFF_KEY, '1');
     setProfile(null);
     setIncomplete(false);
     setAccountId(null);
@@ -279,6 +315,7 @@ export function useAccount(
     createProfile,
     login,
     logout,
+    playGamesSignIns,
     updateProfile,
     deleteAccount,
     later: skip,

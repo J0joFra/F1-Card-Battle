@@ -205,6 +205,13 @@ export default function App() {
     else if (account.needsProfile) setProfileEditor({ mode: "create", auto: true });
   }, [account.needsProfile, account.incomplete, intro, profileEditor]);
 
+  // rientro automatico con Play Giochi: si chiude la creazione del profilo aperta da sola e si saluta
+  useEffect(() => {
+    if (!account.playGamesSignIns) return;
+    setProfileEditor((cur) => (cur?.auto && cur.mode === "create" ? null : cur));
+    setToast(t("acc_playGamesWelcome", { name: account.profile?.nickname ?? "" }));
+  }, [account.playGamesSignIns]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => saveProgress(progress), [progress]);
   useEffect(() => {
     if (!toast) return;

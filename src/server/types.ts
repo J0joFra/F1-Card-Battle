@@ -17,6 +17,8 @@ export type GameRequest =
   // accesso da un altro dispositivo: username (il nickname) e codice di recupero (la password)
   | { action: 'login'; username: string; code: string }
   | { action: 'logout' }
+  // Play Giochi (app Android): codice monouso dell'account Play Giochi, verificato dal server con Google
+  | { action: 'play_games'; code: string }
   | { action: 'recovery_new' }
   | { action: 'account_delete'; confirm: true }
   | { action: 'set_deck'; deck: string[] }
@@ -121,6 +123,9 @@ export interface GameResponse {
   recoveryCode?: string; // codice di recupero appena creato (si mostra una volta sola)
   deleted?: boolean; // account eliminato
   account?: string; // id dell'account (per gli avvisi istantanei), anche quando il dispositivo vi ha fatto l'accesso
+  // Play Giochi: signed_in = rientrato nel suo account, linked = account collegato, unlinked = nessun account
+  // ancora (va creato), other = questo dispositivo usa già un altro account
+  playGames?: 'signed_in' | 'linked' | 'unlinked' | 'other';
 }
 
 // dati del profilo salvati accanto alla progressione
@@ -170,6 +175,10 @@ export interface Store {
   findByRecovery(hash: string): Promise<{ id: string; nickname: string | null } | null>;
   // collega il dispositivo all'account (accesso) o lo scollega (null: uscita)
   linkDevice(account: string | null): Promise<void>;
+  // Play Giochi: id del giocatore dal codice monouso (verificato con Google), account collegato, collegamento
+  playGamesPlayer(code: string): Promise<string | null>;
+  findByPlayGames(player: string): Promise<string | null>;
+  setPlayGames(player: string): Promise<void>;
   // elimina l'account e tutto ciò che gli appartiene (anche le copie dei profili da cui era stato recuperato
   // e i dispositivi collegati): carte, progressi, amicizie, partite
   deleteAccount(): Promise<void>;

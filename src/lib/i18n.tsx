@@ -395,6 +395,7 @@ const it = {
   m_oppTimeUp: '⏱ Tempo scaduto per l’avversario: scegli tu',
   pv_timeUp: '⏱ Tempo scaduto: sceglie {name}',
   pv_oppTimeUp: '⏱ {name} non ha scelto in tempo: scegli tu',
+  acc_playGamesWelcome: '🎮 Bentornato {name}! Sei rientrato con Play Giochi.',
 };
 
 export type TKey = keyof typeof it;
@@ -632,6 +633,7 @@ const en: Dict = {
   m_oppTimeUp: '⏱ Your opponent ran out of time: you pick',
   pv_timeUp: '⏱ Time’s up: {name} picks',
   pv_oppTimeUp: '⏱ {name} ran out of time: you pick',
+  acc_playGamesWelcome: '🎮 Welcome back {name}! Signed in with Play Games.',
 };
 
 const fr: Dict = {
@@ -866,6 +868,7 @@ const fr: Dict = {
   m_oppTimeUp: '⏱ Temps écoulé pour l’adversaire : à toi de choisir',
   pv_timeUp: '⏱ Temps écoulé : {name} choisit',
   pv_oppTimeUp: '⏱ {name} n’a pas choisi à temps : à toi de choisir',
+  acc_playGamesWelcome: '🎮 Bon retour {name} ! Connexion avec Play Jeux.',
 };
 
 const es: Dict = {
@@ -1100,6 +1103,7 @@ const es: Dict = {
   m_oppTimeUp: '⏱ Al rival se le acabó el tiempo: eliges tú',
   pv_timeUp: '⏱ Se acabó el tiempo: elige {name}',
   pv_oppTimeUp: '⏱ A {name} se le acabó el tiempo: eliges tú',
+  acc_playGamesWelcome: '🎮 ¡Hola de nuevo, {name}! Has entrado con Play Juegos.',
 };
 
 const de: Dict = {
@@ -1334,6 +1338,7 @@ const de: Dict = {
   m_oppTimeUp: '⏱ Die Zeit des Gegners ist abgelaufen: du wählst',
   pv_timeUp: '⏱ Zeit abgelaufen: {name} wählt',
   pv_oppTimeUp: '⏱ {name} hat nicht rechtzeitig gewählt: du wählst',
+  acc_playGamesWelcome: '🎮 Willkommen zurück, {name}! Mit Play Spiele angemeldet.',
 };
 
 const DICT: Record<Lang, Dict> = { it, en, fr, es, de };
