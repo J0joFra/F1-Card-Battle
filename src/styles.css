@@ -1339,3 +1339,4 @@ b.over-pack { color: #e8b931; }
 .access-box { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2, var(--surface)); }
 .access-head { display: flex; align-items: center; gap: 6px; }
 .access-head .icon-btn { margin-left: auto; }
+.selectable { -webkit-user-select: text; user-select: text; overflow-wrap: anywhere; }

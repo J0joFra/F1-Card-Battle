@@ -107,7 +107,7 @@ export function SettingsSheet({
                   <Gamepad2 size={16} /> {t('acc_pgConnect')}
                 </button>
               )}
-              {pgResult && <small className="muted">{pgResult}</small>}
+              {pgResult && <small className="muted selectable">{pgResult}</small>}
               <button className="btn ghost block" onClick={onLogout}>
                 <LogOut size={16} /> {t('acc_logout')}
               </button>
