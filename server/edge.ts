@@ -40,7 +40,7 @@ async function signal(topics: string[]) {
 }
 // Play Giochi: ID client della credenziale "Server di giochi" (non segreto) e chiave segreta nei Secrets di Supabase
 const PLAY_GAMES_CLIENT_ID =
-  Deno.env.get('PLAY_GAMES_CLIENT_ID') ?? '673632049467-h752pqoqs2i3md5gqub1ika97p0ld90l.apps.googleusercontent.com';
+  Deno.env.get('PLAY_GAMES_CLIENT_ID') ?? '673632049467-bsa84nc0p1j7oft3deusgm9squ8niuah.apps.googleusercontent.com';
 
 // Il codice monouso mandato dall'app si scambia con Google: così si sa con certezza chi è il giocatore.
 async function playGamesPlayer(code: string): Promise<string | null> {
