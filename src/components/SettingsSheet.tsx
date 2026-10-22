@@ -10,7 +10,9 @@ import { DRIVERS } from '../game/profile';
 import { PRIVACY_URL } from '../lib/links';
 import { playGamesAvailable } from '../lib/playGames';
 import { AccessData } from './ProfileEditor';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { App } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 
 interface Props {
   theme: ThemePref;
@@ -50,6 +52,14 @@ export function SettingsSheet({
   const fb = useFeedbackSettings();
   const [pgBusy, setPgBusy] = useState(false);
   const [pgResult, setPgResult] = useState<string | null>(null);
+  // versione dell'app installata (solo app Android): per capire se il telefono ha l'ultimo aggiornamento
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    App.getInfo()
+      .then((info) => setVersion(`${info.version} (${info.build})`))
+      .catch(() => {});
+  }, []);
   const favoriteName = DRIVERS.find((d) => d.id === account.profile?.favorite)?.name;
   const toggles: { key: keyof FeedbackSettings; icon: typeof Sun; label: TKey }[] = [
     { key: 'sound', icon: Volume2, label: 'fb_sound' },
@@ -97,7 +107,7 @@ export function SettingsSheet({
                   <Gamepad2 size={16} /> {t('acc_pgConnect')}
                 </button>
               )}
-              {pgResult && <small className="muted">{pgResult}</small>}
+              {pgResult && <small className="muted selectable">{pgResult}</small>}
               <button className="btn ghost block" onClick={onLogout}>
                 <LogOut size={16} /> {t('acc_logout')}
               </button>
@@ -167,6 +177,7 @@ export function SettingsSheet({
         <footer className="credits">
           {t('footer_data', { src: CARDS_DATA.source, date: CARDS_DATA.generatedAt })}
           {!CARDS_DATA.seasonComplete && t('footer_season', { y: CARDS_DATA.latestSeason })}. {t('footer_unofficial')}
+          {version && <span className="block-hint"> v{version}</span>}
         </footer>
       </div>
     </div>
