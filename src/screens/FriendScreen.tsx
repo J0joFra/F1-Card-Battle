@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { noteFriends } from '../lib/achievements';
 import { coin } from '../lib/season';
 import { Copy, Layers, Share2, Swords, UserMinus, Users } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
@@ -75,7 +76,10 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
     let alive = true;
     const load = () =>
       callGame({ action: 'friends' })
-        .then((r) => alive && setFriends(r.friends ?? []))
+        .then((r) => {
+          noteFriends(r.friends?.length ?? 0);
+          if (alive) setFriends(r.friends ?? []);
+        })
         .catch(() => alive && setFriends((f) => f ?? []));
     load();
     const id = setInterval(load, FRIENDS_POLL_MS);

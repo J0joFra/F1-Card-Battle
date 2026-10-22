@@ -53,8 +53,28 @@ export interface Progress {
   missions?: MissionsState; // missioni del giorno (generate al primo uso)
   store?: { date: string; cards: string[]; bought: string[] }; // card del giorno nel negozio
   firstWin?: string; // giorno dell'ultimo premio "prima vittoria del giorno"
+  stats?: Partial<Stats>; // contatori per gli obiettivi di Play Giochi
   updatedAt: number; // ultima modifica (ms), per capire quale copia è più recente tra dispositivo e cloud
 }
+
+// Contatori per gli obiettivi (vittorie, partite e collezione si ricavano dal resto dei progressi).
+export interface Stats {
+  packs: number; // pacchetti aperti
+  jolly: number; // Jolly usati
+  bought: number; // card comprate nel negozio
+  missions: number; // missioni completate (premio ritirato)
+  pvpWins: number; // sfide vinte contro altri giocatori
+  flawless: number; // vittorie senza perdere round
+  comeback: number; // vittorie dopo essere stati sotto di 2 round
+  bronze: number; // vittorie con un mazzo di sole card Bronzo
+  bestStreak: number; // miglior serie di sfide del giorno vinte
+}
+
+export const bumpStats = (p: Progress, delta: Partial<Stats>): Progress => {
+  const stats = { ...p.stats };
+  for (const [k, v] of Object.entries(delta) as [keyof Stats, number][]) stats[k] = (stats[k] ?? 0) + v;
+  return { ...p, stats };
+};
 
 export function starterProgress(rng: Rng = Math.random): Progress {
   const starter = [
@@ -190,7 +210,7 @@ export function addCards(p: Progress, cards: Card[]): UnlockResult {
 
 export function openPack(p: Progress, rng: Rng = Math.random): UnlockResult | null {
   if (p.packs <= 0) return null;
-  const res = addCards({ ...p, packs: p.packs - 1 }, drawPack(rng));
+  const res = addCards(bumpStats({ ...p, packs: p.packs - 1 }, { packs: 1 }), drawPack(rng));
   const jolly = rng() < JOLLY_CHANCE;
   return jolly ? { ...res, jolly, progress: { ...res.progress, jolly: res.progress.jolly + 1 } } : res;
 }
@@ -217,7 +237,7 @@ export function jollyTargets(p: Progress): { driverId: string; owned: number; to
 export function spendJolly(p: Progress, card: Card): UnlockResult | null {
   if (p.jolly <= 0 || p.owned[card.id] || card.kind !== 'team') return null;
   if (!jollyTargets(p).some((t) => t.missing.includes(card))) return null;
-  return addCards({ ...p, jolly: p.jolly - 1 }, [card]);
+  return addCards(bumpStats({ ...p, jolly: p.jolly - 1 }, { jolly: 1 }), [card]);
 }
 
 export function buyPack(p: Progress): Progress | null {
@@ -313,8 +333,14 @@ export function mergeProgress(account: Progress, device: Progress): Progress {
     missions: (device.missions?.date ?? '') > (account.missions?.date ?? '') ? device.missions : account.missions,
     store: (device.store?.date ?? '') > (account.store?.date ?? '') ? device.store : account.store,
     firstWin: (device.firstWin ?? '') > (account.firstWin ?? '') ? device.firstWin : account.firstWin,
+    stats: mergeStats(account.stats, device.stats),
     updatedAt: Date.now(),
   };
+}
+
+function mergeStats(a: Partial<Stats> = {}, b: Partial<Stats> = {}): Partial<Stats> | undefined {
+  const keys = [...new Set([...Object.keys(a), ...Object.keys(b)])] as (keyof Stats)[];
+  return keys.length ? Object.fromEntries(keys.map((k) => [k, Math.max(a[k] ?? 0, b[k] ?? 0)])) : undefined;
 }
 
 export function saveProgress(p: Progress) {

@@ -400,6 +400,8 @@ const it = {
   acc_pgLinked: '✅ Account collegato a Play Giochi: su un altro telefono rientri da solo.',
   acc_pgOther: 'Questo account Play Giochi è già collegato a un altro account del gioco.',
   acc_pgError: 'Play Giochi non ha permesso l’accesso: {e}',
+  acc_achievements: 'Obiettivi',
+  acc_achievementsError: 'Per vedere gli obiettivi collega prima Play Giochi ({e})',
 };
 
 export type TKey = keyof typeof it;
@@ -642,6 +644,8 @@ const en: Dict = {
   acc_pgLinked: '✅ Account linked to Play Games: on another phone you’ll be signed in automatically.',
   acc_pgOther: 'This Play Games account is already linked to another game account.',
   acc_pgError: 'Play Games did not allow sign-in: {e}',
+  acc_achievements: 'Achievements',
+  acc_achievementsError: 'Link Play Games first to see your achievements ({e})',
 };
 
 const fr: Dict = {
@@ -881,6 +885,8 @@ const fr: Dict = {
   acc_pgLinked: '✅ Compte lié à Play Jeux : sur un autre téléphone, tu seras connecté automatiquement.',
   acc_pgOther: 'Ce compte Play Jeux est déjà lié à un autre compte du jeu.',
   acc_pgError: 'Play Jeux n’a pas autorisé la connexion : {e}',
+  acc_achievements: 'Succès',
+  acc_achievementsError: 'Liez d’abord Play Jeux pour voir vos succès ({e})',
 };
 
 const es: Dict = {
@@ -1120,6 +1126,8 @@ const es: Dict = {
   acc_pgLinked: '✅ Cuenta vinculada a Play Juegos: en otro teléfono entrarás automáticamente.',
   acc_pgOther: 'Esta cuenta de Play Juegos ya está vinculada a otra cuenta del juego.',
   acc_pgError: 'Play Juegos no permitió el acceso: {e}',
+  acc_achievements: 'Logros',
+  acc_achievementsError: 'Vincula primero Play Juegos para ver tus logros ({e})',
 };
 
 const de: Dict = {
@@ -1359,6 +1367,8 @@ const de: Dict = {
   acc_pgLinked: '✅ Konto mit Play Spiele verknüpft: Auf einem anderen Handy wirst du automatisch angemeldet.',
   acc_pgOther: 'Dieses Play-Spiele-Konto ist bereits mit einem anderen Spielkonto verknüpft.',
   acc_pgError: 'Play Spiele hat die Anmeldung nicht erlaubt: {e}',
+  acc_achievements: 'Erfolge',
+  acc_achievementsError: 'Verknüpfe zuerst Play Spiele, um deine Erfolge zu sehen ({e})',
 };
 
 const DICT: Record<Lang, Dict> = { it, en, fr, es, de };

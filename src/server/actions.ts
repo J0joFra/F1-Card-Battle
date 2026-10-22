@@ -1,6 +1,7 @@
 import { PLAYABLE_CARDS, STATS } from '../game/cards';
 import {
   buyPack,
+  bumpStats,
   mergeProgress,
   normalizeProgress,
   openPack,
@@ -55,7 +56,7 @@ export function plausibleDevice(guest: Partial<Progress> | undefined): Progress 
       p.packs >= 0 && p.packs <= 20 &&
       p.jolly >= 0 && p.jolly <= 5 &&
       p.wins >= 0 && p.wins <= 500;
-    return ok ? { ...p, missions: undefined } : null;
+    return ok ? { ...p, missions: undefined, stats: undefined } : null;
   } catch {
     return null;
   }
@@ -294,7 +295,7 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
         const missions = missionsFor(p.missions, p.owned, req.date);
         const { missions: next, credits } = claimMission(missions, req.index);
         if (!credits) throw new GameError('mission_not_ready');
-        return { progress: { ...p, missions: next, credits: p.credits + credits }, credits };
+        return { progress: bumpStats({ ...p, missions: next, credits: p.credits + credits }, { missions: 1 }), credits };
       });
 
     case 'match_start': {

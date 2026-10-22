@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { translate } from '../lib/i18n';
 import { ApiError, callGame } from '../lib/api';
 import { playGamesAvailable, playGamesCode, playGamesCodeOrError } from '../lib/playGames';
+import { resetSentAchievements } from '../lib/achievements';
 import { isUntouched, type Progress } from '../game/collection';
 import { normalizeRecoveryCode, usernameOf, type Avatar, type PlayerProfile } from '../game/profile';
 
@@ -233,6 +234,7 @@ export function useAccount(
       const res = await callGame({ action: 'play_games', code });
       write(localStorage, PLAY_GAMES_OFF_KEY, null);
       if (res.playGames === 'other') return { ok: false, message: 'other' };
+      resetSentAchievements(); // l'account Play Giochi può essere nuovo: si rimandano tutti gli obiettivi
       return { ok: true };
     } catch (e) {
       return { ok: false, message: e instanceof ApiError ? e.code : String(e) };

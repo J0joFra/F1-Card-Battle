@@ -28,6 +28,7 @@ import {
   seriesDecks,
   withDecks,
   openPack,
+  bumpStats,
   resetProgress,
   saveProgress,
   spendJolly,
@@ -41,6 +42,7 @@ import { SeasonFx } from "./components/SeasonFx";
 import { PlayerAvatar } from "./components/PlayerAvatar";
 import { ProfileEditor } from "./components/ProfileEditor";
 import { useAccount } from "./hooks/useAccount";
+import { syncAchievements } from "./lib/achievements";
 import { haptic, setMusicMode, sfx } from "./lib/feedback";
 import { HomeScreen } from "./screens/HomeScreen";
 import {
@@ -211,6 +213,13 @@ export default function App() {
     setProfileEditor((cur) => (cur?.auto && cur.mode === "create" ? null : cur));
     setToast(t("acc_playGamesWelcome", { name: account.profile?.nickname ?? "" }));
   }, [account.playGamesSignIns]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // obiettivi di Play Giochi: si mandano quando avanzano (solo con i progressi del server)
+  useEffect(() => {
+    if (!account.online) return;
+    const id = setTimeout(() => syncAchievements(progress, !!account.profile?.favorite, account.accountId), 1500);
+    return () => clearTimeout(id);
+  }, [progress, account.online, account.profile, account.accountId, account.playGamesSignIns]);
 
   useEffect(() => saveProgress(progress), [progress]);
   useEffect(() => {
@@ -679,11 +688,9 @@ export default function App() {
       const res = claimMission(missions, i);
       credits = res.credits;
       if (credits)
-        setProgress((p) => ({
-          ...p,
-          missions: res.missions,
-          credits: p.credits + credits,
-        }));
+        setProgress((p) =>
+          bumpStats({ ...p, missions: res.missions, credits: p.credits + credits }, { missions: 1 }),
+        );
     }
     if (!credits) return;
     sfx("roundWin");
