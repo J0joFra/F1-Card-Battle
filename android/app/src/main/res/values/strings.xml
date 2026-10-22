@@ -4,4 +4,6 @@
     <string name="title_activity_main">F1 Card Battle</string>
     <string name="package_name">com.driverclash.app</string>
     <string name="custom_url_scheme">com.driverclash.app</string>
+    <!-- Play Games Services: ID del progetto (Play Console → Play Games Services → Configurazione) -->
+    <string name="game_services_project_id" translatable="false">673632049467</string>
 </resources>
