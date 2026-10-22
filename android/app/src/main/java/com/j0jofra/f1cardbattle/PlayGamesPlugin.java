@@ -6,15 +6,19 @@ import android.content.pm.PackageManager;
 import android.content.pm.Signature;
 import android.content.pm.SigningInfo;
 import android.os.Build;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.google.android.gms.common.GoogleApiAvailability;
+import com.google.android.gms.games.AchievementsClient;
 import com.google.android.gms.games.GamesSignInClient;
 import com.google.android.gms.games.PlayGames;
 import java.security.MessageDigest;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  * Play Giochi per il gioco web: dà un codice monouso dell'account Play Giochi del giocatore. Il server lo
@@ -41,6 +45,49 @@ public class PlayGamesPlugin extends Plugin {
             }
         });
     }
+
+    // Obiettivi raggiunti: quelli incrementali con i passi fatti (Play Giochi tiene il massimo), gli altri si sbloccano.
+    @PluginMethod
+    public void reportAchievements(PluginCall call) {
+        JSArray items = call.getArray("items");
+        if (items == null) {
+            call.reject("no_items");
+            return;
+        }
+        PlayGames.getGamesSignInClient(getActivity()).isAuthenticated().addOnCompleteListener(auth -> {
+            if (!auth.isSuccessful() || !auth.getResult().isAuthenticated()) {
+                call.reject("not_signed_in");
+                return;
+            }
+            AchievementsClient achievements = PlayGames.getAchievementsClient(getActivity());
+            try {
+                for (int i = 0; i < items.length(); i++) {
+                    JSONObject item = items.getJSONObject(i);
+                    String id = item.getString("id");
+                    int steps = item.optInt("steps", 0);
+                    if (steps > 0) achievements.setSteps(id, steps);
+                    else achievements.unlock(id);
+                }
+                call.resolve();
+            } catch (JSONException e) {
+                call.reject("bad_items: " + e.getMessage());
+            }
+        });
+    }
+
+    // schermata degli obiettivi di Play Giochi
+    @PluginMethod
+    public void showAchievements(PluginCall call) {
+        PlayGames.getAchievementsClient(getActivity())
+            .getAchievementsIntent()
+            .addOnSuccessListener(intent -> {
+                getActivity().startActivityForResult(intent, ACHIEVEMENTS_REQUEST);
+                call.resolve();
+            })
+            .addOnFailureListener(e -> call.reject(describe(e)));
+    }
+
+    private static final int ACHIEVEMENTS_REQUEST = 9003;
 
     private void request(GamesSignInClient client, PluginCall call) {
         String serverClientId = getContext().getString(R.string.play_games_server_client_id);

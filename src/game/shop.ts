@@ -8,6 +8,7 @@ import {
   PACK_PRICE,
   PACK_SIZE,
   addCards,
+  bumpStats,
   jollyTargets,
   type Progress,
   type UnlockResult,
@@ -86,7 +87,7 @@ export function drawPackOf(kind: PackKind, date: string, rng: Rng): Card[] {
 export function buyAndOpen(p: Progress, kind: Exclude<PackKind, 'classic'>, date: string, rng: Rng = Math.random): UnlockResult | null {
   const { price } = PACK_TYPES[kind];
   if (p.credits < price) return null;
-  const res = addCards({ ...p, credits: p.credits - price }, drawPackOf(kind, date, rng));
+  const res = addCards(bumpStats({ ...p, credits: p.credits - price }, { packs: 1 }), drawPackOf(kind, date, rng));
   const jolly = rng() < JOLLY_CHANCE;
   return jolly ? { ...res, jolly, progress: { ...res.progress, jolly: res.progress.jolly + 1 } } : res;
 }
@@ -143,6 +144,6 @@ export function buyFromStore(p: Progress, cardId: string, date: string, salt = '
   if (!card || !store.cards.includes(cardId) || store.bought.includes(cardId) || p.owned[cardId]) return null;
   const price = storePrice(card);
   if (p.credits < price) return null;
-  const res = addCards({ ...p, credits: p.credits - price }, [card]);
+  const res = addCards(bumpStats({ ...p, credits: p.credits - price }, { bought: 1 }), [card]);
   return { ...res, progress: { ...res.progress, store: { ...store, bought: [...store.bought, cardId] } } };
 }

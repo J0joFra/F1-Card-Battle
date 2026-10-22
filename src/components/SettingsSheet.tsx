@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Gamepad2, KeyRound, LogOut, Monitor, Moon, Music, PartyPopper, Pencil, RotateCcw, ShieldCheck, Smartphone, Sun, Trash2, Volume2, X } from 'lucide-react';
+import { Eye, EyeOff, Gamepad2, Medal, KeyRound, LogOut, Monitor, Moon, Music, PartyPopper, Pencil, RotateCcw, ShieldCheck, Smartphone, Sun, Trash2, Volume2, X } from 'lucide-react';
 import { hasMusic, setFeedback, useFeedbackSettings, type FeedbackSettings } from '../lib/feedback';
 import { useI18n, type TKey } from '../lib/i18n';
 import type { ThemePref } from '../lib/theme';
@@ -8,7 +8,7 @@ import { LangPicker } from './LangPicker';
 import { PlayerAvatar } from './PlayerAvatar';
 import { DRIVERS } from '../game/profile';
 import { PRIVACY_URL } from '../lib/links';
-import { playGamesAvailable } from '../lib/playGames';
+import { playGamesAvailable, showAchievements } from '../lib/playGames';
 import { AccessData } from './ProfileEditor';
 import { useEffect, useState } from 'react';
 import { App } from '@capacitor/app';
@@ -105,6 +105,17 @@ export function SettingsSheet({
                   }}
                 >
                   <Gamepad2 size={16} /> {t('acc_pgConnect')}
+                </button>
+              )}
+              {playGamesAvailable() && (
+                <button
+                  className="btn ghost block"
+                  onClick={async () => {
+                    const err = await showAchievements();
+                    if (err) setPgResult(t('acc_achievementsError', { e: err }));
+                  }}
+                >
+                  <Medal size={16} /> {t('acc_achievements')}
                 </button>
               )}
               {pgResult && <small className="muted selectable">{pgResult}</small>}

@@ -2,7 +2,7 @@ import type { Card, StatKey } from '../types';
 import { CARD_BY_ID } from './cards';
 import { DAILY_REWARD_CREDITS, finishDaily, missionDone, missionsAfterMatch, missionsFor } from './daily';
 import { cpuChooseStat, matchOutcome, passTurn, playRound, type MatchOutcome, type MatchState, type Side } from './engine';
-import { FIRST_WIN_CREDITS, FRIEND_DRAW_CREDITS, FRIEND_WIN_CREDITS, MATCH_CREDITS, recordMatch, type Progress } from './collection';
+import { FIRST_WIN_CREDITS, FRIEND_DRAW_CREDITS, FRIEND_WIN_CREDITS, MATCH_CREDITS, bumpStats, recordMatch, type Progress, type Stats } from './collection';
 
 /*
  * Pezzi condivisi tra il gioco sul telefono e il server:
@@ -146,9 +146,30 @@ export function applyMatchEnd(
           : 0
       : MATCH_CREDITS[outcome]) + (firstWin ? FIRST_WIN_CREDITS : 0);
   next = { ...next, credits: next.credits + credits, ...(firstWin ? { firstWin: today } : {}) };
+  next = bumpStats(next, matchStats(state, outcome === 'player', !!opts.friend));
+  const streak = next.daily.streak;
+  if (streak > (next.stats?.bestStreak ?? 0)) next = { ...next, stats: { ...next.stats, bestStreak: streak } };
   return {
     progress: next,
     rewards: { packEarned, dailyWon, missionsCompleted: after.list.filter(missionDone).length - before, credits, firstWin },
+  };
+}
+
+// Contatori per gli obiettivi: vittorie speciali (senza perdere round, in rimonta, con sole card Bronzo)
+export function matchStats(state: MatchState, won: boolean, friend: boolean): Partial<Stats> {
+  if (!won) return {};
+  let diff = 0;
+  let worst = 0;
+  for (const h of state.history) {
+    if (h.winner !== 'tie') diff += h.winner === 'player' ? 1 : -1;
+    worst = Math.min(worst, diff);
+  }
+  const full = state.history.length === state.player.length;
+  return {
+    ...(friend ? { pvpWins: 1 } : {}),
+    ...(full && state.history.every((h) => h.winner !== 'cpu') ? { flawless: 1 } : {}),
+    ...(worst <= -2 ? { comeback: 1 } : {}),
+    ...(full && state.player.every((c) => c.rarity === 'bronzo') ? { bronze: 1 } : {}),
   };
 }
 
