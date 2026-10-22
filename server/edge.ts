@@ -38,6 +38,28 @@ async function signal(topics: string[]) {
     /* il segnale è solo un acceleratore */
   }
 }
+// Play Giochi: ID client della credenziale "Server di giochi" (non segreto) e chiave segreta nei Secrets di Supabase
+const PLAY_GAMES_CLIENT_ID =
+  Deno.env.get('PLAY_GAMES_CLIENT_ID') ?? '673632049467-h752pqoqs2i3md5gqub1ika97p0ld90l.apps.googleusercontent.com';
+
+// Il codice monouso mandato dall'app si scambia con Google: così si sa con certezza chi è il giocatore.
+async function playGamesPlayer(code: string): Promise<string | null> {
+  const secret = Deno.env.get('PLAY_GAMES_CLIENT_SECRET');
+  if (!secret) throw new GameError('play_games_off', 503);
+  const token = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ code, client_id: PLAY_GAMES_CLIENT_ID, client_secret: secret, grant_type: 'authorization_code', redirect_uri: '' }),
+  });
+  if (!token.ok) return null;
+  const { access_token } = (await token.json()) as { access_token?: string };
+  if (!access_token) return null;
+  const me = await fetch('https://games.googleapis.com/games/v1/players/me', { headers: { Authorization: `Bearer ${access_token}` } });
+  if (!me.ok) return null;
+  const { playerId } = (await me.json()) as { playerId?: string };
+  return playerId ?? null;
+}
+
 const pvpTopic = (id: string) => `pvp-${id}`;
 const userTopic = (id: string) => `user-${id}`;
 
@@ -220,6 +242,17 @@ function storeFor(userId: string, device: string, displayName: string | null): S
         const { error } = await admin.from('account_links').delete().eq('user_id', device);
         if (error) throw error;
       }
+    },
+    playGamesPlayer,
+    async findByPlayGames(player) {
+      const { data, error } = await admin.from('profiles').select('id').eq('play_games_id', player).is('moved_to', null).maybeSingle();
+      if (error) throw error;
+      return (data?.id as string | undefined) ?? null;
+    },
+    async setPlayGames(player) {
+      const { error } = await admin.from('profiles').update({ play_games_id: player }).eq('id', userId).is('play_games_id', null);
+      if (error?.code === '23505') return; // già collegato a un altro account nel frattempo
+      if (error) throw error;
     },
     async touch(now) {
       const { error } = await admin.from('profiles').update({ last_seen: new Date(now).toISOString() }).eq('id', userId);

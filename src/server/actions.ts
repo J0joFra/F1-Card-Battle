@@ -147,6 +147,28 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       await store.linkDevice(null);
       return {};
 
+    case 'play_games': {
+      // Il codice arriva dall'app Android; solo il server, con Google, sa a quale giocatore appartiene.
+      const player = typeof req.code === 'string' && req.code ? await store.playGamesPlayer(req.code) : null;
+      if (!player) throw new GameError('bad_play_games', 401);
+      const owner = await store.findByPlayGames(player);
+      const mine = await store.getProfile();
+      if (owner && owner !== store.me.id) {
+        // questo dispositivo ha già un suo account: non si cambia da soli
+        if (mine) return { playGames: 'other', account: store.me.id };
+        // telefono nuovo o app reinstallata: si rientra nell'account collegato a Play Giochi
+        await store.linkDevice(owner);
+        const row = await store.getProfile(owner);
+        if (!row) throw new GameError('bad_play_games', 401);
+        const profile = profileOf(await store.getAccount(owner));
+        return { progress: normalizeProgress(row.progress), profile, needsProfile: !profile, account: owner, playGames: 'signed_in' };
+      }
+      if (owner) return { playGames: 'linked', account: owner };
+      if (!mine) return { playGames: 'unlinked' }; // si collega dopo aver creato il profilo
+      await store.setPlayGames(player);
+      return { playGames: 'linked', account: store.me.id };
+    }
+
     case 'profile_update': {
       const account = await store.getAccount();
       if (!account) throw new GameError('no_profile', 409);
