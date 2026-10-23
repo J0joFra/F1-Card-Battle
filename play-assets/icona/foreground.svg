@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs>
+  <linearGradient id="cardbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a1d25"/><stop offset="1" stop-color="#150709"/></linearGradient>
+  <linearGradient id="shell" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7ff3f0"/><stop offset="1" stop-color="#22b9c4"/></linearGradient>
+  <linearGradient id="bolt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3b0"/><stop offset="1" stop-color="#f2b705"/></linearGradient>
+  <filter id="sh" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000" flood-opacity=".55"/></filter>
+</defs>
+<g transform="translate(512 512) scale(0.66) rotate(-7) translate(-512 -512)" filter="url(#sh)">
+  <rect x="232" y="132" width="560" height="760" rx="56" fill="url(#cardbg)" stroke="#fff" stroke-width="16"/>
+  <rect x="262" y="162" width="500" height="700" rx="34" fill="none" stroke="#e8b931" stroke-width="6" opacity=".9"/>
+  <!-- fulmine dietro al casco -->
+  <path d="M640 250 L420 545 L520 545 L410 790 L700 470 L590 470 L700 250 Z" fill="url(#bolt)" stroke="#fff" stroke-width="10" stroke-linejoin="round"/>
+  <!-- casco da corsa visto di lato -->
+  <g transform="translate(-40 6)">
+    <path d="M340 585 C 330 430 420 340 548 340 C 664 340 735 420 740 522 L 742 588 C 742 604 730 614 714 614 L 610 614 L 570 646 L 382 646 C 356 646 342 620 340 585 Z" fill="url(#shell)" stroke="#0e3d44" stroke-width="12" stroke-linejoin="round"/>
+    <path d="M362 520 C 392 430 452 382 560 372 L 566 402 C 470 412 418 452 392 528 Z" fill="#e60532" stroke="#0e3d44" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M532 440 C 622 430 702 446 738 484 L 740 540 L 562 546 C 534 546 518 524 520 496 C 522 466 525 448 532 440 Z" fill="#1b2a4a" stroke="#0e3d44" stroke-width="12" stroke-linejoin="round"/>
+    <path d="M560 462 C 620 456 680 464 716 486" fill="none" stroke="#9fd8ff" stroke-width="14" stroke-linecap="round" opacity=".85"/>
+    <path d="M392 380 C 430 352 476 348 506 350" fill="none" stroke="#fff" stroke-width="16" stroke-linecap="round" opacity=".6"/>
+  </g>
+  <text x="512" y="282" text-anchor="middle" font-family="Titillium Web, Inter Display, Inter" font-style="italic" font-weight="900" font-size="112" fill="#fff" letter-spacing="2">DRIVER</text>
+  <text x="512" y="832" text-anchor="middle" font-family="Titillium Web, Inter Display, Inter" font-style="italic" font-weight="900" font-size="150" fill="#ffd23f" stroke="#7a1020" stroke-width="6" paint-order="stroke">CLASH</text>
+</g></svg>

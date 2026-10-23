@@ -934,7 +934,7 @@ export default function App() {
       {!inMatch && (
         <header className="hud">
           <button className="brand" onClick={() => setScreen("home")}>
-            <img className="brand-logo" src="./logo-card.png" alt="F1 Cards" />
+            <img className="brand-logo" src="./logo-card.png" alt="Driver Clash" />
             <span className="brand-name">Card Battle</span>
             {season.season && (
               <span className="season-badge" title={t(`season_${season.season}`)}>
