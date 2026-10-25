@@ -1340,3 +1340,4 @@ b.over-pack { color: #e8b931; }
 .access-head { display: flex; align-items: center; gap: 6px; }
 .access-head .icon-btn { margin-left: auto; }
 .selectable { -webkit-user-select: text; user-select: text; overflow-wrap: anywhere; }
+.admin-code { font-family: ui-monospace, monospace; letter-spacing: 2px; font-size: 18px; user-select: all; -webkit-user-select: all; }

@@ -402,6 +402,14 @@ const it = {
   acc_pgError: 'Play Giochi non ha permesso l’accesso: {e}',
   acc_achievements: 'Obiettivi',
   acc_achievementsError: 'Per vedere gli obiettivi collega prima Play Giochi ({e})',
+  acc_adminTitle: 'Amministratore',
+  acc_adminHint: 'Chi ha dimenticato il codice di accesso te lo chiede: scrivi il suo username e crea un codice nuovo. Il vecchio smette di funzionare.',
+  acc_adminUser: 'Username del giocatore',
+  acc_adminReset: 'Crea un nuovo codice',
+  acc_adminConfirm: 'Creare un nuovo codice per «{user}»? Il vecchio non funzionerà più.',
+  acc_adminDone: 'Nuovo codice per {user}:',
+  acc_adminNoAccount: 'Nessun account con questo username',
+  acc_adminError: 'Non è stato possibile creare il codice: {e}',
 };
 
 export type TKey = keyof typeof it;
@@ -646,6 +654,14 @@ const en: Dict = {
   acc_pgError: 'Play Games did not allow sign-in: {e}',
   acc_achievements: 'Achievements',
   acc_achievementsError: 'Link Play Games first to see your achievements ({e})',
+  acc_adminTitle: 'Admin',
+  acc_adminHint: 'Players who forgot their access code ask you: type their username and create a new code. The old one stops working.',
+  acc_adminUser: 'Player username',
+  acc_adminReset: 'Create a new code',
+  acc_adminConfirm: 'Create a new code for “{user}”? The old one will stop working.',
+  acc_adminDone: 'New code for {user}:',
+  acc_adminNoAccount: 'No account with this username',
+  acc_adminError: 'Couldn’t create the code: {e}',
 };
 
 const fr: Dict = {
@@ -887,6 +903,14 @@ const fr: Dict = {
   acc_pgError: 'Play Jeux n’a pas autorisé la connexion : {e}',
   acc_achievements: 'Succès',
   acc_achievementsError: 'Liez d’abord Play Jeux pour voir vos succès ({e})',
+  acc_adminTitle: 'Administrateur',
+  acc_adminHint: 'Un joueur a oublié son code d’accès ? Écris son nom d’utilisateur et crée un nouveau code. L’ancien ne fonctionnera plus.',
+  acc_adminUser: 'Nom d’utilisateur du joueur',
+  acc_adminReset: 'Créer un nouveau code',
+  acc_adminConfirm: 'Créer un nouveau code pour « {user} » ? L’ancien ne fonctionnera plus.',
+  acc_adminDone: 'Nouveau code pour {user} :',
+  acc_adminNoAccount: 'Aucun compte avec ce nom d’utilisateur',
+  acc_adminError: 'Impossible de créer le code : {e}',
 };
 
 const es: Dict = {
@@ -1128,6 +1152,14 @@ const es: Dict = {
   acc_pgError: 'Play Juegos no permitió el acceso: {e}',
   acc_achievements: 'Logros',
   acc_achievementsError: 'Vincula primero Play Juegos para ver tus logros ({e})',
+  acc_adminTitle: 'Administrador',
+  acc_adminHint: '¿Un jugador olvidó su código de acceso? Escribe su nombre de usuario y crea un código nuevo. El anterior dejará de funcionar.',
+  acc_adminUser: 'Nombre de usuario del jugador',
+  acc_adminReset: 'Crear un código nuevo',
+  acc_adminConfirm: '¿Crear un código nuevo para «{user}»? El anterior dejará de funcionar.',
+  acc_adminDone: 'Código nuevo para {user}:',
+  acc_adminNoAccount: 'No hay ninguna cuenta con ese nombre de usuario',
+  acc_adminError: 'No se pudo crear el código: {e}',
 };
 
 const de: Dict = {
@@ -1369,6 +1401,14 @@ const de: Dict = {
   acc_pgError: 'Play Spiele hat die Anmeldung nicht erlaubt: {e}',
   acc_achievements: 'Erfolge',
   acc_achievementsError: 'Verknüpfe zuerst Play Spiele, um deine Erfolge zu sehen ({e})',
+  acc_adminTitle: 'Administrator',
+  acc_adminHint: 'Jemand hat seinen Zugangscode vergessen? Gib den Benutzernamen ein und erstelle einen neuen Code. Der alte funktioniert dann nicht mehr.',
+  acc_adminUser: 'Benutzername des Spielers',
+  acc_adminReset: 'Neuen Code erstellen',
+  acc_adminConfirm: 'Neuen Code für „{user}“ erstellen? Der alte funktioniert dann nicht mehr.',
+  acc_adminDone: 'Neuer Code für {user}:',
+  acc_adminNoAccount: 'Kein Konto mit diesem Benutzernamen',
+  acc_adminError: 'Der Code konnte nicht erstellt werden: {e}',
 };
 
 const DICT: Record<Lang, Dict> = { it, en, fr, es, de };

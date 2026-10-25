@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Gamepad2, Medal, KeyRound, LogOut, Monitor, Moon, Music, PartyPopper, Pencil, RotateCcw, ShieldCheck, Smartphone, Sun, Trash2, Volume2, X } from 'lucide-react';
+import { Eye, EyeOff, Gamepad2, Medal, UserCog, KeyRound, LogOut, Monitor, Moon, Music, PartyPopper, Pencil, RotateCcw, ShieldCheck, Smartphone, Sun, Trash2, Volume2, X } from 'lucide-react';
 import { hasMusic, setFeedback, useFeedbackSettings, type FeedbackSettings } from '../lib/feedback';
 import { useI18n, type TKey } from '../lib/i18n';
 import type { ThemePref } from '../lib/theme';
@@ -119,6 +119,7 @@ export function SettingsSheet({
                 </button>
               )}
               {pgResult && <small className="muted selectable">{pgResult}</small>}
+              {account.admin && <AdminBox reset={account.adminResetCode} />}
               <button className="btn ghost block" onClick={onLogout}>
                 <LogOut size={16} /> {t('acc_logout')}
               </button>
@@ -196,6 +197,45 @@ export function SettingsSheet({
 }
 
 // dati di accesso nelle impostazioni: username sempre, codice nascosto finché non lo chiedi
+// Solo per l'amministratore: nuovo codice di accesso per chi l'ha dimenticato (il vecchio non vale più)
+function AdminBox({ reset }: { reset: Account['adminResetCode'] }) {
+  const { t } = useI18n();
+  const [user, setUser] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [done, setDone] = useState<{ target: string; code: string } | null>(null);
+  return (
+    <div className="access-box">
+      <div className="access-head">
+        <UserCog size={16} /> <b>{t('acc_adminTitle')}</b>
+      </div>
+      <small className="muted">{t('acc_adminHint')}</small>
+      <input className="pr-input" value={user} placeholder={t('acc_adminUser')} autoCapitalize="none" autoCorrect="off"
+        onChange={(e) => { setUser(e.target.value); setDone(null); setMsg(null); }} />
+      <button
+        className="btn ghost block"
+        disabled={busy || !user.trim()}
+        onClick={async () => {
+          if (!window.confirm(t('acc_adminConfirm', { user: user.trim() }))) return;
+          setBusy(true);
+          const r = await reset(user.trim());
+          setBusy(false);
+          if (r.code) setDone({ target: r.target ?? user.trim(), code: r.code });
+          else setMsg(r.error === 'no_account' ? t('acc_adminNoAccount') : t('acc_adminError', { e: r.error ?? '' }));
+        }}
+      >
+        <KeyRound size={16} /> {t('acc_adminReset')}
+      </button>
+      {done && (
+        <p className="selectable">
+          {t('acc_adminDone', { user: done.target })} <b className="admin-code">{done.code}</b>
+        </p>
+      )}
+      {msg && <small className="muted">{msg}</small>}
+    </div>
+  );
+}
+
 function AccessBox({ username, code }: { username: string | null; code: string | null }) {
   const { t } = useI18n();
   const [show, setShow] = useState(false);

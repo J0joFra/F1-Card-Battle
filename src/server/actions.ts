@@ -112,7 +112,7 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
         return { progress: saved, profile: profileOf(account), needsProfile: !profileOf(account), account: id };
       }
       // account ripreso con il codice ma ancora senza nickname e avatar: il telefono li fa completare
-      if (row) return { progress: normalizeProgress(row.progress), profile: profileOf(account), needsProfile: !profileOf(account), account: id };
+      if (row) return { progress: normalizeProgress(row.progress), profile: profileOf(account), needsProfile: !profileOf(account), account: id, ...((await store.isAdmin()) ? { admin: true } : {}) };
       // nessun profilo: il telefono chiede nickname, avatar e pilota preferito (profile_create)
       return { needsProfile: true };
     }
@@ -195,6 +195,16 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
     case 'recovery_new':
       // il codice di recupero è la password dell'account: non cambia mai
       throw new GameError('code_permanent');
+
+    case 'admin_reset_code': {
+      // chi ha dimenticato il codice lo chiede all'amministratore: il vecchio smette di funzionare
+      if (!(await store.isAdmin())) throw new GameError('forbidden', 403);
+      const target = await store.findByUsername(normalizeUsername(req.username));
+      if (!target) throw new GameError('no_account', 404);
+      const code = newRecoveryCode();
+      await store.setRecoveryHash(target.id, await hashRecoveryCode(code));
+      return { recoveryCode: code, target: target.nickname ?? normalizeUsername(req.username) };
+    }
 
     case 'account_delete':
       if (req.confirm !== true) throw new GameError('bad_request');

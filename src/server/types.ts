@@ -21,6 +21,7 @@ export type GameRequest =
   | { action: 'play_games'; code: string }
   | { action: 'recovery_new' }
   | { action: 'account_delete'; confirm: true }
+  | { action: 'admin_reset_code'; username: string } // solo amministratori: nuovo codice per chi l'ha dimenticato
   | { action: 'set_deck'; deck: string[] }
   | { action: 'set_decks'; decks: string[][]; active: number }
   | { action: 'open_pack'; date?: string }
@@ -126,6 +127,8 @@ export interface GameResponse {
   // Play Giochi: signed_in = rientrato nel suo account, linked = account collegato, unlinked = nessun account
   // ancora (va creato), other = questo dispositivo usa già un altro account
   playGames?: 'signed_in' | 'linked' | 'unlinked' | 'other';
+  admin?: boolean; // l'account è amministratore (può dare un nuovo codice a chi l'ha dimenticato)
+  target?: string; // amministratori: nickname dell'account a cui è stato dato il nuovo codice
 }
 
 // dati del profilo salvati accanto alla progressione
@@ -173,6 +176,10 @@ export interface Store {
   updateAccount(fields: { nickname?: string; avatar?: Avatar; favorite?: string | null; recoveryHash?: string }): Promise<void>;
   // account (non spostato) con questo codice di recupero
   findByRecovery(hash: string): Promise<{ id: string; nickname: string | null } | null>;
+  // amministratori: chi fa la richiesta lo è? account (non spostato) con questo username, nuovo codice di recupero
+  isAdmin(): Promise<boolean>;
+  findByUsername(username: string): Promise<{ id: string; nickname: string | null } | null>;
+  setRecoveryHash(account: string, hash: string): Promise<void>;
   // collega il dispositivo all'account (accesso) o lo scollega (null: uscita)
   linkDevice(account: string | null): Promise<void>;
   // Play Giochi: id del giocatore dal codice monouso (verificato con Google), account collegato, collegamento

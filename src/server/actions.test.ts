@@ -86,6 +86,17 @@ function memoryDb() {
       const hit = [...accounts].find(([, a]) => !a.movedTo && a.recoveryHash === hash);
       return hit ? { id: hit[0], nickname: hit[1].nickname } : null;
     },
+    async isAdmin() {
+      return id === 'admin';
+    },
+    async findByUsername(username) {
+      const hit = [...accounts].find(([, a]) => !a.movedTo && !!a.nickname && usernameOf(a.nickname) === username);
+      return hit ? { id: hit[0], nickname: hit[1].nickname } : null;
+    },
+    async setRecoveryHash(account, hash) {
+      const a = accounts.get(account);
+      if (a) accounts.set(account, { ...a, recoveryHash: hash });
+    },
     async linkDevice(account) {
       if (account && account !== device) links.set(device, account);
       else links.delete(device);
@@ -495,6 +506,22 @@ describe('server: account senza Google (nickname, avatar, pilota preferito)', ()
     expect((await call(db.as('phone-1'), { action: 'sync' })).progress!.activeDeck).toBe(2);
     // il codice non cambia mai: vale ancora anche da un terzo telefono
     await call(db.as('phone-3'), { action: 'login', username: 'jojo_f1', code: created.recoveryCode! });
+  });
+
+  it('codice dimenticato: solo l\'amministratore ne crea uno nuovo, e il vecchio non vale più', async () => {
+    const db = memoryDb();
+    const old = await call(db.as('phone-c'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Claudia' });
+    await call(db.as('admin'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Big Eis' });
+    expect((await call(db.as('admin'), { action: 'sync' })).admin).toBe(true);
+    expect((await call(db.as('phone-c'), { action: 'sync' })).admin).toBeUndefined();
+    await expect(call(db.as('phone-c'), { action: 'admin_reset_code', username: 'big_eis' })).rejects.toThrow('forbidden');
+    await expect(call(db.as('admin'), { action: 'admin_reset_code', username: 'nessuno' })).rejects.toThrow('no_account');
+    const reset = await call(db.as('admin'), { action: 'admin_reset_code', username: ' Claudia ' });
+    expect(reset.target).toBe('Claudia');
+    expect(reset.recoveryCode).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+    await expect(call(db.as('phone-new'), { action: 'login', username: 'claudia', code: old.recoveryCode! })).rejects.toThrow('bad_login');
+    const back = await call(db.as('phone-new'), { action: 'login', username: 'claudia', code: reset.recoveryCode! });
+    expect(back.profile!.nickname).toBe('Claudia');
   });
 });
 

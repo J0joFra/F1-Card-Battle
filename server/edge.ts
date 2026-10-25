@@ -42,6 +42,9 @@ async function signal(topics: string[]) {
 const PLAY_GAMES_CLIENT_ID =
   Deno.env.get('PLAY_GAMES_CLIENT_ID') ?? '673632049467-bsa84nc0p1j7oft3deusgm9squ8niuah.apps.googleusercontent.com';
 
+// Amministratori (account): possono dare un nuovo codice di recupero a chi l'ha dimenticato. Di base big_eis.
+const ADMIN_ACCOUNTS = (Deno.env.get('ADMIN_ACCOUNTS') ?? '8a95dbb2-cce6-4950-849e-0176be00729c').split(',').map((s) => s.trim()).filter(Boolean);
+
 // Il codice monouso mandato dall'app si scambia con Google: così si sa con certezza chi è il giocatore.
 async function playGamesPlayer(code: string): Promise<string | null> {
   const secret = Deno.env.get('PLAY_GAMES_CLIENT_SECRET');
@@ -223,6 +226,18 @@ function storeFor(userId: string, device: string, displayName: string | null): S
         const { error } = await admin.auth.admin.deleteUser(id);
         if (error && error.status !== 404) throw error;
       }
+    },
+    async isAdmin() {
+      return ADMIN_ACCOUNTS.includes(userId);
+    },
+    async findByUsername(username) {
+      const { data, error } = await admin.from('profiles').select('id, nickname').eq('username', username).is('moved_to', null).maybeSingle();
+      if (error) throw error;
+      return data ? { id: data.id as string, nickname: (data.nickname as string | null) ?? null } : null;
+    },
+    async setRecoveryHash(account, hash) {
+      const { error } = await admin.from('profiles').update({ recovery_hash: hash }).eq('id', account);
+      if (error) throw error;
     },
     async findByRecovery(hash) {
       const { data, error } = await admin
