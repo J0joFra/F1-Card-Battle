@@ -2,7 +2,7 @@
 // Questo file viene impacchettato con la logica di gioco in supabase/functions/game/index.js
 // da `npm run build:server` (vedi scripts/build-edge.mjs).
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { GameError, handle, type GameRequest, type MatchRecord, type PvpRecord, type Store } from '../src/server/actions';
+import { GameError, handle, type GameRequest, type MatchRecord, type PvpRecord, type Store, type SupportAnswers } from '../src/server/actions';
 import type { Progress } from '../src/game/collection';
 import { usernameOf, type Avatar } from '../src/game/profile';
 
@@ -238,6 +238,23 @@ function storeFor(userId: string, device: string, displayName: string | null): S
     async setRecoveryHash(account, hash) {
       const { error } = await admin.from('profiles').update({ recovery_hash: hash }).eq('id', account);
       if (error) throw error;
+    },
+    async createSupportRequest(row) {
+      const { error } = await admin.from('support_requests').insert({ device, username: row.username, email: row.email, answers: row.answers });
+      if (error?.code === '23505') return false; // già una richiesta in attesa da questo dispositivo
+      if (error) throw error;
+      return true;
+    },
+    async listSupportRequests() {
+      const { data, error } = await admin.from('support_requests').select('id, created_at, username, email, answers').order('created_at').limit(50);
+      if (error) throw error;
+      return (data ?? []).map((r) => ({ id: r.id as string, createdAt: Date.parse(r.created_at as string), username: r.username as string, email: r.email as string, answers: r.answers as SupportAnswers }));
+    },
+    async takeSupportRequest(id) {
+      if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+      const { data, error } = await admin.from('support_requests').delete().eq('id', id).select('id, created_at, username, email, answers').maybeSingle();
+      if (error) throw error;
+      return data ? { id: data.id as string, createdAt: Date.parse(data.created_at as string), username: data.username as string, email: data.email as string, answers: data.answers as SupportAnswers } : null;
     },
     async findByRecovery(hash) {
       const { data, error } = await admin

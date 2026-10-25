@@ -22,6 +22,10 @@ export type GameRequest =
   | { action: 'recovery_new' }
   | { action: 'account_delete'; confirm: true }
   | { action: 'admin_reset_code'; username: string } // solo amministratori: nuovo codice per chi l'ha dimenticato
+  // codice dimenticato: richiesta di aiuto all'amministratore (con le risposte per verificare che sia il proprietario)
+  | { action: 'support_request'; username: string; email: string; answers: SupportAnswers }
+  | { action: 'support_list' } // amministratori: richieste in attesa, con i dati veri dell'account per confrontarle
+  | { action: 'support_resolve'; id: string; approve: boolean } // amministratori: approva (nuovo codice) o rifiuta
   | { action: 'set_deck'; deck: string[] }
   | { action: 'set_decks'; decks: string[][]; active: number }
   | { action: 'open_pack'; date?: string }
@@ -108,6 +112,34 @@ export interface PackResult {
   jolly: boolean;
 }
 
+// risposte del giocatore che ha dimenticato il codice: le confronta l'amministratore con i dati dell'account
+export interface SupportAnswers {
+  favorite: string | null; // id del pilota preferito
+  card: string; // una carta rara che possiede
+  wins: number | null; // vittorie, più o meno
+  avatar: string; // com'è il suo avatar
+  note: string;
+}
+
+export interface SupportRequestRow {
+  id: string;
+  createdAt: number;
+  username: string;
+  email: string;
+  answers: SupportAnswers;
+}
+
+// richiesta vista dall'amministratore: le risposte e, accanto, i dati veri dell'account (null se non esiste)
+export interface SupportRequestView extends SupportRequestRow {
+  account: {
+    nickname: string | null;
+    favorite: string | null;
+    avatar: Avatar | null;
+    wins: number;
+    rareCards: { id: string; name: string; match: boolean }[]; // carte Leggendarie e Platino possedute
+  } | null;
+}
+
 export interface GameResponse {
   progress?: Progress;
   pack?: PackResult;
@@ -129,6 +161,9 @@ export interface GameResponse {
   playGames?: 'signed_in' | 'linked' | 'unlinked' | 'other';
   admin?: boolean; // l'account è amministratore (può dare un nuovo codice a chi l'ha dimenticato)
   target?: string; // amministratori: nickname dell'account a cui è stato dato il nuovo codice
+  username?: string; // amministratori: username dell'account (per l'email al giocatore)
+  email?: string; // amministratori: email a cui mandare il nuovo codice
+  supportRequests?: SupportRequestView[];
 }
 
 // dati del profilo salvati accanto alla progressione
@@ -180,6 +215,11 @@ export interface Store {
   isAdmin(): Promise<boolean>;
   findByUsername(username: string): Promise<{ id: string; nickname: string | null } | null>;
   setRecoveryHash(account: string, hash: string): Promise<void>;
+  // richieste di aiuto per il codice dimenticato: una sola in attesa per dispositivo (false se ce n'è già una)
+  createSupportRequest(row: Omit<SupportRequestRow, 'id' | 'createdAt'>): Promise<boolean>;
+  listSupportRequests(): Promise<SupportRequestRow[]>;
+  // la richiesta gestita si cancella (con l'email): restituisce quello che c'era, o null
+  takeSupportRequest(id: string): Promise<SupportRequestRow | null>;
   // collega il dispositivo all'account (accesso) o lo scollega (null: uscita)
   linkDevice(account: string | null): Promise<void>;
   // Play Giochi: id del giocatore dal codice monouso (verificato con Google), account collegato, collegamento

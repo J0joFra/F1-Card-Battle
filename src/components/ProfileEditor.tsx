@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Check, Copy, Dices, Search, X } from 'lucide-react';
+import { Check, Copy, Dices, LifeBuoy, Search, X } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
-import { errorMessage } from '../lib/api';
+import { callGame, errorMessage } from '../lib/api';
 import { flagEmoji } from '../game/cards';
 import {
   AVATAR_OPTIONS,
@@ -56,6 +56,7 @@ export function ProfileEditor({ mode, initial, onCreate, onLogin, onSave, onLate
   const [code, setCode] = useState('');
   const [username, setUsername] = useState('');
   const [newCode, setNewCode] = useState<string | null>(null); // codice di recupero da mostrare
+  const [support, setSupport] = useState(false); // codice dimenticato: richiesta di aiuto all'amministratore
   const [tab, setTab] = useState(0);
 
   const nickOk = !!cleanNickname(nickname);
@@ -81,6 +82,8 @@ export function ProfileEditor({ mode, initial, onCreate, onLogin, onSave, onLate
   }
   const input = (): ProfileInput => ({ nickname: cleanNickname(nickname)!, avatar, favorite });
   const submit = () => run(async () => (mode === 'create' ? onCreate!(input()) : onSave!(input())));
+
+  if (support) return <SupportForm username={username} onBack={() => setSupport(false)} />;
 
   // codice di recupero appena creato: si mostra una volta, va salvato
   if (newCode) return <RecoveryCode code={newCode} username={usernameOf(cleanNickname(nickname) ?? nickname)} onDone={onClose} />;
@@ -134,6 +137,9 @@ export function ProfileEditor({ mode, initial, onCreate, onLogin, onSave, onLate
               onClick={() => run(() => onLogin!(username, code))}
             >
               {t('pr_login')}
+            </button>
+            <button className={`btn ${error ? 'ghost' : 'text'} block`} onClick={() => setSupport(true)}>
+              <LifeBuoy size={16} /> {t('sup_open')}
             </button>
             <button className="btn text block" onClick={() => setRecovering(false)}>
               {t('back')}
@@ -299,5 +305,118 @@ export function AccessData({ username, code }: { username: string | null; code: 
         <code className="recovery-code">{code ?? '—'}</code>
       </dd>
     </dl>
+  );
+}
+
+// Codice dimenticato: il giocatore chiede aiuto all'amministratore. Risponde ad alcune domande che solo il
+// proprietario dell'account conosce e lascia un'email: lì riceverà username e nuovo codice.
+function SupportForm({ username: initialUser, onBack }: { username: string; onBack: () => void }) {
+  const { t } = useI18n();
+  const [username, setUsername] = useState(initialUser);
+  const [email, setEmail] = useState('');
+  const [favorite, setFavorite] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [card, setCard] = useState('');
+  const [wins, setWins] = useState('');
+  const [avatar, setAvatar] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (q.length < 2 || favorite) return [];
+    return DRIVERS.filter((d) => d.name.toLowerCase().includes(q)).slice(0, 5);
+  }, [query, favorite]);
+  const ready = username.trim().length >= 3 && /.+@.+\..+/.test(email.trim()) && (!!favorite || !!card.trim() || wins.trim() !== '');
+
+  async function send() {
+    setBusy(true);
+    setError(null);
+    try {
+      await callGame({
+        action: 'support_request',
+        username,
+        email: email.trim(),
+        answers: { favorite, card, wins: wins.trim() === '' ? null : Number(wins), avatar, note },
+      });
+      setSent(true);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="overlay profile-backdrop">
+      <div className="profile-editor" role="dialog" aria-modal="true">
+        <h2>{t('sup_title')}</h2>
+        {sent ? (
+          <section className="pr-recover">
+            <p className="sup-sent">📨 {t('sup_sent', { email: email.trim() })}</p>
+            <button className="btn primary big block" onClick={onBack}>
+              {t('back')}
+            </button>
+          </section>
+        ) : (
+          <section className="pr-recover">
+            <p className="muted">{t('sup_intro')}</p>
+            <label className="pr-field">
+              <span>{t('pr_username')}</span>
+              <input className="pr-input" value={username} onChange={(e) => setUsername(e.target.value)} autoCapitalize="none" autoCorrect="off" spellCheck={false} />
+            </label>
+            <label className="pr-field">
+              <span>{t('sup_email')}</span>
+              <input className="pr-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@email.it" autoCapitalize="none" autoComplete="email" />
+              <small className="muted">{t('sup_emailHelp')}</small>
+            </label>
+            <p className="sup-q">{t('sup_questions')}</p>
+            <div className="pr-field">
+              <span>{t('sup_favorite')}</span>
+              {favorite ? (
+                <button className="btn ghost block" onClick={() => { setFavorite(null); setQuery(''); }}>
+                  ❤️ {driverName(favorite)} <X size={14} />
+                </button>
+              ) : (
+                <input className="pr-input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('pr_favSearch')} />
+              )}
+              {matches.length > 0 && (
+                <div className="sup-matches">
+                  {matches.map((d) => (
+                    <button key={d.id} className="btn ghost" onClick={() => setFavorite(d.id)}>
+                      {flagEmoji(d.country)} {d.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <label className="pr-field">
+              <span>{t('sup_card')}</span>
+              <input className="pr-input" value={card} onChange={(e) => setCard(e.target.value)} placeholder={t('sup_cardPh')} maxLength={80} />
+            </label>
+            <label className="pr-field">
+              <span>{t('sup_wins')}</span>
+              <input className="pr-input" inputMode="numeric" value={wins} onChange={(e) => setWins(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} placeholder="50" />
+            </label>
+            <label className="pr-field">
+              <span>{t('sup_avatar')}</span>
+              <input className="pr-input" value={avatar} onChange={(e) => setAvatar(e.target.value)} placeholder={t('sup_avatarPh')} maxLength={200} />
+            </label>
+            <label className="pr-field">
+              <span>{t('sup_note')}</span>
+              <textarea className="pr-input" rows={2} value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} />
+            </label>
+            {error && <p className="pr-error">{error}</p>}
+            <button className="btn primary big block" disabled={busy || !ready} onClick={send}>
+              {t('sup_send')}
+            </button>
+            <button className="btn text block" onClick={onBack}>
+              {t('back')}
+            </button>
+          </section>
+        )}
+      </div>
+    </div>
   );
 }

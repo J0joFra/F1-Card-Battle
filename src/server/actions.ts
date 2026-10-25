@@ -1,4 +1,4 @@
-import { PLAYABLE_CARDS, STATS } from '../game/cards';
+import { CARD_BY_ID, PLAYABLE_CARDS, STATS } from '../game/cards';
 import {
   buyPack,
   bumpStats,
@@ -20,7 +20,7 @@ import type { StatKey } from '../types';
 import { cardOrThrow, checkDate, GameError, validDeck, withProfile, type Ctx } from './common';
 import { handlePvp } from './pvp';
 import { buyAndOpen, buyFromStore, storeFor, storePrice } from '../game/shop';
-import type { AccountRow, GameRequest, GameResponse, Store } from './types';
+import type { AccountRow, GameRequest, GameResponse, Store, SupportAnswers, SupportRequestRow, SupportRequestView } from './types';
 import {
   cleanNickname,
   hashRecoveryCode,
@@ -77,6 +77,36 @@ const formatCode = (raw: string) => {
   const c = normalizeRecoveryCode(raw);
   return `${c.slice(0, 4)}-${c.slice(4, 8)}-${c.slice(8, 12)}`;
 };
+
+// ---- codice dimenticato: richieste di aiuto all'amministratore ----
+
+const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
+const text = (v: unknown, max: number) => (typeof v === 'string' ? v.normalize('NFC').trim().slice(0, max) : '');
+
+function cleanAnswers(raw: unknown): SupportAnswers {
+  const a = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const wins = typeof a.wins === 'number' && Number.isFinite(a.wins) ? Math.max(0, Math.min(100000, Math.round(a.wins))) : null;
+  return { favorite: validFavorite(a.favorite), card: text(a.card, 80), wins, avatar: text(a.avatar, 200), note: text(a.note, 300) };
+}
+
+// la richiesta con, accanto, i dati veri dell'account: l'amministratore li confronta prima di approvare
+async function supportView(store: Store, req: SupportRequestRow): Promise<SupportRequestView> {
+  const found = await store.findByUsername(req.username);
+  if (!found) return { ...req, account: null };
+  const [row, acc] = await Promise.all([store.getProfile(found.id), store.getAccount(found.id)]);
+  const progress = normalizeProgress(row?.progress ?? {});
+  const words = req.answers.card.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3);
+  const rareCards = Object.keys(progress.owned)
+    .map((id) => CARD_BY_ID.get(id))
+    .filter((c) => !!c && (c.rarity === 'leggendaria' || c.rarity === 'platino'))
+    .map((c) => {
+      const name = `${c!.driver.name} · ${c!.team.name}`;
+      return { id: c!.id, name, match: words.some((w) => name.toLowerCase().includes(w)) };
+    })
+    .sort((a, b) => Number(b.match) - Number(a.match) || a.name.localeCompare(b.name))
+    .slice(0, 12);
+  return { ...req, account: { nickname: acc?.nickname ?? found.nickname, favorite: acc?.favorite ?? null, avatar: acc?.avatar ?? null, wins: progress.wins, rareCards } };
+}
 
 // Accesso da un altro dispositivo: username + codice di recupero. Il dispositivo viene collegato all'account
 // (le carte restano dove sono). Per gli account senza nickname (vecchio accesso con Google) basta il codice.
@@ -204,6 +234,35 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       const code = newRecoveryCode();
       await store.setRecoveryHash(target.id, await hashRecoveryCode(code));
       return { recoveryCode: code, target: target.nickname ?? normalizeUsername(req.username) };
+    }
+
+    case 'support_request': {
+      const username = normalizeUsername(req.username).slice(0, 40);
+      const email = text(req.email, 254);
+      const answers = cleanAnswers(req.answers);
+      if (username.length < 3) throw new GameError('bad_username');
+      if (!EMAIL_RE.test(email)) throw new GameError('bad_email');
+      if (!answers.favorite && !answers.card && answers.wins === null) throw new GameError('support_empty');
+      if (!(await store.createSupportRequest({ username, email, answers }))) throw new GameError('support_pending', 409);
+      return {};
+    }
+
+    case 'support_list': {
+      if (!(await store.isAdmin())) throw new GameError('forbidden', 403);
+      const rows = await store.listSupportRequests();
+      return { supportRequests: await Promise.all(rows.map((r) => supportView(store, r))) };
+    }
+
+    case 'support_resolve': {
+      if (!(await store.isAdmin())) throw new GameError('forbidden', 403);
+      const request = typeof req.id === 'string' ? await store.takeSupportRequest(req.id) : null;
+      if (!request) throw new GameError('no_request', 404);
+      if (!req.approve) return { email: request.email, username: request.username };
+      const target = await store.findByUsername(request.username);
+      if (!target) throw new GameError('no_account', 404);
+      const code = newRecoveryCode();
+      await store.setRecoveryHash(target.id, await hashRecoveryCode(code));
+      return { recoveryCode: code, target: target.nickname ?? request.username, username: request.username, email: request.email };
     }
 
     case 'account_delete':
