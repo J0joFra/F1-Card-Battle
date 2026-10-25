@@ -50,6 +50,10 @@ const MESSAGES: Record<string, TKey> = {
   anon_disabled: 'err_anon_disabled',
   has_profile: 'err_has_profile',
   account_moved: 'err_account_moved',
+  bad_email: 'err_bad_email',
+  bad_username: 'err_bad_username',
+  support_empty: 'err_support_empty',
+  support_pending: 'err_support_pending',
 };
 
 export const errorMessage = (e: unknown) =>

@@ -1340,3 +1340,17 @@ b.over-pack { color: #e8b931; }
 .access-head { display: flex; align-items: center; gap: 6px; }
 .access-head .icon-btn { margin-left: auto; }
 .selectable { -webkit-user-select: text; user-select: text; overflow-wrap: anywhere; }
+.admin-code { font-family: ui-monospace, monospace; letter-spacing: 2px; font-size: 18px; user-select: all; -webkit-user-select: all; }
+/* amministratore: richieste di aiuto per il codice dimenticato */
+.sup-admin { display: grid; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.sup-req, .sup-done { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.sup-head { display: flex; align-items: center; gap: 10px; }
+.sup-checks { display: grid; gap: 6px; }
+.sup-check { display: grid; gap: 1px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 14px; }
+.sup-ok { color: #2ecc71; font-weight: 700; }
+.sup-no { color: var(--accent); font-weight: 700; }
+.sup-actions { display: flex; gap: 8px; }
+.sup-actions .btn { flex: 1; }
+.sup-q { margin: 6px 0 0; font-weight: 700; }
+.sup-matches { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.sup-sent { font-size: 16px; line-height: 1.4; }

@@ -75,6 +75,9 @@ export interface Account {
   playGamesSignIns: number;
   // collegamento a Play Giochi chiesto dal giocatore (impostazioni): esito, o il motivo dell'errore
   connectPlayGames: () => Promise<{ ok: boolean; message?: string }>;
+  // amministratore: può dare un nuovo codice a chi l'ha dimenticato
+  admin: boolean;
+  adminResetCode: (username: string) => Promise<{ code?: string; target?: string; error?: string }>;
   updateProfile: (input: Partial<ProfileInput>) => Promise<void>;
   // elimina l'account sul server (carte, progressi, amici) ed esce
   deleteAccount: () => Promise<void>;
@@ -101,6 +104,7 @@ export function useAccount(
   const [attempt, setAttempt] = useState(0);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [playGamesSignIns, setPlayGamesSignIns] = useState(0);
+  const [admin, setAdmin] = useState(false);
   const playGamesTried = useRef(false);
   const [saved, setSaved] = useState<{ account: string; code: string } | null>(() => {
     try {
@@ -149,6 +153,7 @@ export function useAccount(
       .then((res) => {
         if (cancelled) return;
         if (!res.progress) {
+          setAdmin(false);
           setMissing(true);
           setStatus('offline');
           return;
@@ -157,6 +162,7 @@ export function useAccount(
         setProfile(res.profile ?? null);
         setIncomplete(!res.profile);
         setAccountId(res.account ?? userId);
+        setAdmin(!!res.admin);
         setStatus('saved');
       })
       .catch((e) => {
@@ -226,6 +232,15 @@ export function useAccount(
       setAttempt((n) => n + 1); // riallinea tutto con il server
     }
   }, [finish]);
+
+  const adminResetCode = useCallback(async (username: string) => {
+    try {
+      const res = await callGame({ action: 'admin_reset_code', username });
+      return { code: res.recoveryCode, target: res.target };
+    } catch (e) {
+      return { error: e instanceof ApiError ? e.code : String(e) };
+    }
+  }, []);
 
   const connectPlayGames = useCallback(async () => {
     const { code, error } = await playGamesCodeOrError(true);
@@ -333,6 +348,8 @@ export function useAccount(
     login,
     logout,
     playGamesSignIns,
+    admin,
+    adminResetCode,
     connectPlayGames,
     updateProfile,
     deleteAccount,

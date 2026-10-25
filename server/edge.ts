@@ -2,7 +2,7 @@
 // Questo file viene impacchettato con la logica di gioco in supabase/functions/game/index.js
 // da `npm run build:server` (vedi scripts/build-edge.mjs).
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { GameError, handle, type GameRequest, type MatchRecord, type PvpRecord, type Store } from '../src/server/actions';
+import { GameError, handle, type GameRequest, type MatchRecord, type PvpRecord, type Store, type SupportAnswers } from '../src/server/actions';
 import type { Progress } from '../src/game/collection';
 import { usernameOf, type Avatar } from '../src/game/profile';
 
@@ -41,6 +41,9 @@ async function signal(topics: string[]) {
 // Play Giochi: ID client della credenziale "Server di giochi" (non segreto) e chiave segreta nei Secrets di Supabase
 const PLAY_GAMES_CLIENT_ID =
   Deno.env.get('PLAY_GAMES_CLIENT_ID') ?? '673632049467-bsa84nc0p1j7oft3deusgm9squ8niuah.apps.googleusercontent.com';
+
+// Amministratori (account): possono dare un nuovo codice di recupero a chi l'ha dimenticato. Di base big_eis.
+const ADMIN_ACCOUNTS = (Deno.env.get('ADMIN_ACCOUNTS') ?? '8a95dbb2-cce6-4950-849e-0176be00729c').split(',').map((s) => s.trim()).filter(Boolean);
 
 // Il codice monouso mandato dall'app si scambia con Google: così si sa con certezza chi è il giocatore.
 async function playGamesPlayer(code: string): Promise<string | null> {
@@ -223,6 +226,35 @@ function storeFor(userId: string, device: string, displayName: string | null): S
         const { error } = await admin.auth.admin.deleteUser(id);
         if (error && error.status !== 404) throw error;
       }
+    },
+    async isAdmin() {
+      return ADMIN_ACCOUNTS.includes(userId);
+    },
+    async findByUsername(username) {
+      const { data, error } = await admin.from('profiles').select('id, nickname').eq('username', username).is('moved_to', null).maybeSingle();
+      if (error) throw error;
+      return data ? { id: data.id as string, nickname: (data.nickname as string | null) ?? null } : null;
+    },
+    async setRecoveryHash(account, hash) {
+      const { error } = await admin.from('profiles').update({ recovery_hash: hash }).eq('id', account);
+      if (error) throw error;
+    },
+    async createSupportRequest(row) {
+      const { error } = await admin.from('support_requests').insert({ device, username: row.username, email: row.email, answers: row.answers });
+      if (error?.code === '23505') return false; // già una richiesta in attesa da questo dispositivo
+      if (error) throw error;
+      return true;
+    },
+    async listSupportRequests() {
+      const { data, error } = await admin.from('support_requests').select('id, created_at, username, email, answers').order('created_at').limit(50);
+      if (error) throw error;
+      return (data ?? []).map((r) => ({ id: r.id as string, createdAt: Date.parse(r.created_at as string), username: r.username as string, email: r.email as string, answers: r.answers as SupportAnswers }));
+    },
+    async takeSupportRequest(id) {
+      if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+      const { data, error } = await admin.from('support_requests').delete().eq('id', id).select('id, created_at, username, email, answers').maybeSingle();
+      if (error) throw error;
+      return data ? { id: data.id as string, createdAt: Date.parse(data.created_at as string), username: data.username as string, email: data.email as string, answers: data.answers as SupportAnswers } : null;
     },
     async findByRecovery(hash) {
       const { data, error } = await admin

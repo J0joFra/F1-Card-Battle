@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Gamepad2, Medal, KeyRound, LogOut, Monitor, Moon, Music, PartyPopper, Pencil, RotateCcw, ShieldCheck, Smartphone, Sun, Trash2, Volume2, X } from 'lucide-react';
+import { Check, Eye, EyeOff, Gamepad2, Mail, Medal, RefreshCw, UserCog, KeyRound, LogOut, Monitor, Moon, Music, PartyPopper, Pencil, RotateCcw, ShieldCheck, Smartphone, Sun, Trash2, Volume2, X } from 'lucide-react';
 import { hasMusic, setFeedback, useFeedbackSettings, type FeedbackSettings } from '../lib/feedback';
 import { useI18n, type TKey } from '../lib/i18n';
 import type { ThemePref } from '../lib/theme';
@@ -8,6 +8,8 @@ import { LangPicker } from './LangPicker';
 import { PlayerAvatar } from './PlayerAvatar';
 import { DRIVERS } from '../game/profile';
 import { PRIVACY_URL } from '../lib/links';
+import { callGame, errorMessage } from '../lib/api';
+import type { SupportRequestView } from '../server/types';
 import { playGamesAvailable, showAchievements } from '../lib/playGames';
 import { AccessData } from './ProfileEditor';
 import { useEffect, useState } from 'react';
@@ -119,6 +121,7 @@ export function SettingsSheet({
                 </button>
               )}
               {pgResult && <small className="muted selectable">{pgResult}</small>}
+              {account.admin && <AdminBox reset={account.adminResetCode} />}
               <button className="btn ghost block" onClick={onLogout}>
                 <LogOut size={16} /> {t('acc_logout')}
               </button>
@@ -196,6 +199,159 @@ export function SettingsSheet({
 }
 
 // dati di accesso nelle impostazioni: username sempre, codice nascosto finché non lo chiedi
+// Solo per l'amministratore: nuovo codice di accesso per chi l'ha dimenticato (il vecchio non vale più)
+function AdminBox({ reset }: { reset: Account['adminResetCode'] }) {
+  const { t } = useI18n();
+  const [user, setUser] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [done, setDone] = useState<{ target: string; code: string } | null>(null);
+  return (
+    <div className="access-box">
+      <div className="access-head">
+        <UserCog size={16} /> <b>{t('acc_adminTitle')}</b>
+      </div>
+      <SupportRequests />
+      <small className="muted">{t('acc_adminHint')}</small>
+      <input className="pr-input" value={user} placeholder={t('acc_adminUser')} autoCapitalize="none" autoCorrect="off"
+        onChange={(e) => { setUser(e.target.value); setDone(null); setMsg(null); }} />
+      <button
+        className="btn ghost block"
+        disabled={busy || !user.trim()}
+        onClick={async () => {
+          if (!window.confirm(t('acc_adminConfirm', { user: user.trim() }))) return;
+          setBusy(true);
+          const r = await reset(user.trim());
+          setBusy(false);
+          if (r.code) setDone({ target: r.target ?? user.trim(), code: r.code });
+          else setMsg(r.error === 'no_account' ? t('acc_adminNoAccount') : t('acc_adminError', { e: r.error ?? '' }));
+        }}
+      >
+        <KeyRound size={16} /> {t('acc_adminReset')}
+      </button>
+      {done && (
+        <p className="selectable">
+          {t('acc_adminDone', { user: done.target })} <b className="admin-code">{done.code}</b>
+        </p>
+      )}
+      {msg && <small className="muted">{msg}</small>}
+    </div>
+  );
+}
+
+// una domanda: la risposta del giocatore e, sotto, il dato vero dell'account con ✓ / ✗
+function SupCheck({ label, answer, ok, real }: { label: string; answer: string; ok?: boolean; real?: string }) {
+  const { t } = useI18n();
+  return (
+    <div className="sup-check">
+      <small className="muted">{label}</small>
+      <span>“{answer}”</span>
+      {real !== undefined && (
+        <span className={ok ? 'sup-ok' : 'sup-no'}>
+          {ok ? '✓' : '✗'} <small>{t('sup_real')}:</small> {real}
+        </span>
+      )}
+    </div>
+  );
+}
+
+const mailto = (to: string, subject: string, body: string) =>
+  `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+const driverLabel = (id: string | null) => (id ? DRIVERS.find((d) => d.id === id)?.name ?? id : '—');
+
+// Amministratore: richieste di chi ha dimenticato il codice. Accanto alle risposte ci sono i dati veri
+// dell'account: se coincidono si approva, e si manda al giocatore l'email con username e nuovo codice.
+function SupportRequests() {
+  const { t } = useI18n();
+  const [list, setList] = useState<SupportRequestView[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [done, setDone] = useState<{ href: string; text: string }[]>([]);
+  const load = () => {
+    setError(null);
+    callGame({ action: 'support_list' })
+      .then((r) => setList(r.supportRequests ?? []))
+      .catch((e) => setError(errorMessage(e)));
+  };
+  useEffect(load, []);
+
+  async function resolve(r: SupportRequestView, approve: boolean) {
+    if (!window.confirm(t(approve ? 'sup_approveConfirm' : 'sup_rejectConfirm', { user: r.username }))) return;
+    setBusy(r.id);
+    try {
+      const res = await callGame({ action: 'support_resolve', id: r.id, approve });
+      const name = res.target ?? r.account?.nickname ?? r.username;
+      const href = approve
+        ? mailto(r.email, t('sup_mailSubject'), t('sup_mailBody', { name, user: res.username ?? r.username, code: res.recoveryCode ?? '' }))
+        : mailto(r.email, t('sup_mailRejectSubject'), t('sup_mailRejectBody', { user: r.username }));
+      setDone((d) => [{ href, text: approve ? t('sup_doneApproved', { user: r.username, code: res.recoveryCode ?? '' }) : t('sup_doneRejected', { user: r.username }) }, ...d]);
+      setList((l) => l?.filter((x) => x.id !== r.id) ?? null);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="sup-admin">
+      <div className="access-head">
+        <b>{t('sup_adminTitle', { n: list?.length ?? 0 })}</b>
+        <button className="icon-btn" onClick={load} aria-label={t('sup_refresh')}>
+          <RefreshCw size={16} />
+        </button>
+      </div>
+      {error && <small className="pr-error">{error}</small>}
+      {done.map((d, i) => (
+        <div key={i} className="sup-done selectable">
+          <p>{d.text}</p>
+          <a className="btn primary block" href={d.href}>
+            <Mail size={16} /> {t('sup_sendMail')}
+          </a>
+        </div>
+      ))}
+      {list && list.length === 0 && <small className="muted">{t('sup_none')}</small>}
+      {list?.map((r) => {
+        const a = r.account;
+        const rareMatch = !!a?.rareCards.some((c) => c.match);
+        const winsOk = !!a && r.answers.wins !== null && Math.abs(a.wins - r.answers.wins) <= Math.max(5, a.wins * 0.25);
+        return (
+          <div key={r.id} className="sup-req">
+            <div className="sup-head">
+              {a?.avatar && <PlayerAvatar avatar={a.avatar} size={44} />}
+              <div>
+                <b>{a?.nickname ?? r.username}</b> <small className="muted">@{r.username}</small>
+                <br />
+                <small className="muted selectable">{r.email} · {new Date(r.createdAt).toLocaleString()}</small>
+              </div>
+            </div>
+            {!a ? (
+              <p className="sup-no">{t('sup_noAccount')}</p>
+            ) : (
+              <div className="sup-checks">
+                <SupCheck label={t('sup_favorite')} answer={driverLabel(r.answers.favorite)} ok={!!r.answers.favorite && r.answers.favorite === a.favorite} real={driverLabel(a.favorite)} />
+                <SupCheck label={t('sup_card')} answer={r.answers.card || '—'} ok={rareMatch}
+                  real={rareMatch ? a.rareCards.filter((c) => c.match).slice(0, 3).map((c) => c.name).join(' · ') : t('sup_rareCount', { n: a.rareCards.length })} />
+                <SupCheck label={t('sup_wins')} answer={r.answers.wins === null ? '—' : String(r.answers.wins)} ok={winsOk} real={String(a.wins)} />
+                <SupCheck label={t('sup_avatar')} answer={r.answers.avatar || '—'} />
+                {r.answers.note && <SupCheck label={t('sup_note')} answer={r.answers.note} />}
+              </div>
+            )}
+            <div className="sup-actions">
+              <button className="btn primary" disabled={!a || busy === r.id} onClick={() => resolve(r, true)}>
+                <Check size={16} /> {t('sup_approve')}
+              </button>
+              <button className="btn ghost" disabled={busy === r.id} onClick={() => resolve(r, false)}>
+                <X size={16} /> {t('sup_reject')}
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function AccessBox({ username, code }: { username: string | null; code: string | null }) {
   const { t } = useI18n();
   const [show, setShow] = useState(false);

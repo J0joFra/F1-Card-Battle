@@ -11,6 +11,7 @@ await build({
   platform: 'neutral',
   target: 'es2022',
   minify: true,
+  lineLimit: 2000, // righe corte: il file si legge e si confronta meglio
   legalComments: 'none',
   external: ['npm:*'],
   banner: { js: '// File generato da scripts/build-edge.mjs: non modificare a mano (sorgenti in server/ e src/).' },

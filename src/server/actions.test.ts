@@ -8,7 +8,7 @@ import { deckProblems, decksProblems } from '../game/deckRules';
 import { hashRecoveryCode, usernameOf } from '../game/profile';
 import { FIRST_WIN_CREDITS, MATCH_CREDITS, PACK_PRICE } from '../game/collection';
 import { CLASSIC, fillDeck } from '../game/deckRules';
-import { PVP_REVEAL_MS, PVP_TURN_MS, handle, type AccountRow, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type Store } from './actions';
+import { PVP_REVEAL_MS, PVP_TURN_MS, handle, type AccountRow, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type Store, type SupportRequestRow } from './actions';
 
 const AVATAR = { skin: 2, hair: 3, hairColor: 1, eyes: 0, eyeColor: 1, brows: 0, mouth: 0, beard: 4, glasses: 0, suit: 0 };
 const NEW_PROFILE = { nickname: 'Joaquim', avatar: { ...AVATAR }, favorite: 'lewis-hamilton' };
@@ -25,6 +25,7 @@ function memoryDb() {
   const accounts = new Map<string, AccountRow & { recoveryHash: string | null; legacy: number | null }>();
   const links = new Map<string, string>(); // dispositivo → account (accesso con username e codice)
   const playGames = new Map<string, string>(); // giocatore Play Giochi → account
+  const support = new Map<string, SupportRequestRow & { device: string }>(); // richieste di aiuto per il codice
   let conflictsToSimulate = 0;
   // l'account di un dispositivo: quello a cui ha fatto l'accesso, oppure il suo (seguendo gli spostamenti)
   const accountOf = (device: string) => {
@@ -85,6 +86,33 @@ function memoryDb() {
     async findByRecovery(hash) {
       const hit = [...accounts].find(([, a]) => !a.movedTo && a.recoveryHash === hash);
       return hit ? { id: hit[0], nickname: hit[1].nickname } : null;
+    },
+    async isAdmin() {
+      return id === 'admin';
+    },
+    async findByUsername(username) {
+      const hit = [...accounts].find(([, a]) => !a.movedTo && !!a.nickname && usernameOf(a.nickname) === username);
+      return hit ? { id: hit[0], nickname: hit[1].nickname } : null;
+    },
+    async setRecoveryHash(account, hash) {
+      const a = accounts.get(account);
+      if (a) accounts.set(account, { ...a, recoveryHash: hash });
+    },
+    async createSupportRequest(row) {
+      if ([...support.values()].some((r) => r.device === device)) return false;
+      const id = `sr-${support.size + 1}`;
+      support.set(id, { ...row, id, createdAt: support.size, device });
+      return true;
+    },
+    async listSupportRequests() {
+      return [...support.values()].map(({ device: _d, ...r }) => r);
+    },
+    async takeSupportRequest(rid) {
+      const r = support.get(rid);
+      if (!r) return null;
+      support.delete(rid);
+      const { device: _d, ...row } = r;
+      return row;
     },
     async linkDevice(account) {
       if (account && account !== device) links.set(device, account);
@@ -495,6 +523,54 @@ describe('server: account senza Google (nickname, avatar, pilota preferito)', ()
     expect((await call(db.as('phone-1'), { action: 'sync' })).progress!.activeDeck).toBe(2);
     // il codice non cambia mai: vale ancora anche da un terzo telefono
     await call(db.as('phone-3'), { action: 'login', username: 'jojo_f1', code: created.recoveryCode! });
+  });
+
+  it('codice dimenticato: solo l\'amministratore ne crea uno nuovo, e il vecchio non vale più', async () => {
+    const db = memoryDb();
+    const old = await call(db.as('phone-c'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Claudia' });
+    await call(db.as('admin'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Big Eis' });
+    expect((await call(db.as('admin'), { action: 'sync' })).admin).toBe(true);
+    expect((await call(db.as('phone-c'), { action: 'sync' })).admin).toBeUndefined();
+    await expect(call(db.as('phone-c'), { action: 'admin_reset_code', username: 'big_eis' })).rejects.toThrow('forbidden');
+    await expect(call(db.as('admin'), { action: 'admin_reset_code', username: 'nessuno' })).rejects.toThrow('no_account');
+    const reset = await call(db.as('admin'), { action: 'admin_reset_code', username: ' Claudia ' });
+    expect(reset.target).toBe('Claudia');
+    expect(reset.recoveryCode).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+    await expect(call(db.as('phone-new'), { action: 'login', username: 'claudia', code: old.recoveryCode! })).rejects.toThrow('bad_login');
+    const back = await call(db.as('phone-new'), { action: 'login', username: 'claudia', code: reset.recoveryCode! });
+    expect(back.profile!.nickname).toBe('Claudia');
+  });
+
+  it('richiesta di aiuto: il giocatore risponde alle domande, l\'amministratore confronta e approva', async () => {
+    const db = memoryDb();
+    await call(db.as('phone-c'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Claudia', favorite: 'ayrton-senna' });
+    const senna = 'ayrton-senna__career';
+    db.profiles.get('phone-c')!.progress.owned[senna] = 1;
+    await call(db.as('admin'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Big Eis' });
+    const answers = { favorite: 'ayrton-senna', card: 'Senna carriera', wins: 3, avatar: 'capelli lunghi', note: '' };
+    // risposte e email controllate; una sola richiesta in attesa per telefono
+    await expect(call(db.as('new-phone'), { action: 'support_request', username: 'claudia', email: 'non-una-mail', answers })).rejects.toThrow('bad_email');
+    await expect(call(db.as('new-phone'), { action: 'support_request', username: 'claudia', email: 'c@mail.it', answers: { favorite: null, card: '', wins: null, avatar: '', note: '' } })).rejects.toThrow('support_empty');
+    await call(db.as('new-phone'), { action: 'support_request', username: ' Claudia ', email: 'c@mail.it', answers });
+    await expect(call(db.as('new-phone'), { action: 'support_request', username: 'claudia', email: 'c@mail.it', answers })).rejects.toThrow('support_pending');
+    // solo l'amministratore vede le richieste, con i dati veri dell'account accanto
+    await expect(call(db.as('phone-c'), { action: 'support_list' })).rejects.toThrow('forbidden');
+    const [req] = (await call(db.as('admin'), { action: 'support_list' })).supportRequests!;
+    expect(req.username).toBe('claudia');
+    expect(req.account!.favorite).toBe('ayrton-senna');
+    expect(req.account!.rareCards[0]).toMatchObject({ id: senna, match: true });
+    // approvata: nuovo codice e l'email a cui mandarlo; la richiesta sparisce
+    const ok = await call(db.as('admin'), { action: 'support_resolve', id: req.id, approve: true });
+    expect(ok.email).toBe('c@mail.it');
+    expect(ok.username).toBe('claudia');
+    expect((await call(db.as('admin'), { action: 'support_list' })).supportRequests).toEqual([]);
+    expect((await call(db.as('new-phone'), { action: 'login', username: 'claudia', code: ok.recoveryCode! })).profile!.nickname).toBe('Claudia');
+    // una richiesta rifiutata non cambia il codice
+    await call(db.as('other'), { action: 'support_request', username: 'claudia', email: 'x@mail.it', answers });
+    const [bad] = (await call(db.as('admin'), { action: 'support_list' })).supportRequests!;
+    const no = await call(db.as('admin'), { action: 'support_resolve', id: bad.id, approve: false });
+    expect(no.recoveryCode).toBeUndefined();
+    await call(db.as('third'), { action: 'login', username: 'claudia', code: ok.recoveryCode! });
   });
 });
 
