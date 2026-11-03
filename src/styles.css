@@ -449,20 +449,32 @@ p { line-height: 1.45; }
 .credits { color: var(--muted); font-size: 12px; line-height: 1.6; }
 
 /* introduzione */
-.onboarding { display: flex; align-items: flex-end; justify-content: center; padding: 12px; z-index: 60; }
-.ob-card { width: 100%; max-width: 420px; background: var(--surface); border-radius: 26px; overflow: hidden; box-shadow: var(--shadow); animation: sheet-up 0.3s ease-out; margin-bottom: var(--safe-bottom); }
-.ob-hero { background: linear-gradient(135deg, var(--accent-2), var(--accent)); padding: 14px 14px 30px; display: grid; gap: 22px; justify-items: center; }
-.ob-hero .lang-picker { justify-content: center; }
-.ob-hero .lang-picker button { background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.3); color: #fff; padding: 4px 8px; }
-.ob-hero .lang-picker button.on { background: #fff; color: #111; }
-.ob-icon { width: 76px; height: 76px; border-radius: 22px; display: grid; place-items: center; color: #fff; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.3); animation: pop 0.3s ease-out; }
-@keyframes pop { from { transform: scale(0.6); opacity: 0; } }
-.ob-body { padding: 22px 22px 18px; display: grid; gap: 10px; text-align: center; }
-.ob-body h2 { font-size: 24px; font-weight: 900; animation: screen-in 0.25s; }
-.ob-body p { margin: 0; color: var(--muted); min-height: 66px; animation: screen-in 0.25s; }
-.ob-dots { display: flex; justify-content: center; gap: 6px; margin: 4px 0 8px; }
-.ob-dots button { width: 8px; height: 8px; border-radius: 4px; border: 0; padding: 0; background: var(--surface-3); transition: width 0.25s; }
-.ob-dots button.on { width: 24px; background: var(--accent); }
+/* tutorial del primo avvio: pagina intera con una partita di prova guidata */
+.tutorial { z-index: 60; background: var(--bg); overflow-y: auto; overscroll-behavior: contain; }
+.tu-page { max-width: 480px; margin: 0 auto; padding: calc(var(--safe-top) + 10px) 16px calc(var(--safe-bottom) + 16px); gap: 12px; }
+.tu-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; }
+.tu-top .lang-picker { flex-wrap: wrap; }
+.tu-badge { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); }
+.tu-title { font-size: 28px; font-weight: 900; font-style: italic; margin: 6px 0 0; animation: screen-in 0.25s; }
+.tu-text { margin: 0; color: var(--muted); line-height: 1.45; animation: screen-in 0.25s; }
+.tu-card { width: min(300px, 82%); margin: 4px auto 0; }
+.tu-card .card-md { width: 100%; }
+.tu-stats { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.tu-stats li { display: grid; gap: 2px; padding: 10px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.tu-stats b { font-size: 15px; }
+.tu-stats .low { font-style: normal; color: var(--accent); }
+.tu-stats small { color: var(--muted); font-size: 13px; }
+.tu-actions { display: grid; gap: 6px; position: sticky; bottom: 0; padding: 14px 0 calc(var(--safe-bottom) + 4px); margin-bottom: calc(-16px - var(--safe-bottom)); background: linear-gradient(transparent, var(--bg) 40%); }
+.tu-coach {
+  display: flex; gap: 10px; align-items: flex-start; width: min(400px, 100%); padding: 10px 14px; border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  animation: pop 0.3s ease-out;
+}
+.tu-coach svg { flex: none; color: var(--accent); margin-top: 1px; }
+.tu-coach p { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.4; }
+.tu-pick .card-stats button:not(:disabled) { animation: tu-glow 1.6s ease-in-out infinite; }
+@keyframes tu-glow { 50% { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .tu-pick .card-stats button:not(:disabled) { animation: none; } }
 
 .toast {
   position: fixed; left: 50%; bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 14px); transform: translateX(-50%); z-index: 70;
