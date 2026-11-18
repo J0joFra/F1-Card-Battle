@@ -125,23 +125,17 @@ export function HomeScreen({
         )}
       </section>
 
-      <section className="stats-row">
-        <div className="tile">
-          <small>{t('home_wins')}</small>
-          <b>{progress.wins}</b>
-        </div>
-        <div className="tile">
-          <small>{t('home_losses')}</small>
-          <b>{progress.losses}</b>
-        </div>
-        <div className="tile">
-          <small>{t('home_collection')}</small>
-          <b>
-            {owned}
-            <span className="muted">/{TOTAL_CARDS}</span>
-          </b>
-        </div>
-      </section>
+      <p className="stats-line">
+        <span>
+          <b>{progress.wins}</b> {t('home_wins')}
+        </span>
+        <span>
+          <b>{progress.losses}</b> {t('home_losses')}
+        </span>
+        <span>
+          <b>{owned}</b>/{TOTAL_CARDS} {t('home_collection')}
+        </span>
+      </p>
 
       {!account.online && (
         <button className="btn primary block cloud-btn" onClick={onProfile}>

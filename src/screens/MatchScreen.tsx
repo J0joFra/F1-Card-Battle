@@ -395,6 +395,9 @@ export function MatchScreen({
                 result={settled ? (last.winner === 'player' ? 'win' : last.winner === 'cpu' ? 'lose' : 'tie') : undefined}
               />
             </div>
+            <span className="vs-badge" aria-hidden>
+              VS
+            </span>
             <div className="duel-opp flip-reveal" key={`cpu-${view.round}`}>
               <CardView
                 card={last.cpuCard}
@@ -402,16 +405,6 @@ export function MatchScreen({
                 result={settled ? (last.winner === 'cpu' ? 'win' : last.winner === 'player' ? 'lose' : 'tie') : undefined}
               />
             </div>
-          </div>
-          {/* la carta dell'avversario copre in parte la tua: il confronto si legge qui */}
-          <div className={`compare ${settled ? `compare-${last.winner}` : ''}`}>
-            <span className="you">
-              {last.playerCard.driver.abbreviation} <b>{formatStat(STAT_BY_KEY[last.stat], last.playerCard.stats[last.stat])}</b>
-            </span>
-            <small>{statShort(last.stat)}</small>
-            <span className="opp">
-              <b>{formatStat(STAT_BY_KEY[last.stat], last.cpuCard.stats[last.stat])}</b> {last.cpuCard.driver.abbreviation}
-            </span>
           </div>
         </>
       ) : (
