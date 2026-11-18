@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Card, Rarity, StatKey } from '../types';
-import { ArrowDownWideNarrow, ArrowLeft, Check, Dices, LayoutGrid, Minus, Play, Plus, Table2, Trash2, X } from 'lucide-react';
+import { ArrowDownWideNarrow, ArrowLeft, Check, Dices, LayoutGrid, Minus, Play, Plus, Table2, Trash2, X, Sparkles } from 'lucide-react';
 import { STATS, formatStat, rarityLabel, statLabel, statShort } from '../game/cards';
 import { useI18n } from '../lib/i18n';
 import { HelpButton } from '../components/TutorialSection';
@@ -127,6 +127,8 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
   const problems = [...deckProblems(deck, mode), ...(themed ? [] : decksProblems(drafts, slot))];
   const refill = (d: Card[], rest: Card[][] = others) =>
     themed ? fillDeck(usable, d, mode) : autoFillDeck(progress, d, Math.random, rest);
+  // completa con le card dalla valutazione più alta, sempre nei limiti di rarità
+  const fillBest = (d: Card[]) => fillDeck(usable, d, mode, Math.random, true, themed ? [] : others);
   const blockOf = (c: Card) => addBlock(deck, c, mode, others);
 
   // ordina per rarità (dalla più rara) o per una metrica (dal valore migliore)
@@ -232,6 +234,9 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
         <div className="actions start">
           <button className="btn ghost" onClick={() => setDeck(refill(deck))} disabled={deck.length >= DECK_SIZE}>
             <Dices size={16} /> {t('deck_fill')}
+          </button>
+          <button className="btn ghost" onClick={() => setDeck(fillBest(deck))} disabled={deck.length >= DECK_SIZE}>
+            <Sparkles size={16} /> {t('deck_fillBest')}
           </button>
           <button className="btn ghost" onClick={() => setDeck([])} disabled={!deck.length}>
             <Trash2 size={16} /> {t('deck_clear')}

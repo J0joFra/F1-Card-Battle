@@ -96,6 +96,9 @@ export function MissionsPanel({ missions, onClaim }: { missions: MissionsState; 
     <section className="panel missions">
       <h3>
         <Target size={18} /> {t('mis_title')}
+        <span className="mis-count">
+          {missions.list.filter(missionDone).length}/{missions.list.length}
+        </span>
       </h3>
       <ul>
         {missions.list.map((s, i) => {
@@ -107,18 +110,19 @@ export function MissionsPanel({ missions, onClaim }: { missions: MissionsState; 
                 <div className="bar small">
                   <div style={{ width: `${(s.progress / s.mission.target) * 100}%` }} />
                 </div>
-                <small className="muted">
-                  {s.progress}/{s.mission.target} · {coin()} {s.reward}
-                </small>
               </div>
               {s.claimed ? (
-                <span className="mis-claimed">
-                  <Check size={16} /> {t('mis_claimed')}
+                <span className="mis-claimed" title={t('mis_claimed')}>
+                  <Check size={16} />
                 </span>
-              ) : (
-                <button className="btn small accent" disabled={!done} onClick={() => onClaim(i)}>
-                  {t('mis_claim')}
+              ) : done ? (
+                <button className="btn small accent" onClick={() => onClaim(i)}>
+                  {t('mis_claim')} {coin()} {s.reward}
                 </button>
+              ) : (
+                <span className="mis-reward">
+                  {s.progress}/{s.mission.target} · {coin()} {s.reward}
+                </span>
               )}
             </li>
           );

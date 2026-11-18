@@ -1392,3 +1392,20 @@ b.over-pack { color: #e8b931; }
 .brand-mark { display: block; width: 72%; height: auto; pointer-events: none; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .35)); }
 .card-back-logo .brand-mark { width: 62%; margin: 0 auto; }
 .mini-pack .brand-mark { width: 78%; filter: none; }
+
+/* home compatta: missioni su una riga, statistiche in una riga sola */
+.missions h3 .mis-count { margin-left: auto; font-size: 12px; color: var(--muted); letter-spacing: 0; }
+.missions ul { gap: 6px; }
+.missions li { padding: 8px 10px; gap: 8px; }
+.missions .mis-text { flex: 1; min-width: 0; display: grid; gap: 5px; }
+.missions .mis-text > span { font-size: 13.5px; line-height: 1.25; }
+.missions .bar.small { height: 4px; margin: 0; }
+.missions .mis-reward { flex: none; font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.missions .mis-claimed { flex: none; color: var(--win); display: inline-flex; }
+.missions li .btn.small { flex: none; white-space: nowrap; }
+.stats-line { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 18px; margin: 0; font-size: 13px; color: var(--muted); }
+.stats-line b { color: var(--text); font-size: 15px; font-weight: 900; }
+/* azioni del mazzo: i tre pulsanti stanno su una riga, Gioca sotto a tutta larghezza */
+.deck-bar .actions.start { flex-wrap: wrap; gap: 6px; }
+.deck-bar .actions.start .btn.ghost { flex: 1 1 auto; padding-inline: 8px; font-size: 13px; white-space: nowrap; justify-content: center; }
+.deck-bar .actions.start .btn.grow { flex-basis: 100%; }
