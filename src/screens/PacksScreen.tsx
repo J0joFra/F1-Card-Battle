@@ -50,7 +50,7 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
   }, []);
   const team = teamOfDay(today);
   const store = progress.store?.date === today ? progress.store : null;
-  const packName = (k: PackKind) => (k === 'team' ? team.name : t(k === 'classic' ? 'shop_classic' : 'shop_premium'));
+  const packName = (k: PackKind) => t(k === 'classic' ? 'shop_classic' : k === 'premium' ? 'shop_premium' : 'shop_team');
 
   function open() {
     if (tearing || progress.packs <= 0) return;
@@ -185,7 +185,9 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
           onClick={open}
           disabled={progress.packs === 0 && !tearing}
         >
-          <span>F1</span>
+          <span>
+            <img className="brand-mark" src="./logo-card.png" alt="" draggable={false} />
+          </span>
           <small>{packName(heroKind)}</small>
           {progress.packs > 0 && !tearing && <span className="badge">{progress.packs}</span>}
         </button>
@@ -212,9 +214,11 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
               onClick={() => buy(k)}
               disabled={!!tearing || progress.credits < type.price}
             >
-              <span className="mini-pack">F1</span>
+              <span className="mini-pack">
+                <img className="brand-mark" src="./logo-card.png" alt="" draggable={false} />
+              </span>
               <b>{packName(k)}</b>
-              <small>{t(k === 'classic' ? 'shop_classic_sub' : k === 'premium' ? 'shop_premium_sub' : 'shop_team_sub', { n: type.size })}</small>
+              <small>{t(k === 'classic' ? 'shop_classic_sub' : k === 'premium' ? 'shop_premium_sub' : 'shop_team_sub', { n: type.size, team: team.name })}</small>
               <span className="price">{coin()} {type.price}</span>
             </button>
           );

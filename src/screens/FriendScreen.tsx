@@ -104,7 +104,7 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
       if (Capacitor.isNativePlatform()) {
         // app Android: menu di condivisione del telefono (WhatsApp, Telegram…)
         const { Share } = await import('@capacitor/share');
-        await Share.share({ title: 'F1 Card Battle', text, url });
+        await Share.share({ title: 'Driver Clash', text, url });
         return;
       }
       if (navigator.share) {
