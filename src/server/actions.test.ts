@@ -895,3 +895,59 @@ describe('server: rientro con Play Giochi', () => {
     await expect(call(db.as('phone-4'), { action: 'play_games', code: 'falso' })).rejects.toThrow('bad_play_games');
   });
 });
+
+describe('server: modalità Strategica (mano di 3 carte) e jolly di gara', () => {
+  it('jolly di gara al mercato: 50 crediti, al massimo 3 per tipo', async () => {
+    const db = memoryStore({ ...starterProgress(seededRng('a')), credits: 1000 });
+    for (let i = 0; i < 3; i++) await call(db.store, { action: 'buy_boost', kind: 'drs' });
+    expect(db.profile!.progress.boosts).toEqual({ drs: 3 });
+    expect(db.profile!.progress.credits).toBe(850);
+    await expect(call(db.store, { action: 'buy_boost', kind: 'drs' })).rejects.toThrow('boost_max');
+    await expect(call(db.store, { action: 'buy_boost', kind: 'turbo' as never })).rejects.toThrow('bad_jolly');
+    const poor = memoryStore({ ...starterProgress(seededRng('a')), credits: 40 });
+    await expect(call(poor.store, { action: 'buy_boost', kind: 'sc' })).rejects.toThrow('not_enough_credits');
+  });
+
+  it('partita intera con la mano: 3 carte, si sceglie quale giocare, il jolly si usa una volta e si toglie dall’inventario', async () => {
+    const p = { ...starterProgress(seededRng('a')), boosts: { drs: 1, sc: 2 } };
+    const db = memoryStore(p);
+    const start = await call(db.store, { action: 'match_start', deck: deckIds(p), daily: false, date: '2026-10-16', hand: true });
+    let view = start.view!;
+    expect(view.hand).toHaveLength(3);
+    expect(view.current).toBe(view.hand![0]);
+    // la carta scelta (la terza della mano) è quella giocata nel round
+    const chosen = view.hand![2];
+    const stat = view.chooser === 'player' ? STATS[0].key : undefined;
+    let res = await call(db.store, { action: 'match_play', match: start.match!, stat, card: 2, jolly: 'sc' });
+    view = res.view!;
+    expect(view.history[0].player).toBe(chosen);
+    expect(view.history[0].jolly).toBe('sc');
+    expect(view.jollyUsed).toBe(true);
+    expect(db.profile!.progress.boosts).toEqual({ drs: 1, sc: 1 });
+    expect(view.history[0].winner).not.toBe('cpu'); // con la Safety Car il round non si perde
+    // secondo jolly nella stessa partita: rifiutato; carta fuori dalla mano: rifiutata
+    const s2 = view.chooser === 'player' ? STATS.find((s) => !view.usedStats.includes(s.key))!.key : undefined;
+    await expect(call(db.store, { action: 'match_play', match: start.match!, stat: s2, card: 0, jolly: 'drs' })).rejects.toThrow('bad_jolly');
+    await expect(call(db.store, { action: 'match_play', match: start.match!, stat: s2, card: 3 })).rejects.toThrow('bad_card');
+    while (!view.outcome) {
+      const s = view.chooser === 'player' ? STATS.find((x) => !view.usedStats.includes(x.key))!.key : undefined;
+      expect(view.hand!.length).toBe(Math.min(3, STATS.length - view.round));
+      res = await call(db.store, { action: 'match_play', match: start.match!, stat: s, card: view.hand!.length - 1 });
+      view = res.view!;
+    }
+    expect(view.history).toHaveLength(STATS.length);
+    expect(res.rewards).toBeDefined();
+    // ogni carta del mazzo giocata una volta sola
+    expect(new Set(view.history.map((h) => h.player)).size).toBe(STATS.length);
+  });
+
+  it('senza jolly in inventario: rifiutato; nella partita tradizionale niente mano', async () => {
+    const p = starterProgress(seededRng('a'));
+    const db = memoryStore(p);
+    const start = await call(db.store, { action: 'match_start', deck: deckIds(p), daily: false, date: '2026-10-16', hand: true });
+    const stat = start.view!.chooser === 'player' ? STATS[0].key : undefined;
+    await expect(call(db.store, { action: 'match_play', match: start.match!, stat, card: 0, jolly: 'drs' })).rejects.toThrow('no_jolly');
+    const classic = await call(db.store, { action: 'match_start', deck: deckIds(p), daily: false, date: '2026-10-16' });
+    expect(classic.view!.hand).toBeUndefined();
+  });
+});

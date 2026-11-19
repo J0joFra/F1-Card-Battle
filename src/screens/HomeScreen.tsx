@@ -15,6 +15,7 @@ import { fitsMode, type MatchMode } from '../game/deckRules';
 import { ModePicker, modeLabel, modeReady } from '../components/ModePicker';
 import { DECK_SIZE } from '../game/engine';
 import type { Account } from '../hooks/useAccount';
+import type { Rules } from '../App';
 import { CardView } from '../components/CardView';
 import { HelpButton } from '../components/TutorialSection';
 import { DailyCard, MissionsPanel } from '../components/Daily';
@@ -27,6 +28,8 @@ interface Props {
   missions: MissionsState;
   mode: MatchMode; // modalità scelta per la partita veloce
   onMode: (m: MatchMode) => void;
+  rules: Rules; // Strategica (mano di 3 carte + jolly) o Tradizionale
+  onRules: (r: Rules) => void;
   onPlay: () => void; // partita veloce contro la CPU
   onDeck: (slot: number) => void; // cambia il mazzo in uso (partita classica)
   onDaily: () => void;
@@ -43,6 +46,8 @@ export function HomeScreen({
   missions,
   mode,
   onMode,
+  rules,
+  onRules,
   onPlay,
   onDeck,
   onDaily,
@@ -85,12 +90,22 @@ export function HomeScreen({
         {canPlay ? (
           <>
             <ModePicker mode={mode} owned={mine} decks={decks} slot={slot} onMode={onMode} onDeck={onDeck} />
+            <div className="rules-pick" role="radiogroup" aria-label={t('rules_label')}>
+              {(['hand', 'classic'] as Rules[]).map((r) => (
+                <button key={r} role="radio" aria-checked={rules === r} className={rules === r ? 'on' : ''} onClick={() => onRules(r)}>
+                  <b>{t(r === 'hand' ? 'rules_hand' : 'rules_classic')}</b>
+                  <small>{t(r === 'hand' ? 'rules_hand_sub' : 'rules_classic_sub')}</small>
+                </button>
+              ))}
+            </div>
             <div className="play-buttons">
               <button className="btn primary big play-quick" onClick={onPlay} disabled={!ready.ok}>
                 <Zap size={20} fill="currentColor" />
                 <span>
                   {t('home_quick')}
-                  <small>{modeLabel(mode, t)}</small>
+                  <small>
+                    {modeLabel(mode, t)} · {t(rules === 'hand' ? 'rules_hand' : 'rules_classic')}
+                  </small>
                 </span>
               </button>
               <button className="btn big play-friend" onClick={onFriend}>

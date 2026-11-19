@@ -1,7 +1,7 @@
 import type { MatchMode } from '../game/deckRules';
 import type { StatKey } from '../types';
 import type { Progress } from '../game/collection';
-import type { MatchOutcome, Side } from '../game/engine';
+import type { JollyKind, MatchOutcome, Side } from '../game/engine';
 import type { MatchRewards, MatchView, StoredMatch } from '../game/match';
 import type { PackKind } from '../game/shop';
 import type { Avatar, PlayerProfile } from '../game/profile';
@@ -33,9 +33,10 @@ export type GameRequest =
   | { action: 'store'; date: string }
   | { action: 'buy_store'; card: string; date: string }
   | { action: 'use_jolly'; card: string }
+  | { action: 'buy_boost'; kind: JollyKind } // jolly di gara (DRS, Safety Car) al mercato
   | { action: 'claim_mission'; index: number; date: string }
-  | { action: 'match_start'; deck: string[]; daily: boolean; date: string; slot?: number; mode?: MatchMode; loan?: boolean }
-  | { action: 'match_play'; match: string; stat?: StatKey }
+  | { action: 'match_start'; deck: string[]; daily: boolean; date: string; slot?: number; mode?: MatchMode; loan?: boolean; hand?: boolean }
+  | { action: 'match_play'; match: string; stat?: StatKey; card?: number; jolly?: JollyKind } // card/jolly: modalità Strategica
   | { action: 'match_pass'; match: string } // tempo scaduto: sceglie la CPU
   | { action: 'match_quit'; match: string }
   // sfida tra amici (al meglio di 3, con i 3 mazzi salvati)

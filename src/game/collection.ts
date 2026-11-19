@@ -1,6 +1,6 @@
 import type { Card, Rarity } from '../types';
 import { ALL_CARDS, CARD_BY_ID, careerCardOf, cardsOfRarity, teamCardsOfDriver, isCollectOnly } from './cards';
-import { DECK_SIZE, shuffle, type Rng } from './engine';
+import { DECK_SIZE, JOLLY_KINDS, shuffle, type JollyKind, type Rng } from './engine';
 import { deckProblems, decksProblems, fillDeck, fillDecks } from './deckRules';
 import { emptyDaily, type DailyState, type MissionsState } from './daily';
 
@@ -37,6 +37,23 @@ export const PACK_ODDS: [Rarity, number][] = [
 export const DUPLICATE_CREDITS: Record<Rarity, number> = { bronzo: 2, argento: 5, oro: 20, platino: 50, leggendaria: 80, pioniere: 15, classica: 15 };
 export const CARD_PRICE: Record<Rarity, number> = { bronzo: 40, argento: 100, oro: 300, platino: 700, leggendaria: 1200, pioniere: 250, classica: 250 };
 
+// Jolly di gara: prezzo al mercato e quanti se ne possono tenere per tipo.
+export const BOOST_PRICE = 50;
+export const BOOST_MAX = 3;
+export const boostsOf = (p: Progress, k: JollyKind) => p.boosts?.[k] ?? 0;
+
+// Compra un jolly di gara (null se mancano i crediti o ne hai già il massimo).
+export function buyBoost(p: Progress, k: JollyKind): Progress | null {
+  if (p.credits < BOOST_PRICE || boostsOf(p, k) >= BOOST_MAX) return null;
+  return { ...p, credits: p.credits - BOOST_PRICE, boosts: { ...p.boosts, [k]: boostsOf(p, k) + 1 } };
+}
+
+// Usa un jolly di gara in partita (null se non ce l'hai).
+export function spendBoost(p: Progress, k: JollyKind): Progress | null {
+  if (boostsOf(p, k) <= 0) return null;
+  return { ...p, boosts: { ...p.boosts, [k]: boostsOf(p, k) - 1 } };
+}
+
 export interface Progress {
   owned: Record<string, number>; // id card → copie ottenute (doppioni inclusi)
   deck: string[]; // mazzo in uso (copia dello slot attivo, per compatibilità)
@@ -49,6 +66,7 @@ export interface Progress {
   packs: number; // pacchetti da aprire
   winsTowardPack: number;
   jolly: number; // Jolly da usare
+  boosts?: Partial<Record<JollyKind, number>>; // jolly di gara (DRS, Safety Car), al massimo BOOST_MAX per tipo
   daily: DailyState; // sfida del giorno
   missions?: MissionsState; // missioni del giorno (generate al primo uso)
   store?: { date: string; cards: string[]; bought: string[] }; // card del giorno nel negozio
@@ -302,6 +320,14 @@ export function normalizeProgress(raw: Partial<Progress>): Progress {
   p.deck = p.deck.filter((id) => CARD_BY_ID.has(id));
   if (Array.isArray(p.decks)) p.decks = p.decks.map((d) => (Array.isArray(d) ? d.filter((id) => CARD_BY_ID.has(id)) : []));
   p.jolly ??= 0;
+  if (p.boosts && typeof p.boosts === 'object') {
+    const b: Partial<Record<JollyKind, number>> = {};
+    for (const k of JOLLY_KINDS) {
+      const n = Math.floor(Number(p.boosts[k]) || 0);
+      if (n > 0) b[k] = Math.min(BOOST_MAX, n);
+    }
+    p.boosts = b;
+  } else delete p.boosts;
   p.daily ??= emptyDaily();
   p.updatedAt ??= 0;
   return p;
@@ -328,6 +354,9 @@ export function mergeProgress(account: Progress, device: Progress): Progress {
     packs: Math.max(account.packs, device.packs),
     winsTowardPack: Math.max(account.winsTowardPack, device.winsTowardPack),
     jolly: Math.max(account.jolly, device.jolly),
+    ...(account.boosts || device.boosts
+      ? { boosts: Object.fromEntries(JOLLY_KINDS.map((k) => [k, Math.max(account.boosts?.[k] ?? 0, device.boosts?.[k] ?? 0)])) }
+      : {}),
     // sfida e missioni: vale la copia del giorno più recente (a parità, quella dell'account)
     daily: device.daily.date > account.daily.date ? device.daily : account.daily,
     missions: (device.missions?.date ?? '') > (account.missions?.date ?? '') ? device.missions : account.missions,
