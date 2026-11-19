@@ -17,7 +17,7 @@ import {
 } from '../game/collection';
 import { claimMission, dailyChallenge, dailyLoanDeck, dailyPlayed, missionsAfterPack, missionsFor, startDaily, themeMode } from '../game/daily';
 import { CLASSIC, decksOverlap, fitsMode, parseMode } from '../game/deckRules';
-import { HAND_SIZE, buildCpuDeck, cpuChooseStat, handOf, isAvailable, isJollyKind, matchOutcome, newMatch, passTurn, playHandRound, playRound, type MatchState, type Rng } from '../game/engine';
+import { CPU_LEVEL, HAND_SIZE, buildCpuDeck, isCpuLevel, cpuChooseStat, handOf, isAvailable, isJollyKind, matchOutcome, newMatch, passTurn, playHandRound, playRound, type MatchState, type Rng } from '../game/engine';
 import { applyMatchEnd, loadMatch, storeMatch, toView, type MatchRewards, type MatchView, type StoredMatch } from '../game/match';
 import type { StatKey } from '../types';
 import { cardOrThrow, checkDate, GameError, validDeck, withProfile, type Ctx } from './common';
@@ -391,15 +391,18 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       const daily = req.daily ? dailyChallenge(req.date) : null;
       const mode = daily ? (sent ? themeMode(daily.theme) : CLASSIC) : sent ? parseMode(req.mode) : CLASSIC;
       if (!mode) throw new GameError('bad_mode');
+      if (req.level !== undefined && !isCpuLevel(req.level)) throw new GameError('bad_level');
+      // livello della CPU: solo nelle partite veloci (la sfida del giorno ha un mazzo CPU fisso)
+      const level = daily ? undefined : req.level;
       const res = await withProfile(store, ctx, (p) => {
         const ids = Array.isArray(req.deck) ? req.deck : [];
         // sfida del giorno senza abbastanza card del tema: mazzo in prestito, deciso dal server
         const deck = daily && req.loan ? dailyLoanDeck(daily) : validDeck(ids, p, mode);
         if (daily && dailyPlayed(p.daily, req.date)) throw new GameError('daily_played');
         const pool = PLAYABLE_CARDS.filter((c) => fitsMode(mode, c));
-        const cpu = daily ? daily.cpuDeck : buildCpuDeck(deck, ctx.rng, pool);
+        const cpu = daily ? daily.cpuDeck : buildCpuDeck(deck, ctx.rng, pool, CPU_LEVEL[level ?? 'normal'].candidates);
         // modalità Strategica (mano di carte): solo nelle partite veloci, non nella sfida del giorno
-        const state = newMatch(deck, cpu, ctx.rng, 'player', req.hand && !daily ? HAND_SIZE : undefined);
+        const state = newMatch(deck, cpu, ctx.rng, 'player', req.hand && !daily ? HAND_SIZE : undefined, level);
         view = toView(state);
         stored = storeMatch(state); // la partita si crea dopo aver salvato il profilo
         // il mazzo si ricorda solo nella partita classica (gli altri sono mazzi a tema, da una volta)

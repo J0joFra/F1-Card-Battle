@@ -951,3 +951,27 @@ describe('server: modalità Strategica (mano di 3 carte) e jolly di gara', () =>
     expect(classic.view!.hand).toBeUndefined();
   });
 });
+
+describe('server: livello della CPU', () => {
+  it('livello salvato nella partita, premi secondo il livello; livello sconosciuto rifiutato', async () => {
+    const p = starterProgress(seededRng('a'));
+    const db = memoryStore(p);
+    await expect(call(db.store, { action: 'match_start', deck: deckIds(p), daily: false, date: '2026-10-16', level: 'impossible' as never })).rejects.toThrow('bad_level');
+    for (const level of ['easy', 'hard'] as const) {
+      const before = db.profile!.progress.credits;
+      const firstWinBefore = db.profile!.progress.firstWin;
+      const start = await call(db.store, { action: 'match_start', deck: deckIds(p), daily: false, date: '2026-10-16', level, hand: true });
+      let view = start.view!;
+      let res;
+      while (!view.outcome) {
+        const s = view.chooser === 'player' ? STATS.find((x) => !view.usedStats.includes(x.key))!.key : undefined;
+        res = await call(db.store, { action: 'match_play', match: start.match!, stat: s, card: 0 });
+        view = res.view!;
+      }
+      const first = view.outcome === 'player' && firstWinBefore !== '2026-10-16' ? FIRST_WIN_CREDITS : 0;
+      const expected = { easy: { player: 4, draw: 3, cpu: 2 }, hard: { player: 16, draw: 8, cpu: 4 } }[level][view.outcome];
+      expect(res!.rewards!.credits).toBe(expected + first);
+      expect(db.profile!.progress.credits - before).toBe(expected + first);
+    }
+  });
+});

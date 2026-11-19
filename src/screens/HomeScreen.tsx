@@ -16,6 +16,9 @@ import { ModePicker, modeLabel, modeReady } from '../components/ModePicker';
 import { DECK_SIZE } from '../game/engine';
 import type { Account } from '../hooks/useAccount';
 import type { Rules } from '../App';
+import { CPU_LEVELS, type CpuLevel } from '../game/engine';
+import { LEVEL_CREDITS } from '../game/match';
+import { coin } from '../lib/season';
 import { CardView } from '../components/CardView';
 import { HelpButton } from '../components/TutorialSection';
 import { DailyCard, MissionsPanel } from '../components/Daily';
@@ -30,6 +33,8 @@ interface Props {
   onMode: (m: MatchMode) => void;
   rules: Rules; // Strategica (mano di 3 carte + jolly) o Tradizionale
   onRules: (r: Rules) => void;
+  level: CpuLevel; // livello della CPU nella partita veloce
+  onLevel: (l: CpuLevel) => void;
   onPlay: () => void; // partita veloce contro la CPU
   onDeck: (slot: number) => void; // cambia il mazzo in uso (partita classica)
   onDaily: () => void;
@@ -48,6 +53,8 @@ export function HomeScreen({
   onMode,
   rules,
   onRules,
+  level,
+  onLevel,
   onPlay,
   onDeck,
   onDaily,
@@ -98,13 +105,26 @@ export function HomeScreen({
                 </button>
               ))}
             </div>
+            <div className="level-pick" role="radiogroup" aria-label={t('lvl_label')}>
+              <span className="level-label">{t('lvl_label')}</span>
+              {CPU_LEVELS.map((l) => (
+                <button key={l} role="radio" aria-checked={level === l} className={`lvl-${l} ${level === l ? 'on' : ''}`} onClick={() => onLevel(l)}>
+                  <b>{t(`lvl_${l}`)}</b>
+                  <small>
+                    {coin()} +{LEVEL_CREDITS[l].player}
+                  </small>
+                </button>
+              ))}
+            </div>
             <div className="play-buttons">
               <button className="btn primary big play-quick" onClick={onPlay} disabled={!ready.ok}>
                 <Zap size={20} fill="currentColor" />
                 <span>
                   {t('home_quick')}
                   <small>
-                    {modeLabel(mode, t)} · {t(rules === 'hand' ? 'rules_hand' : 'rules_classic')}
+                    {[mode.kind !== 'classic' && modeLabel(mode, t), t(rules === 'hand' ? 'rules_hand' : 'rules_classic'), t(`lvl_${level}`)]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </small>
                 </span>
               </button>

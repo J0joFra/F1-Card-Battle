@@ -19,6 +19,8 @@ const REVEAL_MS = 650;
 const PVP_REVEAL_MS = 3000; // come in server/pvp.ts
 const CPU_THINK_MS = 900;
 const CPU_ANNOUNCE_MS = 1300;
+// modalità Strategica: secondi per scegliere la carta, poi resta quella selezionata
+const CARD_SECONDS = 10;
 // coriandoli della vittoria, con i colori della festa
 const SEASON_CONFETTI = {
   none: ['#e10600', '#ffffff', '#e8b931', '#2fbf71'],
@@ -118,9 +120,12 @@ export function MatchScreen({
   const hand = view.hand?.length ? view.hand : null;
   const [sel, setSel] = useState(0);
   const [armed, setArmed] = useState<JollyKind | null>(null);
+  const [cardLocked, setCardLocked] = useState(false);
+  const [cardLeft, setCardLeft] = useState(CARD_SECONDS);
   useEffect(() => {
     setSel(0);
     setArmed(null);
+    setCardLocked(false);
   }, [view.round]);
   const selected = hand ? Math.min(sel, hand.length - 1) : 0;
   const current = hand ? cardOf(hand[selected]) : view.current ? cardOf(view.current) : null;
@@ -196,6 +201,29 @@ export function MatchScreen({
     }, CPU_ANNOUNCE_MS);
     return () => clearTimeout(tm);
   }, [cpuPick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Modalità Strategica: 10 secondi per scegliere la carta; poi resta quella selezionata.
+  // Se tocca alla CPU scegliere la metrica, la carta si gioca da sola; con una carta sola in mano non c'è niente da scegliere.
+  const locked = !!hand && (cardLocked || hand.length === 1);
+  const cardPhase = !!hand && choosing && !busy && !cpuPick && !locked && !error;
+  useEffect(() => {
+    if (!cardPhase) return;
+    const start = Date.now();
+    setCardLeft(CARD_SECONDS);
+    const id = setInterval(() => {
+      const l = CARD_SECONDS - Math.floor((Date.now() - start) / 1000);
+      setCardLeft(Math.max(0, l));
+      if (l <= 0) {
+        clearInterval(id);
+        setCardLocked(true);
+        haptic('light');
+      }
+    }, 250);
+    return () => clearInterval(id);
+  }, [cardPhase, view.round]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (locked && choosing && view.chooser === 'cpu' && !busy && !cpuPick && !error) follow();
+  }, [locked, choosing, view.chooser, busy, cpuPick, error]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 30 secondi per scegliere: allo scadere la scelta passa all'avversario
   const myTurn = choosing && view.chooser === 'player' && !busy && !!current;
@@ -500,7 +528,7 @@ export function MatchScreen({
                     role="option"
                     aria-selected={i === selected}
                     className={`hand-card ${i === selected ? 'on' : ''}`}
-                    disabled={busy || !!cpuPick}
+                    disabled={busy || !!cpuPick || locked}
                     onClick={() => {
                       sfx('tap');
                       setSel(i);
@@ -510,6 +538,11 @@ export function MatchScreen({
                   </button>
                 ))}
               </div>
+              {hand.length > 1 && !busy && !cpuPick && (
+                <div className={`card-timer ${cardLocked ? 'locked' : cardLeft <= 3 ? 'hurry' : ''}`}>
+                  {cardLocked ? tr('m_cardLocked') : tr('m_cardTimer', { n: cardLeft })}
+                </div>
+              )}
               {jollyChoices.length > 0 && (
                 <div className="rj-arm">
                   {jollyChoices.map((k) => (

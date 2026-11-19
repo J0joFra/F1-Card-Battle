@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Card } from '../types';
 import { ALL_CARDS, CARD_BY_ID, PLAYABLE_CARDS, RARITY_THRESHOLDS, STATS, careerCardOf, cardsOfRarity, teamCardsOfDriver } from './cards';
 import {
+  CPU_LEVEL,
   DECK_SIZE,
   HAND_SIZE,
   ROUNDS,
@@ -441,5 +442,27 @@ describe('modalità Strategica: mano di carte e jolly di gara', () => {
     expect(sc.history[0]).toMatchObject({ winner: 'tie', neutralized: true });
     expect(sc.score).toEqual({ player: 0, cpu: 0 });
     expect(() => playRound(sc, 'top10', 'drs')).toThrow();
+  });
+});
+
+describe('livello della CPU', () => {
+  it('Campione costruisce un mazzo più forte di Facile', () => {
+    const deck = cardsOfRarity('bronzo').slice(0, 7);
+    let easy = 0;
+    let hard = 0;
+    for (let i = 0; i < 20; i++) {
+      const sum = (d: Card[]) => d.reduce((s, c) => s + c.ovr, 0);
+      easy += sum(buildCpuDeck(deck, seededRng(`e${i}`), PLAYABLE_CARDS, CPU_LEVEL.easy.candidates));
+      hard += sum(buildCpuDeck(deck, seededRng(`h${i}`), PLAYABLE_CARDS, CPU_LEVEL.hard.candidates));
+    }
+    expect(hard).toBeGreaterThan(easy);
+  });
+  it('il livello resta nella partita e la CPU Facile a volte sbaglia metrica', () => {
+    const s = newMatch(PLAYABLE_CARDS.slice(0, 7), PLAYABLE_CARDS.slice(7, 14), seededRng('l'), 'cpu', undefined, 'easy');
+    expect(s.level).toBe('easy');
+    expect(newMatch(PLAYABLE_CARDS.slice(0, 7), PLAYABLE_CARDS.slice(7, 14), seededRng('l'), 'cpu', undefined, 'normal').level).toBeUndefined();
+    const best = cpuChooseStat(s, seededRng('x'), 0);
+    const picks = Array.from({ length: 40 }, (_, i) => cpuChooseStat(s, seededRng(`m${i}`)));
+    expect(picks.some((k) => k !== best)).toBe(true);
   });
 });
