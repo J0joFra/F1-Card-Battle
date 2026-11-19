@@ -1,7 +1,7 @@
 import type { Card, StatKey } from '../types';
 import { CARD_BY_ID } from './cards';
 import { DAILY_REWARD_CREDITS, finishDaily, missionDone, missionsAfterMatch, missionsFor } from './daily';
-import { cpuChooseStat, handOf, matchOutcome, passTurn, playHandRound, playRound, type HandMove, type JollyKind, type MatchOutcome, type MatchState, type Side } from './engine';
+import { cpuChooseStat, handOf, type CpuLevel, matchOutcome, passTurn, playHandRound, playRound, type HandMove, type JollyKind, type MatchOutcome, type MatchState, type Side } from './engine';
 import { FIRST_WIN_CREDITS, FRIEND_DRAW_CREDITS, FRIEND_WIN_CREDITS, MATCH_CREDITS, bumpStats, recordMatch, type Progress, type Stats } from './collection';
 
 /*
@@ -72,6 +72,7 @@ export interface StoredMatch {
   passed?: boolean;
   hand?: number;
   jollyUsed?: boolean;
+  level?: CpuLevel;
 }
 
 const card = (id: string): Card => {
@@ -93,6 +94,7 @@ export function storeMatch(s: MatchState): StoredMatch {
     ...(s.passed ? { passed: true } : {}),
     ...(s.hand ? { hand: s.hand } : {}),
     ...(s.jollyUsed ? { jollyUsed: true } : {}),
+    ...(s.level ? { level: s.level } : {}),
   };
 }
 
@@ -107,6 +109,7 @@ export function loadMatch(m: StoredMatch): MatchState {
     passed: !!m.passed,
     ...(m.hand ? { hand: m.hand } : {}),
     ...(m.jollyUsed ? { jollyUsed: true } : {}),
+    ...(m.level ? { level: m.level } : {}),
     history: m.history.map((h) => ({
       stat: h.stat,
       chooser: h.chooser,
@@ -118,6 +121,13 @@ export function loadMatch(m: StoredMatch): MatchState {
     })),
   };
 }
+
+// Crediti di una partita contro la CPU secondo il livello (vittoria, pareggio, sconfitta)
+export const LEVEL_CREDITS: Record<CpuLevel, Record<'player' | 'draw' | 'cpu', number>> = {
+  easy: { player: 4, draw: 3, cpu: 2 },
+  normal: MATCH_CREDITS,
+  hard: { player: 16, draw: 8, cpu: 4 },
+};
 
 export interface MatchRewards {
   packEarned: boolean;
@@ -160,7 +170,9 @@ export function applyMatchEnd(
         : outcome === 'draw'
           ? FRIEND_DRAW_CREDITS
           : 0
-      : MATCH_CREDITS[outcome]) + (firstWin ? FIRST_WIN_CREDITS : 0);
+      : opts.daily
+        ? MATCH_CREDITS[outcome]
+        : LEVEL_CREDITS[state.level ?? 'normal'][outcome]) + (firstWin ? FIRST_WIN_CREDITS : 0);
   next = { ...next, credits: next.credits + credits, ...(firstWin ? { firstWin: today } : {}) };
   next = bumpStats(next, matchStats(state, outcome === 'player', !!opts.friend));
   const streak = next.daily.streak;

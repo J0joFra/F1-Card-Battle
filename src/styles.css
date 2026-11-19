@@ -1450,3 +1450,15 @@ b.over-pack { color: #e8b931; }
 .match.has-hand .duel-stack .card-art { height: clamp(38px, 7.5dvh, 150px); }
 .match.has-hand .duel-stack .card-stats li > button, .match.has-hand .duel-stack .card-stats .stat-row { padding-block: clamp(2px, 0.55dvh, 7px); }
 .match.has-hand .duel-stack .card-title { padding-block: 3px; }
+
+/* livello della CPU */
+.level-pick { display: grid; grid-template-columns: auto repeat(3, minmax(0, 1fr)); align-items: center; gap: 6px; width: 100%; }
+.level-label { font-size: 12px; font-weight: 900; letter-spacing: .6px; color: var(--muted); text-transform: uppercase; padding-right: 2px; }
+.level-pick button { display: grid; justify-items: center; gap: 0; padding: 5px 4px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); }
+.level-pick button b { font-size: 12.5px; font-weight: 900; color: var(--text); }
+.level-pick button small { font-size: 11px; font-weight: 700; }
+.level-pick button.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.level-pick .lvl-hard.on { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); background: color-mix(in srgb, var(--gold) 14%, var(--surface)); }
+.card-timer { font-size: 12px; font-weight: 800; color: var(--muted); text-align: center; }
+.card-timer.hurry { color: var(--lose); }
+.card-timer.locked { color: var(--win); }

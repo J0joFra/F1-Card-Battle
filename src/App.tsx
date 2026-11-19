@@ -59,7 +59,7 @@ import {
   themeMode,
   todayKey,
 } from "./game/daily";
-import { DECK_SIZE, HAND_SIZE, buildCpuDeck, newMatch, type JollyKind } from "./game/engine";
+import { CPU_LEVEL, DECK_SIZE, HAND_SIZE, buildCpuDeck, isCpuLevel, newMatch, type CpuLevel, type JollyKind } from "./game/engine";
 import {
   applyMatchEnd,
   localDriver,
@@ -145,6 +145,15 @@ type Tab = "home" | "collection" | "packs" | "builder";
 // regole della partita veloce: Strategica (mano di 3 carte + jolly di gara) o Classica
 export type Rules = "hand" | "classic";
 const RULES_KEY = "f1-card-battle:rules";
+const LEVEL_KEY = "f1-card-battle:level";
+function savedLevel(): CpuLevel {
+  try {
+    const l = localStorage.getItem(LEVEL_KEY);
+    return isCpuLevel(l) ? l : "normal";
+  } catch {
+    return "normal";
+  }
+}
 function savedRules(): Rules {
   try {
     return localStorage.getItem(RULES_KEY) === "classic" ? "classic" : "hand";
@@ -187,6 +196,15 @@ export default function App() {
     setRulesRaw(r);
     try {
       localStorage.setItem(RULES_KEY, r);
+    } catch {
+      /* niente memoria: va bene lo stesso */
+    }
+  };
+  const [level, setLevelRaw] = useState<CpuLevel>(savedLevel); // livello della CPU
+  const setLevel = (l: CpuLevel) => {
+    setLevelRaw(l);
+    try {
+      localStorage.setItem(LEVEL_KEY, l);
     } catch {
       /* niente memoria: va bene lo stesso */
     }
@@ -359,6 +377,7 @@ export default function App() {
         mode: matchMode,
         ...(loan ? { loan: true } : {}),
         ...(hand ? { hand: true } : {}),
+        ...(!daily ? { level } : {}),
       });
       setStarting(false);
       if (!res?.match || !res.view) {
@@ -404,11 +423,13 @@ export default function App() {
           : buildCpuDeck(
               deck,
               Math.random,
-              PLAYABLE_CARDS.filter((c) => fitsMode(matchMode, c))
+              PLAYABLE_CARDS.filter((c) => fitsMode(matchMode, c)),
+              CPU_LEVEL[level].candidates
             ),
         Math.random,
         "player",
-        hand ? HAND_SIZE : undefined
+        hand ? HAND_SIZE : undefined,
+        daily ? undefined : level
       );
       setDriver(
         localDriver(
@@ -1044,6 +1065,8 @@ export default function App() {
               onMode={setMode}
               rules={rules}
               onRules={setRules}
+              level={level}
+              onLevel={setLevel}
               onPlay={() => play()}
               onDeck={(i) =>
                 saveDecks(deckSlots(progress), i)
