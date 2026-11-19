@@ -1405,3 +1405,48 @@ b.over-pack { color: #e8b931; }
 .deck-bar .actions.start { flex-wrap: wrap; gap: 6px; }
 .deck-bar .actions.start .btn.ghost { flex: 1 1 auto; padding-inline: 8px; font-size: 13px; white-space: nowrap; justify-content: center; }
 .deck-bar .actions.start .btn.grow { flex-basis: 100%; }
+
+/* regole della partita veloce: Strategica / Tradizionale */
+.rules-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%; }
+.rules-pick button { display: grid; gap: 1px; padding: 7px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); text-align: left; }
+.rules-pick button b { font-size: 13px; font-weight: 900; color: var(--text); text-transform: uppercase; letter-spacing: .4px; }
+.rules-pick button small { font-size: 11px; line-height: 1.2; }
+.rules-pick button.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+
+/* jolly di gara al mercato */
+.rj-note { margin: -4px 0 8px; }
+.rj-list { display: grid; gap: 8px; }
+.rj-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+.rj-icon { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 10px; font-weight: 900; font-style: italic; font-size: 14px; color: #fff; }
+.rj-drs .rj-icon { background: linear-gradient(135deg, #1fbf63, #0b7a3b); }
+.rj-sc .rj-icon { background: linear-gradient(135deg, #ffcc33, #e08a00); color: #1b1b1b; }
+.rj-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.rj-text b { font-size: 14px; }
+.rj-text small { font-size: 12px; color: var(--muted); line-height: 1.25; }
+.rj-item .btn { flex: none; white-space: nowrap; }
+
+/* modalità Strategica: la mano (3 carte piccole) e i jolly di gara */
+.hand-bar { display: grid; gap: 6px; width: min(400px, 100%); margin: 0 auto; }
+.hand-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.hand-card { padding: 0; border: 0; background: none; border-radius: 12px; opacity: .72; transition: transform .15s, opacity .15s; }
+.hand-card.on { opacity: 1; transform: translateY(-4px); }
+.hand-card.on .card { box-shadow: 0 0 0 3px var(--accent); }
+.hand-card .card { min-height: 0 !important; width: 100%; }
+.hand-card .card-stats, .hand-card .card-palmares { display: none; }
+.hand-card .card-art { aspect-ratio: auto; height: clamp(34px, 6.5dvh, 70px); }
+.hand-card .card-title { padding: 3px 6px; }
+.hand-card .card-name { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hand-card .card-team { font-size: 9.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rj-arm { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rj-arm small { flex: 1 1 140px; font-size: 11.5px; color: var(--muted); line-height: 1.2; }
+.rj-chip { padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; color: var(--text); }
+.rj-chip b { font-style: italic; font-weight: 900; }
+.rj-chip.rj-drs.on { background: #1fbf63; border-color: #1fbf63; color: #fff; }
+.rj-chip.rj-sc.on { background: #ffcc33; border-color: #ffcc33; color: #1b1b1b; }
+.rj-used { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 99px; font-size: 12px; font-weight: 900; vertical-align: 1px; }
+.rj-used.rj-drs { background: #1fbf63; color: #fff; }
+.rj-used.rj-sc { background: #ffcc33; color: #1b1b1b; }
+/* con la mano sotto, la carta grande si accorcia: tutto resta in uno schermo */
+.match.has-hand .duel-stack .card-art { height: clamp(38px, 7.5dvh, 150px); }
+.match.has-hand .duel-stack .card-stats li > button, .match.has-hand .duel-stack .card-stats .stat-row { padding-block: clamp(2px, 0.55dvh, 7px); }
+.match.has-hand .duel-stack .card-title { padding-block: 3px; }

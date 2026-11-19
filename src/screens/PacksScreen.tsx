@@ -5,7 +5,8 @@ import { CARD_BY_ID } from '../game/cards';
 import { useI18n } from '../lib/i18n';
 import { HelpButton } from '../components/TutorialSection';
 import { WINS_PER_PACK } from '../game/collection';
-import { JOLLY_CHANCE, PACK_SIZE, jollyTargets, type Progress, type UnlockResult } from '../game/collection';
+import { BOOST_MAX, BOOST_PRICE, JOLLY_CHANCE, PACK_SIZE, boostsOf, jollyTargets, type Progress, type UnlockResult } from '../game/collection';
+import { JOLLY_KINDS, type JollyKind } from '../game/engine';
 import { PACK_TYPES, isUseful, storePrice, teamOfDay, type PackKind } from '../game/shop';
 import { teamColor } from '../game/teamColors';
 import { FlipCard } from '../components/FlipCard';
@@ -26,6 +27,7 @@ interface Props {
   onBuyPack: () => void; // compra un Classico (va tra i tuoi pacchetti)
   onBuyCard: (card: Card) => void; // card del giorno
   onUseJolly: (card: Card) => void;
+  onBuyJolly: (kind: JollyKind) => void; // jolly di gara (DRS, Safety Car)
 }
 
 type BuyNowKind = Exclude<PackKind, 'classic'>;
@@ -38,7 +40,7 @@ function untilMidnight() {
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
 }
 
-export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onUseJolly }: Props) {
+export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onUseJolly, onBuyJolly }: Props) {
   const { t } = useI18n();
   const [opened, setOpened] = useState<OpenedPack | null>(null);
   const [revealed, setRevealed] = useState<boolean[]>([]);
@@ -217,6 +219,35 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
               <small>{t(k === 'classic' ? 'shop_classic_sub' : k === 'premium' ? 'shop_premium_sub' : 'shop_team_sub', { n: type.size, team: team.name })}</small>
               <span className="price">{coin()} {type.price}</span>
             </button>
+          );
+        })}
+      </div>
+
+      {/* jolly di gara: sempre in vendita, al massimo BOOST_MAX per tipo */}
+      <h3 className="shop-title">{t('rj_title')}</h3>
+      <p className="muted small rj-note">{t('rj_note', { n: BOOST_MAX })}</p>
+      <div className="rj-list">
+        {JOLLY_KINDS.map((k) => {
+          const n = boostsOf(progress, k);
+          return (
+            <div key={k} className={`rj-item rj-${k}`}>
+              <span className="rj-icon" aria-hidden>
+                {k === 'drs' ? 'DRS' : 'SC'}
+              </span>
+              <div className="rj-text">
+                <b>
+                  {t(k === 'drs' ? 'rj_drs' : 'rj_sc')} <span className="muted">{n}/{BOOST_MAX}</span>
+                </b>
+                <small>{t(k === 'drs' ? 'rj_drs_desc' : 'rj_sc_desc')}</small>
+              </div>
+              <button
+                className="btn primary small"
+                onClick={() => onBuyJolly(k)}
+                disabled={n >= BOOST_MAX || progress.credits < BOOST_PRICE}
+              >
+                {n >= BOOST_MAX ? t('rj_full') : `${coin()} ${BOOST_PRICE}`}
+              </button>
+            </div>
           );
         })}
       </div>

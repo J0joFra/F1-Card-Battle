@@ -78,7 +78,19 @@ export interface RoundResult {
   playerCard: Card;
   cpuCard: Card;
   winner: Side | 'tie';
+  jolly?: JollyKind; // jolly di gara giocato dal giocatore in questo round
+  neutralized?: boolean; // Safety Car: il round perso è stato neutralizzato (conta come pareggio)
 }
+
+// Jolly di gara (modalità Strategica): uno a partita, si comprano al mercato.
+// DRS: +10% alla tua metrica nel round (−10% per quelle dove vince il valore più basso).
+// Safety Car: se perdi il round, viene neutralizzato e conta come pareggio.
+export const JOLLY_KINDS = ['drs', 'sc'] as const;
+export type JollyKind = (typeof JOLLY_KINDS)[number];
+export const isJollyKind = (k: unknown): k is JollyKind => JOLLY_KINDS.includes(k as JollyKind);
+export const DRS_BOOST = 0.1;
+// Modalità Strategica: carte in mano (si gioca una delle prime HAND_SIZE del mazzo, poi si pesca)
+export const HAND_SIZE = 3;
 
 export interface MatchState {
   // mescolati all'inizio: la card del round i è la i-esima, quindi l'ordine è casuale
@@ -90,6 +102,8 @@ export interface MatchState {
   score: Record<Side, number>;
   history: RoundResult[];
   passed?: boolean; // in questo round chi doveva scegliere ha lasciato scadere il tempo: sceglie l'avversario
+  hand?: number; // modalità Strategica: carte in mano (assente = classica, la carta del round è fissa)
+  jollyUsed?: boolean; // il giocatore ha già usato il jolly di gara in questa partita
 }
 
 // Contro la CPU il primo round lo sceglie sempre il giocatore.
@@ -98,6 +112,7 @@ export function newMatch(
   cpuDeck: Card[],
   rng: Rng = Math.random,
   firstChooser: Side = 'player',
+  hand?: number,
 ): MatchState {
   return {
     player: shuffle(playerDeck, rng),
@@ -107,6 +122,7 @@ export function newMatch(
     usedStats: [],
     score: { player: 0, cpu: 0 },
     history: [],
+    ...(hand ? { hand } : {}),
   };
 }
 
@@ -116,21 +132,87 @@ export const isAvailable = (s: MatchState, stat: StatKey) => !s.usedStats.includ
 
 export const availableStats = (s: MatchState) => STATS.map((x) => x.key).filter((k) => isAvailable(s, k));
 
-export function playRound(state: MatchState, stat: StatKey): MatchState {
+export function playRound(state: MatchState, stat: StatKey, jolly?: JollyKind): MatchState {
   if (matchOutcome(state)) throw new Error('Partita già finita');
   if (!isAvailable(state, stat)) throw new Error('Metrica già usata in questa partita');
+  if (jolly && state.jollyUsed) throw new Error('Jolly già usato in questa partita');
   const { player: playerCard, cpu: cpuCard } = currentCards(state);
-  const cmp = compareStat(stat, playerCard.stats[stat], cpuCard.stats[stat]);
-  const winner: Side | 'tie' = cmp > 0 ? 'player' : cmp < 0 ? 'cpu' : 'tie';
+  let mine = playerCard.stats[stat];
+  if (jolly === 'drs') mine = mine * (STAT_BY_KEY[stat].lowerWins ? 1 - DRS_BOOST : 1 + DRS_BOOST);
+  const cmp = compareStat(stat, mine, cpuCard.stats[stat]);
+  let winner: Side | 'tie' = cmp > 0 ? 'player' : cmp < 0 ? 'cpu' : 'tie';
+  const neutralized = jolly === 'sc' && winner === 'cpu';
+  if (neutralized) winner = 'tie';
   return {
     ...state,
     round: state.round + 1,
     chooser: winner === 'tie' ? (state.chooser === 'player' ? 'cpu' : 'player') : winner, // pareggio: il turno passa all'altro
     usedStats: [...state.usedStats, stat],
     score: winner === 'tie' ? state.score : { ...state.score, [winner]: state.score[winner] + 1 },
-    history: [...state.history, { stat, chooser: state.chooser, playerCard, cpuCard, winner }],
+    history: [
+      ...state.history,
+      { stat, chooser: state.chooser, playerCard, cpuCard, winner, ...(jolly ? { jolly } : {}), ...(neutralized ? { neutralized } : {}) },
+    ],
     passed: false,
+    ...(jolly ? { jollyUsed: true } : {}),
   };
+}
+
+// ---- modalità Strategica: mano di carte ----
+
+// Le carte in mano: le prossime del mazzo (dopo ogni round se ne pesca una nuova).
+export const handOf = (s: MatchState, side: Side): Card[] => (s.hand ? s[side].slice(s.round, s.round + s.hand) : [s[side][s.round]]);
+
+// Gioca la carta in posizione `index` della mano: diventa la carta di questo round (scambio nel mazzo).
+export function pickCard(s: MatchState, side: Side, index: number): MatchState {
+  const size = handOf(s, side).length;
+  if (!Number.isInteger(index) || index < 0 || index >= size) throw new Error('Carta non in mano');
+  if (index === 0) return s;
+  const deck = [...s[side]];
+  [deck[s.round], deck[s.round + index]] = [deck[s.round + index], deck[s.round]];
+  return { ...s, [side]: deck };
+}
+
+// La CPU sceglie la sua carta. Se tocca a lei scegliere, prende la coppia carta-metrica più forte;
+// se risponde, non conosce la metrica: gioca la carta più forte in media sulle metriche ancora libere
+// (con un po' di caso, per non essere prevedibile). Non guarda mai la carta del giocatore.
+export function cpuPickCard(s: MatchState, rng: Rng = Math.random): { state: MatchState; stat?: StatKey } {
+  const hand = handOf(s, 'cpu');
+  const free = availableStats(s);
+  if (s.chooser === 'cpu') {
+    let best = { i: 0, stat: free[0], p: -1 };
+    hand.forEach((c, i) => {
+      const stat = bestStat(c, free);
+      const p = percentile(stat, c.stats[stat]);
+      if (p > best.p) best = { i, stat, p };
+    });
+    return { state: pickCard(s, 'cpu', best.i), stat: best.stat };
+  }
+  const score = (c: Card) => free.reduce((sum, k) => sum + percentile(k, c.stats[k]), 0) / free.length;
+  let bi = 0;
+  let bv = -1;
+  hand.forEach((c, i) => {
+    const v = score(c) * (0.85 + 0.3 * rng());
+    if (v > bv) [bi, bv] = [i, v];
+  });
+  return { state: pickCard(s, 'cpu', bi) };
+}
+
+export interface HandMove {
+  stat?: StatKey; // la metrica, se tocca al giocatore sceglierla
+  card: number; // posizione nella mano della carta giocata
+  jolly?: JollyKind;
+}
+
+// Un round della modalità Strategica contro la CPU: carta del giocatore, carta (e magari metrica) della CPU, esito.
+export function playHandRound(s: MatchState, move: HandMove, rng: Rng = Math.random): MatchState {
+  if (!s.hand) throw new Error('Partita senza mano');
+  let next = pickCard(s, 'player', move.card);
+  const cpu = cpuPickCard(next, rng);
+  next = cpu.state;
+  const stat = next.chooser === 'cpu' ? cpu.stat! : move.stat;
+  if (!stat) throw new Error('metrica mancante');
+  return playRound(next, stat, move.jolly);
 }
 
 // Tempo scaduto: la scelta della metrica passa all'avversario (una volta sola per round).

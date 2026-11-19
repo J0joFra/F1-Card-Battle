@@ -1,7 +1,7 @@
 import type { Card, StatKey } from '../types';
 import { CARD_BY_ID } from './cards';
 import { DAILY_REWARD_CREDITS, finishDaily, missionDone, missionsAfterMatch, missionsFor } from './daily';
-import { cpuChooseStat, matchOutcome, passTurn, playRound, type MatchOutcome, type MatchState, type Side } from './engine';
+import { cpuChooseStat, handOf, matchOutcome, passTurn, playHandRound, playRound, type HandMove, type JollyKind, type MatchOutcome, type MatchState, type Side } from './engine';
 import { FIRST_WIN_CREDITS, FRIEND_DRAW_CREDITS, FRIEND_WIN_CREDITS, MATCH_CREDITS, bumpStats, recordMatch, type Progress, type Stats } from './collection';
 
 /*
@@ -17,6 +17,8 @@ export interface RoundView {
   player: string; // id card
   cpu: string;
   winner: Side | 'tie';
+  jolly?: JollyKind;
+  neutralized?: boolean;
 }
 
 export interface MatchView {
@@ -30,6 +32,8 @@ export interface MatchView {
   passed?: boolean; // tempo scaduto in questo round: la scelta è passata all'avversario
   opponentLeft?: boolean; // sfida tra amici: l'avversario ha abbandonato
   sinceMove?: number; // sfida tra amici: ms passati dall'ultima mossa (per cambiare carta insieme)
+  hand?: string[]; // modalità Strategica: le tue carte in mano (la prima è `current`)
+  jollyUsed?: boolean; // jolly di gara già usato in questa partita
 }
 
 export function toView(s: MatchState): MatchView {
@@ -45,10 +49,14 @@ export function toView(s: MatchState): MatchView {
       player: h.playerCard.id,
       cpu: h.cpuCard.id,
       winner: h.winner,
+      ...(h.jolly ? { jolly: h.jolly } : {}),
+      ...(h.neutralized ? { neutralized: true } : {}),
     })),
     current: outcome ? null : (s.player[s.round]?.id ?? null),
     outcome,
     ...(s.passed ? { passed: true } : {}),
+    ...(s.hand ? { hand: outcome ? [] : handOf(s, 'player').map((c) => c.id) } : {}),
+    ...(s.jollyUsed ? { jollyUsed: true } : {}),
   };
 }
 
@@ -62,6 +70,8 @@ export interface StoredMatch {
   score: Record<Side, number>;
   history: RoundView[];
   passed?: boolean;
+  hand?: number;
+  jollyUsed?: boolean;
 }
 
 const card = (id: string): Card => {
@@ -81,6 +91,8 @@ export function storeMatch(s: MatchState): StoredMatch {
     score: s.score,
     history: v.history,
     ...(s.passed ? { passed: true } : {}),
+    ...(s.hand ? { hand: s.hand } : {}),
+    ...(s.jollyUsed ? { jollyUsed: true } : {}),
   };
 }
 
@@ -93,12 +105,16 @@ export function loadMatch(m: StoredMatch): MatchState {
     usedStats: m.usedStats,
     score: m.score,
     passed: !!m.passed,
+    ...(m.hand ? { hand: m.hand } : {}),
+    ...(m.jollyUsed ? { jollyUsed: true } : {}),
     history: m.history.map((h) => ({
       stat: h.stat,
       chooser: h.chooser,
       playerCard: card(h.player),
       cpuCard: card(h.cpu),
       winner: h.winner,
+      ...(h.jolly ? { jolly: h.jolly } : {}),
+      ...(h.neutralized ? { neutralized: true } : {}),
     })),
   };
 }
@@ -200,18 +216,29 @@ export function flipMatch(s: MatchState): MatchState {
  */
 export interface MatchDriver {
   start: MatchView;
-  // gioca il round: con la metrica scelta dal giocatore, o senza quando tocca alla CPU
-  play(stat?: StatKey): Promise<MatchView>;
+  // gioca il round: con la metrica scelta dal giocatore, o senza quando tocca alla CPU.
+  // Nella modalità Strategica c'è anche la carta scelta dalla mano (e magari un jolly di gara).
+  play(stat?: StatKey, move?: Omit<HandMove, 'stat'>): Promise<MatchView>;
   // tempo scaduto: la scelta passa all'avversario
   pass(): Promise<MatchView>;
   quit(): void;
 }
 
-export function localDriver(initial: MatchState, onEnd: (final: MatchState) => void): MatchDriver {
+export function localDriver(
+  initial: MatchState,
+  onEnd: (final: MatchState) => void,
+  onJolly?: (kind: JollyKind) => boolean, // toglie il jolly dall'inventario (false = non ce l'hai)
+): MatchDriver {
   let state = initial;
   return {
     start: toView(state),
-    async play(stat) {
+    async play(stat, move) {
+      if (state.hand) {
+        if (move?.jolly && (state.jollyUsed || !onJolly?.(move.jolly))) throw new Error('jolly non disponibile');
+        state = playHandRound(state, { stat, card: move?.card ?? 0, jolly: move?.jolly });
+        if (matchOutcome(state)) onEnd(state);
+        return toView(state);
+      }
       const chosen = state.chooser === 'cpu' ? cpuChooseStat(state) : stat;
       if (!chosen) throw new Error('metrica mancante');
       state = playRound(state, chosen);

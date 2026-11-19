@@ -33,6 +33,9 @@ import {
   saveProgress,
   spendJolly,
   starterProgress,
+  buyBoost,
+  spendBoost,
+  boostsOf,
   type Progress,
 } from "./game/collection";
 import { useI18n } from "./lib/i18n";
@@ -56,7 +59,7 @@ import {
   themeMode,
   todayKey,
 } from "./game/daily";
-import { DECK_SIZE, buildCpuDeck, newMatch } from "./game/engine";
+import { DECK_SIZE, HAND_SIZE, buildCpuDeck, newMatch, type JollyKind } from "./game/engine";
 import {
   applyMatchEnd,
   localDriver,
@@ -139,6 +142,17 @@ function savedMode(): MatchMode {
 }
 type Tab = "home" | "collection" | "packs" | "builder";
 
+// regole della partita veloce: Strategica (mano di 3 carte + jolly di gara) o Classica
+export type Rules = "hand" | "classic";
+const RULES_KEY = "f1-card-battle:rules";
+function savedRules(): Rules {
+  try {
+    return localStorage.getItem(RULES_KEY) === "classic" ? "classic" : "hand";
+  } catch {
+    return "hand";
+  }
+}
+
 export default function App() {
   const { t } = useI18n();
   const theme = useTheme();
@@ -164,6 +178,15 @@ export default function App() {
     setModeRaw(m);
     try {
       localStorage.setItem(MODE_KEY, JSON.stringify(m));
+    } catch {
+      /* niente memoria: va bene lo stesso */
+    }
+  };
+  const [rules, setRulesRaw] = useState<Rules>(savedRules);
+  const setRules = (r: Rules) => {
+    setRulesRaw(r);
+    try {
+      localStorage.setItem(RULES_KEY, r);
     } catch {
       /* niente memoria: va bene lo stesso */
     }
@@ -319,6 +342,7 @@ export default function App() {
   ) {
     const ids = deck.map((c) => c.id);
     const classic = matchMode.kind === "classic";
+    const hand = rules === "hand" && !daily; // la sfida del giorno resta con le regole classiche
     setRewards(null);
     lastStart.current = daily ? null : { deck, slot, mode: matchMode };
     setDailyMode(daily);
@@ -334,6 +358,7 @@ export default function App() {
         slot,
         mode: matchMode,
         ...(loan ? { loan: true } : {}),
+        ...(hand ? { hand: true } : {}),
       });
       setStarting(false);
       if (!res?.match || !res.view) {
@@ -343,9 +368,14 @@ export default function App() {
       const id = res.match;
       setDriver({
         start: res.view,
-        async play(stat) {
+        async play(stat, move) {
           const r = await account.track(
-            callGame({ action: "match_play", match: id, stat })
+            callGame({
+              action: "match_play",
+              match: id,
+              stat,
+              ...(move ? { card: move.card, ...(move.jolly ? { jolly: move.jolly } : {}) } : {}),
+            })
           );
           if (r.progress) setProgressRaw(r.progress);
           if (r.rewards) setRewards(r.rewards);
@@ -375,16 +405,29 @@ export default function App() {
               deck,
               Math.random,
               PLAYABLE_CARDS.filter((c) => fitsMode(matchMode, c))
-            )
+            ),
+        Math.random,
+        "player",
+        hand ? HAND_SIZE : undefined
       );
       setDriver(
-        localDriver(state, (final) => {
-          const end = applyMatchEnd(progressRef.current, final, today, {
-            daily,
-          });
-          setProgress(end.progress);
-          setRewards(end.rewards);
-        })
+        localDriver(
+          state,
+          (final) => {
+            const end = applyMatchEnd(progressRef.current, final, today, {
+              daily,
+            });
+            setProgress(end.progress);
+            setRewards(end.rewards);
+          },
+          (kind) => {
+            const next = spendBoost(progressRef.current, kind);
+            if (!next) return false;
+            progressRef.current = next;
+            setProgress(next);
+            return true;
+          }
+        )
       );
     }
     setMatchKey((k) => k + 1);
@@ -814,6 +857,20 @@ export default function App() {
     return res;
   }
 
+  // jolly di gara al mercato
+  async function buyRaceJolly(kind: JollyKind) {
+    if (account.online) {
+      if (!(await server({ action: "buy_boost", kind }))) return;
+    } else {
+      const next = buyBoost(progress, kind);
+      if (!next) return;
+      setProgress(next);
+    }
+    sfx("tap");
+    haptic("success");
+    setToast(t("rj_bought", { name: t(kind === "drs" ? "rj_drs" : "rj_sc"), n: boostsOf(progress, kind) + 1 }));
+  }
+
   function buyOnePack() {
     if (account.online) void server({ action: "buy_pack" });
     else {
@@ -985,6 +1042,8 @@ export default function App() {
               missions={missions}
               mode={mode}
               onMode={setMode}
+              rules={rules}
+              onRules={setRules}
               onPlay={() => play()}
               onDeck={(i) =>
                 saveDecks(deckSlots(progress), i)
@@ -1050,6 +1109,7 @@ export default function App() {
                   : undefined
               }
               rewards={rewards}
+              boosts={progress.boosts}
               packProgress={progress.winsTowardPack}
               hint={progress.wins + progress.losses + progress.draws < 5}
               onRematch={lastStart.current && !opponent ? rematch : undefined}
@@ -1086,6 +1146,7 @@ export default function App() {
               onUseJolly={applyJolly}
               onBuyPack={buyOnePack}
               onBuyCard={buyStoreCard}
+              onBuyJolly={buyRaceJolly}
             />
           )}
         </Suspense>

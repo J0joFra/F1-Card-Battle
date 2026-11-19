@@ -1,7 +1,10 @@
 import { CARD_BY_ID, PLAYABLE_CARDS, STATS } from '../game/cards';
 import {
+  BOOST_PRICE,
+  buyBoost,
   buyPack,
   bumpStats,
+  spendBoost,
   mergeProgress,
   normalizeProgress,
   openPack,
@@ -14,7 +17,7 @@ import {
 } from '../game/collection';
 import { claimMission, dailyChallenge, dailyLoanDeck, dailyPlayed, missionsAfterPack, missionsFor, startDaily, themeMode } from '../game/daily';
 import { CLASSIC, decksOverlap, fitsMode, parseMode } from '../game/deckRules';
-import { buildCpuDeck, cpuChooseStat, isAvailable, matchOutcome, newMatch, passTurn, playRound, type Rng } from '../game/engine';
+import { HAND_SIZE, buildCpuDeck, cpuChooseStat, handOf, isAvailable, isJollyKind, matchOutcome, newMatch, passTurn, playHandRound, playRound, type MatchState, type Rng } from '../game/engine';
 import { applyMatchEnd, loadMatch, storeMatch, toView, type MatchRewards, type MatchView, type StoredMatch } from '../game/match';
 import type { StatKey } from '../types';
 import { cardOrThrow, checkDate, GameError, validDeck, withProfile, type Ctx } from './common';
@@ -55,6 +58,7 @@ export function plausibleDevice(guest: Partial<Progress> | undefined): Progress 
       p.credits >= 0 && p.credits <= 1000 &&
       p.packs >= 0 && p.packs <= 20 &&
       p.jolly >= 0 && p.jolly <= 5 &&
+      Object.values(p.boosts ?? {}).every((n) => n >= 0 && n <= 3) &&
       p.wins >= 0 && p.wins <= 500;
     return ok ? { ...p, missions: undefined, stats: undefined } : null;
   } catch {
@@ -358,6 +362,16 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       });
     }
 
+    case 'buy_boost': {
+      if (!isJollyKind(req.kind)) throw new GameError('bad_jolly');
+      const kind = req.kind;
+      return withProfile(store, ctx, (p) => {
+        const next = buyBoost(p, kind);
+        if (!next) throw new GameError(p.credits < BOOST_PRICE ? 'not_enough_credits' : 'boost_max');
+        return { progress: next };
+      });
+    }
+
     case 'claim_mission':
       checkDate(req.date, ctx.today);
       return withProfile(store, ctx, (p) => {
@@ -384,7 +398,8 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
         if (daily && dailyPlayed(p.daily, req.date)) throw new GameError('daily_played');
         const pool = PLAYABLE_CARDS.filter((c) => fitsMode(mode, c));
         const cpu = daily ? daily.cpuDeck : buildCpuDeck(deck, ctx.rng, pool);
-        const state = newMatch(deck, cpu, ctx.rng);
+        // modalità Strategica (mano di carte): solo nelle partite veloci, non nella sfida del giorno
+        const state = newMatch(deck, cpu, ctx.rng, 'player', req.hand && !daily ? HAND_SIZE : undefined);
         view = toView(state);
         stored = storeMatch(state); // la partita si crea dopo aver salvato il profilo
         // il mazzo si ricorda solo nella partita classica (gli altri sono mazzi a tema, da una volta)
@@ -408,12 +423,37 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       if (rec.finished) throw new GameError('match_finished');
       const state = loadMatch(rec.state);
       if (matchOutcome(state)) throw new GameError('match_finished');
-      let stat: StatKey;
-      if (state.chooser === 'player') {
-        if (!req.stat || !STATS.some((s) => s.key === req.stat) || !isAvailable(state, req.stat)) throw new GameError('bad_stat');
-        stat = req.stat;
-      } else stat = cpuChooseStat(state); // la CPU sceglie sul server: il telefono non vede le sue carte
-      const next = playRound(state, stat);
+      const validStat = (k: unknown): k is StatKey => typeof k === 'string' && STATS.some((s) => s.key === k) && isAvailable(state, k as StatKey);
+      let next: MatchState;
+      if (state.hand) {
+        // modalità Strategica: carta scelta dalla mano (+ metrica se tocca a te) e, se vuoi, un jolly di gara
+        const card = req.card ?? 0;
+        if (!Number.isInteger(card) || card < 0 || card >= handOf(state, 'player').length) throw new GameError('bad_card');
+        if (state.chooser === 'player' && !validStat(req.stat)) throw new GameError('bad_stat');
+        const jolly = req.jolly;
+        if (jolly !== undefined && (!isJollyKind(jolly) || state.jollyUsed)) throw new GameError('bad_jolly');
+        next = playHandRound(state, { stat: req.stat, card, jolly }, ctx.rng);
+        // il jolly si toglie dall'inventario prima di salvare il round
+        if (jolly) {
+          const spent = await withProfile(store, ctx, (p) => {
+            const after = spendBoost(p, jolly);
+            if (!after) throw new GameError('no_jolly');
+            return { progress: after };
+          });
+          if (!matchOutcome(next)) {
+            const ok = await store.updateMatch(req.match, { ...rec, state: storeMatch(next), finished: false }, state.round);
+            if (!ok) throw new GameError('busy', 409);
+            return { view: toView(next), progress: spent.progress };
+          }
+        }
+      } else {
+        let stat: StatKey;
+        if (state.chooser === 'player') {
+          if (!validStat(req.stat)) throw new GameError('bad_stat');
+          stat = req.stat;
+        } else stat = cpuChooseStat(state); // la CPU sceglie sul server: il telefono non vede le sue carte
+        next = playRound(state, stat);
+      }
       const finished = !!matchOutcome(next);
       const ok = await store.updateMatch(req.match, { ...rec, state: storeMatch(next), finished }, state.round);
       if (!ok) throw new GameError('busy', 409);

@@ -5,7 +5,7 @@ import { Flag, RotateCcw } from 'lucide-react';
 import { CARD_BY_ID, STATS, STAT_BY_KEY, formatStat, statLabel, statShort } from '../game/cards';
 import { useI18n, type TKey } from '../lib/i18n';
 import { errorMessage } from '../lib/api';
-import { ROUNDS, TURN_SECONDS, type Side } from '../game/engine';
+import { JOLLY_KINDS, ROUNDS, TURN_SECONDS, type JollyKind, type Side } from '../game/engine';
 import type { MatchDriver, MatchRewards, MatchView } from '../game/match';
 import { FIRST_WIN_CREDITS, WINS_PER_PACK } from '../game/collection';
 import { DAILY_REWARD_CREDITS } from '../game/daily';
@@ -36,6 +36,7 @@ interface Props {
   endExtra?: ReactNode; // a fine partita (es. punteggio della serie al meglio di 3)
   endButton?: string; // testo del pulsante a fine partita (es. "Partita 2")
   rewards?: MatchRewards | null; // premi della partita appena finita
+  boosts?: Partial<Record<JollyKind, number>>; // jolly di gara che hai (modalità Strategica)
   packProgress?: number; // vittorie verso il prossimo pacchetto (dopo questa partita)
   hint?: boolean; // prime partite: spiega barre e frecce delle metriche
   onRematch?: () => void; // rivincita (solo contro la CPU)
@@ -49,6 +50,8 @@ interface Round {
   playerCard: Card;
   cpuCard: Card;
   winner: Side | 'tie';
+  jolly?: JollyKind;
+  neutralized?: boolean;
 }
 
 const cardOf = (id: string) => CARD_BY_ID.get(id)!;
@@ -61,6 +64,7 @@ export function MatchScreen({
   endExtra,
   endButton,
   rewards,
+  boosts,
   packProgress,
   hint,
   onRematch,
@@ -110,7 +114,18 @@ export function MatchScreen({
   const finished = outcome && !showResult;
   const choosing = !outcome && !showResult;
   const free = STATS.map((s) => s.key).filter((k) => !view.usedStats.includes(k));
-  const current = view.current ? cardOf(view.current) : null;
+  // modalità Strategica: scegli una carta della mano (e, se vuoi, un jolly di gara per questo round)
+  const hand = view.hand?.length ? view.hand : null;
+  const [sel, setSel] = useState(0);
+  const [armed, setArmed] = useState<JollyKind | null>(null);
+  useEffect(() => {
+    setSel(0);
+    setArmed(null);
+  }, [view.round]);
+  const selected = hand ? Math.min(sel, hand.length - 1) : 0;
+  const current = hand ? cardOf(hand[selected]) : view.current ? cardOf(view.current) : null;
+  const move = () => (hand ? { card: selected, ...(armed ? { jolly: armed } : {}) } : undefined);
+  const jollyChoices = hand && !view.jollyUsed ? JOLLY_KINDS.filter((k) => (boosts?.[k] ?? 0) > 0) : [];
 
   function show(next: MatchView) {
     // nessun round nuovo (es. l'avversario ha abbandonato): si aggiorna e basta
@@ -136,11 +151,24 @@ export function MatchScreen({
   }
 
   // Turno della CPU: "pensa" (intanto l'arbitro gioca il round), annuncia la metrica, poi la mostra.
+  // Nella modalità Strategica prima scegli la tua carta (vedi `follow`), poi la CPU annuncia.
   useEffect(() => {
-    if (!choosing || view.chooser !== 'cpu' || busy || error) return;
+    if (!choosing || view.chooser !== 'cpu' || busy || error || hand) return;
+    cpuTurn();
+  }, [choosing, view, busy, error]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function follow() {
+    if (busy || view.chooser !== 'cpu' || !hand) return;
+    sfx('select');
+    haptic('light');
+    setError(null);
+    cpuTurn(move());
+  }
+
+  function cpuTurn(m?: ReturnType<typeof move>) {
     setBusy(true);
     const started = Date.now();
-    driver.play().then((next) => {
+    driver.play(undefined, m).then((next) => {
       if (!alive.current) return;
       // contro un amico la mossa è già avvenuta: si mostra subito, senza far "pensare" l'avversario
       if (next.history.length <= view.history.length || synced) {
@@ -156,7 +184,7 @@ export function MatchScreen({
         haptic('light');
       }, Math.max(0, CPU_THINK_MS - (Date.now() - started)));
     }, fail);
-  }, [choosing, view, busy, error]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   useEffect(() => {
     if (!cpuPick || !pending.current) return;
@@ -214,7 +242,7 @@ export function MatchScreen({
     haptic('light');
     setError(null);
     setBusy(true);
-    driver.play(stat).then((next) => {
+    driver.play(stat, move()).then((next) => {
       if (!alive.current) return;
       setBusy(false);
       show(next);
@@ -272,7 +300,7 @@ export function MatchScreen({
   };
 
   return (
-    <div className="screen match">
+    <div className={`screen match ${hand && choosing ? 'has-hand' : ''}`}>
       {title && <div className="match-title">{title}</div>}
       <div className="scoreboard">
         <div className="side you">
@@ -383,6 +411,11 @@ export function MatchScreen({
             <div className={`banner banner-${last.winner} pop`}>
               {statLabel(last.stat)} ({chooserLabel(last.chooser)}):{' '}
               {last.winner === 'player' ? t('m_pointYou') : last.winner === 'cpu' ? t('m_pointCpu') : t('m_tie')}
+              {last.jolly && (
+                <span className={`rj-used rj-${last.jolly}`}>
+                  {last.jolly === 'drs' ? tr('rj_drsUsed') : last.neutralized ? tr('rj_scUsed') : tr('rj_scSpare')}
+                </span>
+              )}
             </div>
           ) : (
             <div className="banner">{statLabel(last.stat)}…</div>
@@ -416,7 +449,11 @@ export function MatchScreen({
             </div>
           )}
           <div className={`banner ${view.chooser === 'cpu' ? 'banner-cpu-turn' : ''}`}>
-            {view.chooser === 'player'
+            {hand && view.chooser === 'cpu' && !cpuPick && !busy
+              ? t('m_handFollow')
+              : hand && view.chooser === 'player' && !view.passed && free.length > 1
+              ? t('m_handLead')
+              : view.chooser === 'player'
               ? view.passed
                 ? t('m_oppTimeUp')
                 : free.length === 1
@@ -454,6 +491,46 @@ export function MatchScreen({
               <CardBack label={t('m_cpuCard', { a: view.round + 1, b: ROUNDS })} />
             </div>
           </div>
+          {hand && (
+            <div className="hand-bar">
+              <div className="hand-row" role="listbox" aria-label={tr('m_hand')}>
+                {hand.map((id, i) => (
+                  <button
+                    key={id}
+                    role="option"
+                    aria-selected={i === selected}
+                    className={`hand-card ${i === selected ? 'on' : ''}`}
+                    disabled={busy || !!cpuPick}
+                    onClick={() => {
+                      sfx('tap');
+                      setSel(i);
+                    }}
+                  >
+                    <CardView card={cardOf(id)} size="sm" />
+                  </button>
+                ))}
+              </div>
+              {jollyChoices.length > 0 && (
+                <div className="rj-arm">
+                  {jollyChoices.map((k) => (
+                    <button
+                      key={k}
+                      className={`rj-chip rj-${k} ${armed === k ? 'on' : ''}`}
+                      disabled={busy || !!cpuPick}
+                      aria-pressed={armed === k}
+                      onClick={() => {
+                        sfx('tap');
+                        setArmed(armed === k ? null : k);
+                      }}
+                    >
+                      <b>{k === 'drs' ? 'DRS' : 'SC'}</b> ×{boosts?.[k]}
+                    </button>
+                  ))}
+                  <small>{armed ? tr(armed === 'drs' ? 'rj_drs_desc' : 'rj_sc_desc') : tr('rj_armHint')}</small>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
 
@@ -463,6 +540,11 @@ export function MatchScreen({
           <button className="btn ghost quit-btn" onClick={quit}>
             <Flag size={16} /> {t('m_quit')}
           </button>
+          {hand && choosing && view.chooser === 'cpu' && !busy && !cpuPick && (
+            <button className="btn primary next-btn" onClick={follow}>
+              {tr('m_playCard')}
+            </button>
+          )}
           {showResult && last && !synced && (
             <button
               className="btn primary next-btn"
