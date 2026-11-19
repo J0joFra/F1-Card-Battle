@@ -1388,10 +1388,6 @@ b.over-pack { color: #e8b931; }
   width: 44px; height: 44px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 900; font-style: italic; font-size: 16px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, .35); animation: pop .35s ease-out;
 }
-/* logo Driver Clash al posto della vecchia scritta su pacchetti e dorso */
-.brand-mark { display: block; width: 72%; height: auto; pointer-events: none; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .35)); }
-.card-back-logo .brand-mark { width: 62%; margin: 0 auto; }
-.mini-pack .brand-mark { width: 78%; filter: none; }
 
 /* home compatta: missioni su una riga, statistiche in una riga sola */
 .missions h3 .mis-count { margin-left: auto; font-size: 12px; color: var(--muted); letter-spacing: 0; }
