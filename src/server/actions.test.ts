@@ -8,7 +8,8 @@ import { deckProblems, decksProblems } from '../game/deckRules';
 import { hashRecoveryCode, usernameOf } from '../game/profile';
 import { FIRST_WIN_CREDITS, MATCH_CREDITS, PACK_PRICE } from '../game/collection';
 import { CLASSIC, fillDeck } from '../game/deckRules';
-import { PVP_REVEAL_MS, PVP_TURN_MS, handle, type AccountRow, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type Store, type SupportRequestRow } from './actions';
+import { PVP_REVEAL_MS, PVP_TURN_MS, handle, type AccountRow, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type QueueRow, type Store, type SupportRequestRow } from './actions';
+import { LEAGUES, MAX_REFERRALS, PROMOTION_REWARD, RANKED_POINTS, REFERRAL_PACKS, applyRanked, leagueOf } from '../game/ranked';
 
 const AVATAR = { skin: 2, hair: 3, hairColor: 1, eyes: 0, eyeColor: 1, brows: 0, mouth: 0, beard: 4, glasses: 0, suit: 0 };
 const NEW_PROFILE = { nickname: 'Joaquim', avatar: { ...AVATAR }, favorite: 'lewis-hamilton' };
@@ -26,6 +27,10 @@ function memoryDb() {
   const links = new Map<string, string>(); // dispositivo → account (accesso con username e codice)
   const playGames = new Map<string, string>(); // giocatore Play Giochi → account
   const support = new Map<string, SupportRequestRow & { device: string }>(); // richieste di aiuto per il codice
+  // gara classificata: coda; inviti: codice e chi ha invitato chi
+  const queue = new Map<string, Omit<QueueRow, 'user'> & { joinedAt: number; seenAt: number }>();
+  const inviteCodes = new Map<string, string>(); // account → codice
+  const invitedBy = new Map<string, string>();
   let conflictsToSimulate = 0;
   // l'account di un dispositivo: quello a cui ha fatto l'accesso, oppure il suo (seguendo gli spostamenti)
   const accountOf = (device: string) => {
@@ -194,6 +199,55 @@ function memoryDb() {
       pvps.set(pid, { rec: structuredClone(rec), rev: 0 });
       return pid;
     },
+    async queueJoin(row, now) {
+      const joinedAt = queue.get(id)?.joinedAt ?? now;
+      queue.set(id, { ...structuredClone(row), joinedAt, seenAt: now });
+      return { joinedAt };
+    },
+    async queueTouch(now) {
+      const q = queue.get(id);
+      if (!q) return null;
+      q.seenAt = now;
+      const { seenAt: _s, ...row } = q;
+      return structuredClone(row);
+    },
+    async queueLeave() {
+      queue.delete(id);
+    },
+    async queueClaim(points, lo, hi, freshSince) {
+      if (!queue.has(id)) return null;
+      const hit = [...queue]
+        .filter(([u, q]) => u !== id && q.points >= lo && q.points <= hi && q.seenAt >= freshSince)
+        .sort(([, a], [, b]) => Math.abs(a.points - points) - Math.abs(b.points - points) || a.joinedAt - b.joinedAt)[0];
+      if (!hit) return null;
+      queue.delete(hit[0]);
+      queue.delete(id);
+      const { joinedAt: _j, seenAt: _s, ...row } = hit[1];
+      return { user: hit[0], ...structuredClone(row) };
+    },
+    async queueCount(freshSince) {
+      return [...queue.values()].filter((q) => q.seenAt >= freshSince).length;
+    },
+    async activeRanked() {
+      const hit = [...pvps].reverse().find(([, m]) => m.rec.ranked && m.rec.status === 'playing' && (m.rec.host === id || m.rec.guest === id));
+      return hit ? structuredClone({ id: hit[0], rec: hit[1].rec }) : null;
+    },
+    async getInviteCode() {
+      return inviteCodes.get(id) ?? null;
+    },
+    async setInviteCode(code) {
+      if ([...inviteCodes.values()].includes(code) || inviteCodes.has(id)) return false;
+      inviteCodes.set(id, code);
+      return true;
+    },
+    async findByInviteCode(code) {
+      return [...inviteCodes].find(([, c]) => c === code)?.[0] ?? null;
+    },
+    async setInvitedBy(inviter) {
+      if (invitedBy.has(id)) return false;
+      invitedBy.set(id, inviter);
+      return true;
+    },
     async updatePvp(pid, rec, rev) {
       const m = pvps.get(pid);
       if (!m || m.rev !== rev) return false;
@@ -208,6 +262,7 @@ function memoryDb() {
     accounts,
     friendships,
     pvps,
+    queue,
     simulateConflicts(n: number) {
       conflictsToSimulate = n;
     },
@@ -973,5 +1028,152 @@ describe('server: livello della CPU', () => {
       expect(res!.rewards!.credits).toBe(expected + first);
       expect(db.profile!.progress.credits - before).toBe(expected + first);
     }
+  });
+});
+
+describe('campionati: punti e promozioni', () => {
+  const base = () => starterProgress(seededRng('r'));
+  it('dal Karting alla Formula 1', () => {
+    expect(LEAGUES.map((l) => l.id)).toEqual(['okj', 'ok', 'kz', 'f4', 'fr', 'f3', 'f2', 'f1']);
+    expect(leagueOf(0)).toBe(0);
+    expect(leagueOf(100)).toBe(1);
+    expect(leagueOf(299)).toBe(2);
+    expect(leagueOf(300)).toBe(3);
+    expect(leagueOf(99999)).toBe(7);
+  });
+  it('vittoria, pareggio, sconfitta; non si scende sotto l\'inizio del campionato', () => {
+    const w = applyRanked(base(), 'player');
+    expect(w.result).toMatchObject({ delta: RANKED_POINTS.player, points: 30, league: 0 });
+    // anche le categorie del Karting proteggono: da OK (100) non si torna in OK-Junior
+    expect(applyRanked({ ...base(), ranked: { points: 110, best: 1 } }, 'cpu').result.points).toBe(100);
+    expect(applyRanked(base(), 'cpu').result.points).toBe(0);
+    const p = { ...base(), ranked: { points: 310, best: 3 } };
+    expect(applyRanked(p, 'cpu').result).toMatchObject({ points: 300, delta: -10 });
+    expect(applyRanked({ ...p, ranked: { points: 350, best: 3 } }, 'cpu').result.points).toBe(330);
+  });
+  it('la promozione dà il premio una volta sola', () => {
+    const p = { ...base(), packs: 0, credits: 0, ranked: { points: 290, best: 2 } };
+    const up = applyRanked(p, 'player');
+    expect(up.result).toMatchObject({ promoted: 3, packs: PROMOTION_REWARD[3].packs, credits: PROMOTION_REWARD[3].credits });
+    expect(up.progress.packs).toBe(PROMOTION_REWARD[3].packs);
+    const again = applyRanked({ ...up.progress, ranked: { points: 290, best: 3 } }, 'player');
+    expect(again.result.promoted).toBeUndefined();
+  });
+});
+
+describe('server: gara classificata', () => {
+  function setup() {
+    const db = memoryDb();
+    const prof = (seed: string, points: number) => {
+      const p = starterProgress(seededRng(seed));
+      return { progress: { ...withDecks(p, [deckIds(p)], 0), ranked: { points, best: leagueOf(points) } }, version: 1 };
+    };
+    db.profiles.set('anna', prof('a', 100));
+    db.profiles.set('bruno', prof('b', 150));
+    db.profiles.set('carla', prof('c', 1400));
+    let clock = 1_000_000;
+    const c: Ctx = { today: '2026-10-16', rng: seededRng('ranked'), now: () => clock };
+    return { db, anna: db.as('anna', 'Anna'), bruno: db.as('bruno', 'Bruno'), carla: db.as('carla', 'Carla'), c, tick: (ms: number) => (clock += ms) };
+  }
+  const join = (s: Store, c: Ctx) => handle({ action: 'ranked_join', date: '2026-10-16' }, s, c);
+
+  it('nessuno in coda: si aspetta; arriva un giocatore con punti vicini e la gara parte per entrambi', async () => {
+    const t = setup();
+    const a = await join(t.anna, t.c);
+    expect(a.queue).toEqual({ waited: 0, searching: 0 });
+    t.tick(3000);
+    expect((await handle({ action: 'ranked_poll' }, t.anna, t.c)).queue!.waited).toBe(3000);
+    const b = await join(t.bruno, t.c);
+    expect(b.pvp).toMatchObject({ status: 'playing', bestOf: 1, opponent: 'Anna', opponentPoints: 100 });
+    expect(b.view!.history).toEqual([]);
+    const a2 = await handle({ action: 'ranked_poll' }, t.anna, t.c);
+    expect(a2.pvp).toMatchObject({ id: b.pvp!.id, opponent: 'Bruno', opponentPoints: 150 });
+    expect(t.db.queue.size).toBe(0);
+    // rientrare non crea una seconda gara
+    expect((await join(t.anna, t.c)).pvp!.id).toBe(b.pvp!.id);
+  });
+
+  it('punti troppo lontani: niente accoppiamento finché la ricerca non si allarga', async () => {
+    const t = setup();
+    await join(t.carla, t.c);
+    expect((await join(t.anna, t.c)).queue).toEqual({ waited: 0, searching: 1 });
+    t.tick(60_000);
+    await handle({ action: 'ranked_poll' }, t.carla, t.c); // Carla è ancora lì
+    expect((await handle({ action: 'ranked_poll' }, t.anna, t.c)).queue).toBeDefined();
+    t.tick(70_000);
+    await handle({ action: 'ranked_poll' }, t.carla, t.c);
+    expect((await handle({ action: 'ranked_poll' }, t.anna, t.c)).pvp).toBeDefined();
+  });
+
+  it('chi ha chiuso l\'app (non controlla da un po\') non viene preso; uscire dalla coda', async () => {
+    const t = setup();
+    await join(t.anna, t.c);
+    t.tick(20_000);
+    expect((await join(t.bruno, t.c)).queue).toBeDefined();
+    await handle({ action: 'ranked_cancel' }, t.bruno, t.c);
+    await expect(handle({ action: 'ranked_poll' }, t.bruno, t.c)).rejects.toThrow('not_queued');
+  });
+
+  it('partita secca: alla fine punti campionato a entrambi; chi abbandona perde', async () => {
+    const t = setup();
+    await join(t.anna, t.c);
+    const b = await join(t.bruno, t.c);
+    const id = b.pvp!.id;
+    const players = { anna: t.anna, bruno: t.bruno };
+    for (;;) {
+      const va = (await handle({ action: 'pvp_state', match: id }, t.anna, t.c)).view!;
+      if (va.outcome) break;
+      const who = va.chooser === 'player' ? 'anna' : 'bruno';
+      const vw = (await handle({ action: 'pvp_state', match: id }, players[who], t.c)).view!;
+      const stat = STATS.find((s) => !vw.usedStats.includes(s.key))!.key;
+      await handle({ action: 'pvp_play', match: id, game: 0, stat }, players[who], t.c);
+    }
+    const ra = await handle({ action: 'pvp_state', match: id }, t.anna, t.c);
+    const rb = await handle({ action: 'pvp_state', match: id }, t.bruno, t.c);
+    expect(ra.pvp!.status).toBe('finished');
+    const oa = ra.pvp!.seriesOutcome!;
+    const after = (pts: number, o: keyof typeof RANKED_POINTS) => Math.max(LEAGUES[leagueOf(pts)].min, pts + RANKED_POINTS[o]);
+    expect(ra.rewards!.ranked!.points).toBe(after(100, oa));
+    expect(rb.rewards!.ranked!.points).toBe(after(150, rb.pvp!.seriesOutcome!));
+    expect(t.db.profiles.get('anna')!.progress.ranked!.points).toBe(ra.rewards!.ranked!.points);
+    // nuova gara, Anna abbandona subito
+    await join(t.anna, t.c);
+    const b2 = await join(t.bruno, t.c);
+    expect(b2.pvp!.id).not.toBe(id);
+    const before = t.db.profiles.get('bruno')!.progress.ranked!.points;
+    await handle({ action: 'pvp_quit', match: b2.pvp!.id }, t.anna, t.c);
+    expect(t.db.profiles.get('bruno')!.progress.ranked!.points).toBe(before + RANKED_POINTS.player);
+  });
+
+  it('i punti campionato non arrivano mai dal telefono', async () => {
+    const guest = { ...starterProgress(seededRng('g')), ranked: { points: 5000, best: 5 } };
+    const res = await call(memoryStore().store, { action: 'profile_create', ...NEW_PROFILE, guest });
+    expect(res.progress!.ranked).toBeUndefined();
+  });
+});
+
+describe('server: invita un amico', () => {
+  it('il codice è sempre lo stesso; l\'amico che si iscrive con il codice ti porta 2 pacchetti (una volta sola)', async () => {
+    const db = memoryDb();
+    db.profiles.set('anna', { progress: { ...starterProgress(seededRng('a')), packs: 0 }, version: 1 });
+    const anna = db.as('anna');
+    const { inviteCode, referrals } = await call(anna, { action: 'invite_code' });
+    expect(inviteCode).toMatch(/^[A-Z2-9]{6}$/);
+    expect(referrals).toBe(0);
+    expect((await call(anna, { action: 'invite_code' })).inviteCode).toBe(inviteCode);
+    await call(db.as('dario'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Dario', referral: inviteCode!.toLowerCase() });
+    expect(db.profiles.get('anna')!.progress.packs).toBe(REFERRAL_PACKS);
+    expect((await call(anna, { action: 'invite_code' })).referrals).toBe(1);
+    // il proprio codice e quelli sbagliati non danno niente (e non bloccano l'iscrizione)
+    await call(db.as('ugo'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Ugo', referral: 'ZZZZZZ' });
+    expect(db.profiles.get('anna')!.progress.packs).toBe(REFERRAL_PACKS);
+  });
+
+  it('al massimo 10 amici premiati', async () => {
+    const db = memoryDb();
+    db.profiles.set('anna', { progress: { ...starterProgress(seededRng('a')), packs: 0, referrals: MAX_REFERRALS - 1 }, version: 1 });
+    const { inviteCode } = await call(db.as('anna'), { action: 'invite_code' });
+    for (const n of ['Uno', 'Due']) await call(db.as(n), { action: 'profile_create', ...NEW_PROFILE, nickname: n, referral: inviteCode });
+    expect(db.profiles.get('anna')!.progress).toMatchObject({ packs: REFERRAL_PACKS, referrals: MAX_REFERRALS });
   });
 });

@@ -37,6 +37,57 @@ export function takeChallengeCode(): string | null {
   }
 }
 
+// Link d'invito (…/?invito=CODICE): il codice resta ricordato finché l'amico non crea il profilo.
+const INVITE_PARAM = 'invito';
+const INVITE_KEY = 'f1-card-battle:invite-code';
+export const inviteLink = (code: string) => `${baseUrl()}?${INVITE_PARAM}=${encodeURIComponent(code)}`;
+
+export function takeInviteCode(): string {
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has(INVITE_PARAM)) {
+      const code = (url.searchParams.get(INVITE_PARAM) ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+      url.searchParams.delete(INVITE_PARAM);
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+      if (code) localStorage.setItem(INVITE_KEY, code);
+    }
+    return localStorage.getItem(INVITE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export function clearInviteCode() {
+  try {
+    localStorage.removeItem(INVITE_KEY);
+  } catch {
+    /* niente memoria */
+  }
+}
+
+// Condivide testo e link: menu del telefono (app Android o browser), altrimenti copia negli appunti.
+export async function shareLink(text: string, url: string): Promise<'shared' | 'copied' | 'none'> {
+  try {
+    if (Capacitor.isNativePlatform()) {
+      const { Share } = await import('@capacitor/share');
+      await Share.share({ title: 'Driver Clash', text, url });
+      return 'shared';
+    }
+    if (navigator.share) {
+      await navigator.share({ text, url });
+      return 'shared';
+    }
+  } catch {
+    /* condivisione annullata: si copia e basta */
+  }
+  try {
+    await navigator.clipboard.writeText(`${text}\n${url}`);
+    return 'copied';
+  } catch {
+    return 'none';
+  }
+}
+
 export function clearChallengeCode() {
   try {
     sessionStorage.removeItem(KEY);

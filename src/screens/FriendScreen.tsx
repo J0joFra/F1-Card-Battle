@@ -10,6 +10,7 @@ import { DECK_SIZE, TURN_SECONDS } from '../game/engine';
 import type { Account } from '../hooks/useAccount';
 import type { Friend, GameResponse, PvpInfo } from '../server/actions';
 import { PlayerAvatar } from '../components/PlayerAvatar';
+import { InviteFriend } from '../components/Ranked';
 import { HelpButton } from '../components/TutorialSection';
 import { askConfirm } from '../components/ConfirmDialog';
 import { haptic, sfx } from '../lib/feedback';
@@ -262,6 +263,8 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
           <Users size={18} /> {t('fr_create')}
         </button>
       </section>
+
+      <InviteFriend />
     </div>
   );
 }

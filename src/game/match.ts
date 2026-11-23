@@ -1,4 +1,5 @@
 import type { Card, StatKey } from '../types';
+import type { RankedResult } from './ranked';
 import { CARD_BY_ID } from './cards';
 import { DAILY_REWARD_CREDITS, finishDaily, missionDone, missionsAfterMatch, missionsFor } from './daily';
 import { cpuChooseStat, handOf, type CpuLevel, matchOutcome, passTurn, playHandRound, playRound, type HandMove, type JollyKind, type MatchOutcome, type MatchState, type Side } from './engine';
@@ -135,6 +136,7 @@ export interface MatchRewards {
   missionsCompleted: number; // missioni completate da questa partita
   credits: number; // crediti della partita (prima vittoria del giorno compresa, sfida del giorno esclusa)
   firstWin?: boolean; // premio "prima vittoria del giorno"
+  ranked?: RankedResult; // gara classificata: punti, campionato, promozione
 }
 
 export interface MatchEndOptions {

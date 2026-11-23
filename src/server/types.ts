@@ -12,7 +12,7 @@ export type GameRequest =
   | { action: 'sync'; guest?: Partial<Progress> }
   // account senza Google: profilo con nickname, avatar e pilota preferito
   // (recover: app vecchie, accesso con il solo codice)
-  | { action: 'profile_create'; nickname?: string; avatar?: Avatar; favorite?: string | null; guest?: Partial<Progress>; recover?: string }
+  | { action: 'profile_create'; nickname?: string; avatar?: Avatar; favorite?: string | null; guest?: Partial<Progress>; recover?: string; referral?: string }
   | { action: 'profile_update'; nickname?: string; avatar?: Avatar; favorite?: string | null }
   // accesso da un altro dispositivo: username (il nickname) e codice di recupero (la password)
   | { action: 'login'; username: string; code: string }
@@ -48,6 +48,12 @@ export type GameRequest =
   | { action: 'pvp_play'; match: string; game: number; stat: StatKey }
   | { action: 'pvp_pass'; match: string; game: number } // tempo scaduto: sceglie l'amico
   | { action: 'pvp_quit'; match: string }
+  // gara classificata: coda per trovare un avversario con punti simili (partita secca, mazzo in uso)
+  | { action: 'ranked_join'; date: string }
+  | { action: 'ranked_poll' }
+  | { action: 'ranked_cancel' }
+  // invita un amico: il tuo codice invito (si crea la prima volta)
+  | { action: 'invite_code' }
   // amici e presenza online
   | { action: 'ping' }
   | { action: 'friends' }
@@ -77,6 +83,8 @@ export interface PvpRecord {
   forfeit: Side | null; // chi ha abbandonato
   rewards: { host?: MatchRewards; guest?: MatchRewards };
   createdAt: number;
+  bestOf?: number; // partite della serie (assente = 3); la gara classificata è secca (1)
+  ranked?: { host: number; guest: number }; // gara classificata: punti campionato dei due all'inizio
 }
 
 // cosa sa il telefono della sfida
@@ -93,6 +101,22 @@ export interface PvpInfo {
   sinceMove: number | null; // ms dall'ultima mossa: i due telefoni passano alla carta successiva insieme
   opponentLeft: boolean;
   opponentIsFriend: boolean;
+  bestOf: number; // 3 nella sfida tra amici, 1 nella gara classificata
+  opponentPoints?: number; // gara classificata: punti campionato dell'avversario
+}
+
+// in coda per la gara classificata
+export interface QueueInfo {
+  waited: number; // ms
+  searching: number; // altri giocatori in coda in questo momento
+}
+
+export interface QueueRow {
+  user: string;
+  name: string | null;
+  points: number;
+  deck: string[];
+  date: string;
 }
 
 export interface Friend {
@@ -165,6 +189,9 @@ export interface GameResponse {
   username?: string; // amministratori: username dell'account (per l'email al giocatore)
   email?: string; // amministratori: email a cui mandare il nuovo codice
   supportRequests?: SupportRequestView[];
+  queue?: QueueInfo; // gara classificata: ancora in cerca di un avversario
+  inviteCode?: string; // il tuo codice invito
+  referrals?: number; // amici che si sono iscritti con il tuo codice
 }
 
 // dati del profilo salvati accanto alla progressione
@@ -237,4 +264,21 @@ export interface Store {
   isFriend(other: string): Promise<boolean>;
   addFriend(other: string): Promise<void>; // amicizia reciproca
   removeFriend(other: string): Promise<void>;
+  // gara classificata: entra (o resta) in coda, con l'ora dell'ultimo controllo; joinedAt resta quello del primo ingresso
+  queueJoin(row: Omit<QueueRow, 'user'>, now: number): Promise<{ joinedAt: number }>;
+  // aggiorna "visto adesso"; null se non sei più in coda (preso da un avversario o mai entrato)
+  queueTouch(now: number): Promise<(Omit<QueueRow, 'user'> & { joinedAt: number }) | null>;
+  queueLeave(): Promise<void>;
+  // prende (e toglie dalla coda, insieme a te) un altro giocatore in coda da poco, con punti tra lo e hi; il più
+  // vicino ai tuoi punti. Atomico: due richieste non possono prendere lo stesso giocatore.
+  queueClaim(points: number, lo: number, hi: number, freshSince: number): Promise<QueueRow | null>;
+  queueCount(freshSince: number): Promise<number>;
+  // gara classificata in corso (o appena iniziata) di cui fai parte
+  activeRanked(): Promise<{ id: string; rec: PvpRecord } | null>;
+  // inviti: il tuo codice (null se non c'è ancora), crearlo (false se già usato da un altro), chi ha quel codice,
+  // e chi ti ha invitato (si segna una volta sola: false se c'era già)
+  getInviteCode(): Promise<string | null>;
+  setInviteCode(code: string): Promise<boolean>;
+  findByInviteCode(code: string): Promise<string | null>;
+  setInvitedBy(inviter: string): Promise<boolean>;
 }
