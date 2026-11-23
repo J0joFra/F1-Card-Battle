@@ -20,6 +20,8 @@ export interface RoundView {
   winner: Side | 'tie';
   jolly?: JollyKind;
   neutralized?: boolean;
+  cpuJolly?: JollyKind; // gare online: jolly dell'avversario
+  cpuNeutralized?: boolean;
 }
 
 export interface MatchView {
@@ -35,6 +37,10 @@ export interface MatchView {
   sinceMove?: number; // sfida tra amici: ms passati dall'ultima mossa (per cambiare carta insieme)
   hand?: string[]; // modalità Strategica: le tue carte in mano (la prima è `current`)
   jollyUsed?: boolean; // jolly di gara già usato in questa partita
+  // gare online in modalità Strategica: hai già scelto (in attesa dell'avversario) / l'avversario ha già scelto.
+  // La sua mossa resta segreta finché il round non si scopre.
+  committed?: boolean;
+  oppCommitted?: boolean;
 }
 
 export function toView(s: MatchState): MatchView {
@@ -52,12 +58,16 @@ export function toView(s: MatchState): MatchView {
       winner: h.winner,
       ...(h.jolly ? { jolly: h.jolly } : {}),
       ...(h.neutralized ? { neutralized: true } : {}),
+      ...(h.cpuJolly ? { cpuJolly: h.cpuJolly } : {}),
+      ...(h.cpuNeutralized ? { cpuNeutralized: true } : {}),
     })),
     current: outcome ? null : (s.player[s.round]?.id ?? null),
     outcome,
     ...(s.passed ? { passed: true } : {}),
     ...(s.hand ? { hand: outcome ? [] : handOf(s, 'player').map((c) => c.id) } : {}),
     ...(s.jollyUsed ? { jollyUsed: true } : {}),
+    ...(s.pending?.player ? { committed: true } : {}),
+    ...(s.pending?.cpu ? { oppCommitted: true } : {}),
   };
 }
 
@@ -73,6 +83,8 @@ export interface StoredMatch {
   passed?: boolean;
   hand?: number;
   jollyUsed?: boolean;
+  cpuJollyUsed?: boolean;
+  pending?: Partial<Record<Side, HandMove>>;
   level?: CpuLevel;
 }
 
@@ -95,6 +107,8 @@ export function storeMatch(s: MatchState): StoredMatch {
     ...(s.passed ? { passed: true } : {}),
     ...(s.hand ? { hand: s.hand } : {}),
     ...(s.jollyUsed ? { jollyUsed: true } : {}),
+    ...(s.cpuJollyUsed ? { cpuJollyUsed: true } : {}),
+    ...(s.pending && (s.pending.player || s.pending.cpu) ? { pending: s.pending } : {}),
     ...(s.level ? { level: s.level } : {}),
   };
 }
@@ -110,6 +124,8 @@ export function loadMatch(m: StoredMatch): MatchState {
     passed: !!m.passed,
     ...(m.hand ? { hand: m.hand } : {}),
     ...(m.jollyUsed ? { jollyUsed: true } : {}),
+    ...(m.cpuJollyUsed ? { cpuJollyUsed: true } : {}),
+    ...(m.pending ? { pending: m.pending } : {}),
     ...(m.level ? { level: m.level } : {}),
     history: m.history.map((h) => ({
       stat: h.stat,
@@ -119,6 +135,8 @@ export function loadMatch(m: StoredMatch): MatchState {
       winner: h.winner,
       ...(h.jolly ? { jolly: h.jolly } : {}),
       ...(h.neutralized ? { neutralized: true } : {}),
+      ...(h.cpuJolly ? { cpuJolly: h.cpuJolly } : {}),
+      ...(h.cpuNeutralized ? { cpuNeutralized: true } : {}),
     })),
   };
 }
@@ -214,12 +232,20 @@ export function flipMatch(s: MatchState): MatchState {
     usedStats: s.usedStats,
     score: { player: s.score.cpu, cpu: s.score.player },
     passed: s.passed,
+    ...(s.hand ? { hand: s.hand } : {}),
+    ...(s.cpuJollyUsed ? { jollyUsed: true } : {}),
+    ...(s.jollyUsed ? { cpuJollyUsed: true } : {}),
+    ...(s.pending ? { pending: { ...(s.pending.cpu ? { player: s.pending.cpu } : {}), ...(s.pending.player ? { cpu: s.pending.player } : {}) } } : {}),
     history: s.history.map((h) => ({
       stat: h.stat,
       chooser: other(h.chooser),
       playerCard: h.cpuCard,
       cpuCard: h.playerCard,
       winner: h.winner === 'tie' ? 'tie' : other(h.winner),
+      ...(h.cpuJolly ? { jolly: h.cpuJolly } : {}),
+      ...(h.cpuNeutralized ? { neutralized: true } : {}),
+      ...(h.jolly ? { cpuJolly: h.jolly } : {}),
+      ...(h.neutralized ? { cpuNeutralized: true } : {}),
     })),
   };
 }

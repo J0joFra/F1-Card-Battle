@@ -45,7 +45,8 @@ export type GameRequest =
   | { action: 'pvp_accept'; match: string; date: string }
   | { action: 'pvp_decline'; match: string }
   | { action: 'pvp_state'; match: string; game?: number }
-  | { action: 'pvp_play'; match: string; game: number; stat: StatKey }
+  // nella modalità Strategica (gara classificata) anche la carta della mano e il jolly; la metrica solo se guidi tu
+  | { action: 'pvp_play'; match: string; game: number; stat?: StatKey; card?: number; jolly?: JollyKind }
   | { action: 'pvp_pass'; match: string; game: number } // tempo scaduto: sceglie l'amico
   | { action: 'pvp_quit'; match: string }
   // gara classificata: coda per trovare un avversario con punti simili (partita secca, mazzo in uso)

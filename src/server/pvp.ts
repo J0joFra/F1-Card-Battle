@@ -1,10 +1,16 @@
 import { STATS } from '../game/cards';
-import { activeSlot, deckSlots, seriesDecks } from '../game/collection';
+import { activeSlot, boostsOf, deckSlots, seriesDecks, spendBoost } from '../game/collection';
 import { applyRanked, QUEUE_FRESH_MS, QUEUE_WINDOW, rankedOf } from '../game/ranked';
 import {
   availableStats,
+  autoMove,
   bestStat,
+  commitMove,
   currentCards,
+  HAND_SIZE,
+  isJollyKind,
+  jollyUsedBy,
+  resolveCommitted,
   isAvailable,
   matchOutcome,
   newMatch,
@@ -104,6 +110,17 @@ async function passChoice(store: Store, ctx: Ctx, id: string, rec: PvpRecord, re
   const games = [...rec.games];
   games[games.length - 1] = storeMatch(passTurn(state));
   const saved: PvpRecord = { ...rec, games, deadline: nowOf(ctx) + PVP_TURN_MS };
+  if (!(await store.updatePvp(id, saved, rev))) throw new GameError('busy', 409);
+  return saved;
+}
+
+// Modalità Strategica: salva la mossa segreta; se ha scelto anche l'altro, il round si gioca.
+async function commitHand(store: Store, ctx: Ctx, id: string, rec: PvpRecord, rev: number, state: MatchState) {
+  const resolved = resolveCommitted(state);
+  if (resolved) return advance(store, ctx, id, rec, rev, resolved);
+  const games = [...rec.games];
+  games[games.length - 1] = storeMatch(state);
+  const saved: PvpRecord = { ...rec, games };
   if (!(await store.updatePvp(id, saved, rev))) throw new GameError('busy', 409);
   return saved;
 }
@@ -214,7 +231,8 @@ async function tryPair(store: Store, ctx: Ctx, me: Omit<QueueRow, 'user'> & { jo
     const searching = Math.max(0, (await store.queueCount(fresh)) - 1);
     return { queue: { waited: now - me.joinedAt, searching } };
   }
-  const first = newMatch(opp.deck.map(cardOrThrow), me.deck.map(cardOrThrow), ctx.rng, ctx.rng() < 0.5 ? 'player' : 'cpu');
+  // gara classificata: modalità Strategica (mano di 3 carte, jolly di gara per entrambi)
+  const first = newMatch(opp.deck.map(cardOrThrow), me.deck.map(cardOrThrow), ctx.rng, ctx.rng() < 0.5 ? 'player' : 'cpu', HAND_SIZE);
   const rec: PvpRecord = {
     code: newCode(ctx),
     status: 'playing',
@@ -313,7 +331,12 @@ export async function handlePvp(req: GameRequest, store: Store, ctx: Ctx): Promi
         const state = loadMatch(rec.games[rec.games.length - 1]);
         const { player, cpu } = currentCards(state);
         try {
-          if (!state.passed && !matchOutcome(state)) rec = await passChoice(store, ctx, req.match, rec, rev, state);
+          if (state.hand && !matchOutcome(state)) {
+            // Strategica: chi non ha scelto gioca la prima carta (e, se guida, la metrica migliore)
+            let s = state;
+            for (const side of ['player', 'cpu'] as const) if (!s.pending?.[side]) s = commitMove(s, side, autoMove(s, side));
+            rec = await commitHand(store, ctx, req.match, rec, rev, s);
+          } else if (!state.passed && !matchOutcome(state)) rec = await passChoice(store, ctx, req.match, rec, rev, state);
           else {
             const next = playRound(state, bestStat(state.chooser === 'player' ? player : cpu, availableStats(state)));
             rec = await advance(store, ctx, req.match, rec, rev, next);
@@ -332,6 +355,27 @@ export async function handlePvp(req: GameRequest, store: Store, ctx: Ctx): Promi
       if (req.game !== rec.games.length - 1) throw new GameError('not_your_turn', 409);
       const side = sideOf(rec, store.me.id)!;
       const state = loadMatch(rec.games[req.game]);
+      if (state.hand) {
+        // Strategica: tutti e due scelgono in segreto la carta (chi guida anche la metrica), poi si scopre
+        if (state.pending?.[side]) throw new GameError('not_your_turn', 409);
+        if (req.jolly !== undefined && (!isJollyKind(req.jolly) || jollyUsedBy(state, side))) throw new GameError('bad_jolly');
+        if (req.jolly && boostsOf(await myProgress(store), req.jolly) <= 0) throw new GameError('no_jolly');
+        const free = req.stat && STATS.some((s) => s.key === req.stat) ? req.stat : undefined;
+        let committed: MatchState;
+        try {
+          committed = commitMove(state, side, { card: Number(req.card ?? 0), stat: free, jolly: req.jolly });
+        } catch {
+          throw new GameError(state.chooser === side && !free ? 'bad_stat' : 'bad_card');
+        }
+        const next = await commitHand(store, ctx, req.match, rec, rev, committed);
+        const res = await pvpResponse(store, req.match, next, now, req.game);
+        if (req.jolly) {
+          const kind = req.jolly;
+          const spent = await withProfile(store, ctx, (p) => ({ progress: spendBoost(p, kind) ?? p }));
+          if (!res.progress) res.progress = spent.progress;
+        }
+        return res;
+      }
       if (state.chooser !== side) throw new GameError('not_your_turn', 409);
       if (!req.stat || !STATS.some((s) => s.key === req.stat) || !isAvailable(state, req.stat)) throw new GameError('bad_stat');
       const next = await advance(store, ctx, req.match, rec, rev, playRound(state, req.stat));
@@ -344,7 +388,8 @@ export async function handlePvp(req: GameRequest, store: Store, ctx: Ctx): Promi
       if (rec.status !== 'playing') throw new GameError('match_finished');
       if (req.game !== rec.games.length - 1) throw new GameError('not_your_turn', 409);
       const state = loadMatch(rec.games[req.game]);
-      if (state.chooser !== sideOf(rec, store.me.id) || state.passed) throw new GameError('not_your_turn', 409);
+      // Strategica: il tempo lo gestisce il server (allo scadere gioca la prima carta)
+      if (state.hand || state.chooser !== sideOf(rec, store.me.id) || state.passed) throw new GameError('not_your_turn', 409);
       const next = await passChoice(store, ctx, req.match, rec, rev, state);
       return pvpResponse(store, req.match, next, now, req.game);
     }
