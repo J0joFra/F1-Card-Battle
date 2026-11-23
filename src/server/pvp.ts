@@ -143,7 +143,7 @@ async function advance(store: Store, ctx: Ctx, id: string, rec: PvpRecord, rev: 
     const g = games.length;
     const firstBefore = rec.games[g - 1]?.history[0]?.chooser ?? 'player';
     const chooser: Side = gameOver === 'draw' ? other(firstBefore) : other(gameOver);
-    const m = newMatch(rec.hostDecks[g].map(cardOrThrow), rec.guestDecks![g].map(cardOrThrow), ctx.rng, chooser);
+    const m = newMatch(rec.hostDecks[g].map(cardOrThrow), rec.guestDecks![g].map(cardOrThrow), ctx.rng, chooser, HAND_SIZE);
     games.push(storeMatch(m));
     deadline = now + PVP_REVEAL_MS + PVP_TURN_MS + NEXT_GAME_MS;
   }
@@ -200,7 +200,11 @@ async function loadPvp(store: Store, id: unknown) {
 async function startSeries(store: Store, ctx: Ctx, id: string, rec: PvpRecord, rev: number, date: string) {
   const now = nowOf(ctx);
   const guestDecks = decksOrThrow(await myProgress(store));
-  const first = newMatch(rec.hostDecks[0].map(cardOrThrow), guestDecks[0].map(cardOrThrow), ctx.rng, ctx.rng() < 0.5 ? 'player' : 'cpu');
+  // modalità Strategica (mano di 3 carte e jolly), come nella gara classificata ma senza coppe;
+  // la prima partita la guida chi ha la carta più debole, le altre chi ha perso la precedente
+  const hostDeck = rec.hostDecks[0].map(cardOrThrow);
+  const guestDeck = guestDecks[0].map(cardOrThrow);
+  const first = newMatch(hostDeck, guestDeck, ctx.rng, firstLeader(hostDeck, guestDeck, 0, 0, ctx.rng), HAND_SIZE);
   const next: PvpRecord = {
     ...rec,
     status: 'playing',

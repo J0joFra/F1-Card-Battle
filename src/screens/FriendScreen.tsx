@@ -184,6 +184,7 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
       </header>
       <ul className="odds-chips">
         <li>⚔️ {t('fr_bo3')}</li>
+        <li>🃏 {t('rules_hand')} · {t('rules_hand_sub')}</li>
         <li>🏆 {coin()} +{FRIEND_WIN_CREDITS}</li>
         <li>🤝 {coin()} +{FRIEND_DRAW_CREDITS}</li>
       </ul>
