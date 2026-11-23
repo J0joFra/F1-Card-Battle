@@ -2,7 +2,8 @@ import { Check, Lock, Trophy } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 import { LEAGUES, PROMOTION_REWARD, RANKED_POINTS, leagueProgress, rankedOf } from '../game/ranked';
 import type { Progress } from '../game/collection';
-import { InviteFriend, LeagueBadge, leagueName } from '../components/Ranked';
+import { LeagueBadge, leagueName } from '../components/Ranked';
+import type { ReactNode } from 'react';
 import { coin } from '../lib/season';
 
 /*
@@ -15,18 +16,17 @@ interface Props {
   busy: boolean;
   onPlay: () => void;
   onProfile: () => void;
+  tabs: ReactNode; // schede Campionato / Amici
 }
 
-export function RankedScreen({ progress, online, busy, onPlay, onProfile }: Props) {
+export function RankedScreen({ progress, online, busy, onPlay, onProfile, tabs }: Props) {
   const { t } = useI18n();
   const { points, best } = rankedOf(progress);
   const { league, ratio, toNext } = leagueProgress(points);
   const road = LEAGUES.map((l, i) => ({ ...l, i })).reverse();
   return (
     <div className="screen ranked">
-      <header className="screen-head">
-        <h2>{t('rk_screen')}</h2>
-      </header>
+      <header className="screen-head">{tabs}</header>
 
       <section className={`rk-hero lg-${LEAGUES[league].id}`}>
         <LeagueBadge league={league} size={96} />
@@ -93,7 +93,6 @@ export function RankedScreen({ progress, online, busy, onPlay, onProfile }: Prop
         </ol>
       </section>
 
-      {online && <InviteFriend />}
     </div>
   );
 }

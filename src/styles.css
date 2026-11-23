@@ -1550,3 +1550,35 @@ button.ranked-head { background: none; border: 0; padding: 0; color: inherit; te
 .rk-reward { display: inline-flex; align-items: center; gap: 2px; font-size: 13px; font-weight: 800; white-space: nowrap; }
 .rk-reward.got { color: var(--win); }
 .rk-step.next .rk-reward { color: var(--muted); }
+
+/* rimpaginata: barra del profilo, gara online, riquadri di gioco, schede della sezione Ranked */
+.player-bar {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 12px 8px 8px; text-align: left; color: inherit;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); cursor: pointer;
+}
+.player-bar.guest { padding: 12px 14px; }
+.pb-name { display: grid; flex: 1; min-width: 0; line-height: 1.15; }
+.pb-name b { font-size: 16px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pb-name small { color: var(--muted); font-size: 12px; font-weight: 700; }
+.pb-cups { display: inline-flex; align-items: center; gap: 4px; font-weight: 900; color: #d79b00; }
+.pb-cups svg { flex: none; }
+.race-btn { position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; gap: 12px; padding-bottom: 20px; }
+.race-btn > span:not(.race-bar) { display: grid; text-align: left; line-height: 1.1; }
+.race-btn small { font-size: 12px; font-weight: 700; text-transform: none; letter-spacing: 0; opacity: 0.9; }
+.race-bar { position: absolute; left: 18px; right: 18px; bottom: 8px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.3); }
+.race-bar > span { display: block; height: 100%; border-radius: 2px; background: #fff; }
+.play-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+.play-tile {
+  display: grid; justify-items: start; gap: 2px; padding: 12px 14px; text-align: left; color: inherit; min-width: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); cursor: pointer;
+}
+.play-tile svg { color: var(--accent); margin-bottom: 4px; }
+.play-tile b { font-size: 15px; font-weight: 900; }
+.play-tile small { font-size: 11px; color: var(--muted); font-weight: 700; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.training-sheet { display: grid; gap: 14px; }
+.training-sheet .play-quick { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.training-sheet .play-quick > span { display: grid; text-align: left; line-height: 1.1; }
+.training-sheet .play-quick small { font-size: 11px; font-weight: 700; text-transform: none; letter-spacing: 0; opacity: 0.85; }
+.social-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; flex: 1; padding: 4px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); }
+.social-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 8px; border: 0; border-radius: 10px; background: none; color: var(--muted); font-weight: 900; font-size: 14px; cursor: pointer; }
+.social-tabs button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }

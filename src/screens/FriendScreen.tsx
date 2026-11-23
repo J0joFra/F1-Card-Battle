@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { noteFriends } from '../lib/achievements';
 import { coin } from '../lib/season';
 import { Copy, Layers, Share2, Swords, UserMinus, Users } from 'lucide-react';
@@ -31,9 +31,10 @@ interface Props {
   onStart: (res: GameResponse) => void; // l'avversario è entrato: si gioca
   onCancel: (declined?: boolean) => void;
   onProfile: () => void; // crea il profilo (serve per sfidare gli amici)
+  tabs?: ReactNode; // schede Campionato / Amici (sezione Ranked)
 }
 
-export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEditDecks, onStart, onCancel, onProfile }: Props) {
+export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEditDecks, onStart, onCancel, onProfile, tabs }: Props) {
   const { t } = useI18n();
   const [code, setCode] = useState('');
   const [copied, setCopied] = useState(false);
@@ -135,7 +136,7 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
     return (
       <div className="screen friend">
         <header className="screen-head">
-          <h2>{t('fr_title')}</h2>
+          {tabs ?? <h2>{t('fr_title')}</h2>}
           {help}
         </header>
         <section className="panel">
@@ -152,7 +153,7 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
     return (
       <div className="screen friend">
         <header className="screen-head">
-          <h2>{t('fr_title')}</h2>
+          {tabs ?? <h2>{t('fr_title')}</h2>}
         </header>
         <section className="panel">
           {lobby.invited ? (
@@ -179,7 +180,7 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
   return (
     <div className="screen friend">
       <header className="screen-head">
-        <h2>{t('fr_title')}</h2>
+        {tabs ?? <h2>{t('fr_title')}</h2>}
         {help}
       </header>
       <ul className="odds-chips">
