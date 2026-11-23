@@ -1582,3 +1582,41 @@ button.ranked-head { background: none; border: 0; padding: 0; color: inherit; te
 .social-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; flex: 1; padding: 4px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); }
 .social-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 8px; border: 0; border-radius: 10px; background: none; color: var(--muted); font-weight: 900; font-size: 14px; cursor: pointer; }
 .social-tabs button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+
+/* collezione: riepilogo per rarità, barra strumenti, griglia a 3 colonne */
+.col-summary { gap: 10px; padding: 12px; }
+.col-total { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 6px 8px; }
+.col-total b { font-size: 26px; font-weight: 900; line-height: 1; }
+.col-total .bar { margin-left: 6px; }
+.col-rarities { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.col-rarity {
+  --r: var(--muted);
+  display: grid; justify-items: start; gap: 1px; padding: 6px 8px; min-width: 0; text-align: left; color: inherit; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2);
+}
+.col-rarity.rarity-bronzo { --r: var(--bronzo); }
+.col-rarity.rarity-argento { --r: var(--argento); }
+.col-rarity.rarity-oro { --r: var(--oro); }
+.col-rarity.rarity-platino { --r: var(--platino); }
+.col-rarity.rarity-leggendaria { --r: var(--leggendaria); }
+.col-rarity.rarity-classica { --r: var(--classica); }
+.col-rarity.rarity-pioniere { --r: var(--pioniere); }
+.col-rarity small { display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 800; letter-spacing: -0.2px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.col-rarity .cr-dot { display: none; }
+.col-rarity b { display: inline-flex; align-items: center; gap: 5px; }
+.col-rarity b::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--r); }
+.col-rarity b { font-size: 15px; font-weight: 900; }
+.col-rarity b .muted { font-size: 11px; font-weight: 700; }
+.col-rarity.on { border-color: var(--r); background: color-mix(in srgb, var(--r) 18%, var(--surface)); box-shadow: 0 0 0 1px var(--r) inset; }
+.col-toolbar { display: flex; gap: 8px; align-items: center; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; flex: 1; gap: 2px; padding: 3px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
+.seg button { padding: 7px 4px; border: 0; border-radius: 9px; background: none; color: var(--muted); font-weight: 800; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.seg button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+.col-sort { display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; height: 38px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); }
+.col-sort select { border: 0; background: none; color: var(--text); font: inherit; font-weight: 800; font-size: 13px; padding: 0; }
+.col-result { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; }
+.col-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 8px; }
+.col-grid .grid-item .flip { width: 150px; zoom: 0.68; }
+@media (min-width: 400px) { .col-grid .grid-item .flip { zoom: 0.76; } }
+@media (min-width: 460px) { .col-grid .grid-item .flip { zoom: 0.86; } }
+@media (min-width: 560px) { .col-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } .col-grid .grid-item .flip { zoom: 0.8; } }
