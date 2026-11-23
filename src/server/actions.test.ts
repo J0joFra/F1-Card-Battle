@@ -660,11 +660,13 @@ describe('server: sfida tra amici (al meglio di 3)', () => {
     for (;;) {
       const va = (await handle({ action: 'pvp_state', match: t.id, game }, t.anna, t.c)).view!;
       if (va.outcome) return va;
-      const who = va.chooser === 'player' ? 'anna' : 'bruno';
-      const vw = who === 'anna' ? va : (await handle({ action: 'pvp_state', match: t.id, game }, t.bruno, t.c)).view!;
-      const stat = STATS.find((s) => !vw.usedStats.includes(s.key))!.key;
-      await expect(handle({ action: 'pvp_play', match: t.id, game, stat }, players[who === 'anna' ? 'bruno' : 'anna'], t.c)).rejects.toThrow('not_your_turn');
-      await handle({ action: 'pvp_play', match: t.id, game, stat }, players[who], t.c);
+      // Strategica: tutti e due scelgono la prima carta in segreto, chi guida anche la prima metrica libera
+      for (const who of ['anna', 'bruno'] as const) {
+        const v = (await handle({ action: 'pvp_state', match: t.id, game }, players[who], t.c)).view!;
+        const stat = v.chooser === 'player' ? STATS.find((s) => !v.usedStats.includes(s.key))!.key : undefined;
+        await handle({ action: 'pvp_play', match: t.id, game, card: 0, ...(stat ? { stat } : {}) }, players[who], t.c);
+        if (who === 'anna') await expect(handle({ action: 'pvp_play', match: t.id, game, card: 0 }, t.anna, t.c)).rejects.toThrow('not_your_turn');
+      }
     }
   }
 
@@ -716,46 +718,32 @@ describe('server: sfida tra amici (al meglio di 3)', () => {
     expect(pa.wins + pa.losses + pa.draws).toBe(1); // la serie conta come una partita
   });
 
-  it('tempo scaduto: la scelta passa all\'avversario; se scade anche il suo, il server gioca la metrica migliore', async () => {
+  it('Strategica anche tra amici: mano di 3 carte; allo scadere del tempo il server gioca per chi non ha scelto', async () => {
     const t = await startPvp();
     const before = (await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c)).view!;
+    expect(before.hand).toHaveLength(3);
     t.tick(PVP_TURN_MS - 1000);
-    expect((await handle({ action: 'pvp_state', match: t.id }, t.bruno, t.c)).view!.round).toBe(before.round);
+    expect((await handle({ action: 'pvp_state', match: t.id }, t.bruno, t.c)).view!.round).toBe(0);
     t.tick(2000);
-    const passed = (await handle({ action: 'pvp_state', match: t.id }, t.bruno, t.c)).view!;
-    expect(passed.round).toBe(before.round);
-    expect(passed.passed).toBe(true);
-    // Bruno vede la partita "dal suo lato": prima sceglieva Anna (cpu per lui), ora sceglie lui, o viceversa
-    const annaView = (await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c)).view!;
-    expect(annaView.chooser).not.toBe(before.chooser);
-    t.tick(PVP_TURN_MS + 1000);
-    const after = await handle({ action: 'pvp_state', match: t.id }, t.bruno, t.c);
-    expect(after.view!.round).toBe(before.round + 1);
-    expect(after.view!.passed).toBeUndefined();
+    const after = (await handle({ action: 'pvp_state', match: t.id }, t.bruno, t.c)).view!;
+    expect(after.round).toBe(1);
+    expect(after.history).toHaveLength(1);
   });
 
-  it('chi lascia scadere il tempo passa la scelta all\'amico (una volta per round)', async () => {
+  it('nella Strategica il tempo lo gestisce il server: «passa» non si usa', async () => {
     const t = await startPvp();
-    const first = (await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c)).view!;
-    const [chooser, waiter] = first.chooser === 'player' ? [t.anna, t.bruno] : [t.bruno, t.anna];
-    await expect(handle({ action: 'pvp_pass', match: t.id, game: 0 }, waiter, t.c)).rejects.toThrow('not_your_turn');
-    const res = await handle({ action: 'pvp_pass', match: t.id, game: 0 }, chooser, t.c);
-    expect(res.view!.chooser).toBe('cpu');
-    expect(res.view!.passed).toBe(true);
-    const other = (await handle({ action: 'pvp_state', match: t.id }, waiter, t.c)).view!;
-    expect(other.chooser).toBe('player');
-    await expect(handle({ action: 'pvp_pass', match: t.id, game: 0 }, waiter, t.c)).rejects.toThrow('not_your_turn');
+    for (const s of [t.anna, t.bruno]) await expect(handle({ action: 'pvp_pass', match: t.id, game: 0 }, s, t.c)).rejects.toThrow('not_your_turn');
   });
 
   it('dopo una mossa i due telefoni sanno da quanto è stata fatta, e il turno dopo parte a fine rivelazione', async () => {
     const t = await startPvp();
     const first = (await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c)).view!;
-    const mover = first.chooser === 'player' ? t.anna : t.bruno;
-    const stat = STATS.find((x) => !first.usedStats.includes(x.key))!.key;
-    const moved = await handle({ action: 'pvp_play', match: t.id, game: 0, stat }, mover, t.c);
+    const [leader, follower] = first.chooser === 'player' ? [t.anna, t.bruno] : [t.bruno, t.anna];
+    await handle({ action: 'pvp_play', match: t.id, game: 0, card: 0 }, follower, t.c);
+    const moved = await handle({ action: 'pvp_play', match: t.id, game: 0, card: 0, stat: STATS[0].key }, leader, t.c);
     expect(moved.pvp!.sinceMove).toBe(0);
     t.tick(1200);
-    const other = await handle({ action: 'pvp_state', match: t.id }, mover === t.anna ? t.bruno : t.anna, t.c);
+    const other = await handle({ action: 'pvp_state', match: t.id }, follower, t.c);
     expect(other.pvp!.sinceMove).toBe(1200);
     // il tempo del turno successivo comprende la rivelazione: non scade prima
     t.tick(PVP_REVEAL_MS + PVP_TURN_MS - 2000);
