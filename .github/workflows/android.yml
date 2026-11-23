@@ -18,11 +18,14 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+          # librerie di Gradle in cache: non si riscaricano ogni volta da Maven Central (che a volte risponde 429)
+          cache: gradle
       - run: npm ci
       - run: npm test
       - run: npm run build
       - run: npx cap sync android
-      - run: ./gradlew assembleDebug --no-daemon
+      # se Maven Central rifiuta per troppe richieste (429), si aspetta un minuto e si riprova una volta
+      - run: ./gradlew assembleDebug --no-daemon || (sleep 60 && ./gradlew assembleDebug --no-daemon)
         working-directory: android
       - uses: actions/upload-artifact@v4
         with:
