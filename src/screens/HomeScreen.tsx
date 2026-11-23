@@ -41,6 +41,7 @@ interface Props {
   onDaily: () => void;
   onFriend: () => void;
   onRanked: () => void; // gara classificata online
+  onLeagues: () => void; // sezione Campionati
   rankedBusy: boolean;
   onClaim: (i: number) => void;
   onPacks: () => void;
@@ -63,6 +64,7 @@ export function HomeScreen({
   onDaily,
   onFriend,
   onRanked,
+  onLeagues,
   rankedBusy,
   onClaim,
   onPacks,
@@ -145,7 +147,7 @@ export function HomeScreen({
         )}
       </section>
 
-      {canPlay && <RankedPanel progress={progress} online={account.online} busy={rankedBusy} onPlay={onRanked} onProfile={onProfile} />}
+      {canPlay && <RankedPanel progress={progress} online={account.online} busy={rankedBusy} onPlay={onRanked} onOpen={onLeagues} onProfile={onProfile} />}
 
       <DailyCard challenge={challenge} state={progress.daily} canPlay={daily.ok} have={daily.have} onPlay={onDaily} />
       <MissionsPanel missions={missions} onClaim={onClaim} />

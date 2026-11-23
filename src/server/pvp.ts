@@ -1,6 +1,6 @@
 import { STATS } from '../game/cards';
 import { activeSlot, boostsOf, deckSlots, seriesDecks, spendBoost } from '../game/collection';
-import { applyRanked, QUEUE_FRESH_MS, QUEUE_WINDOW, rankedOf } from '../game/ranked';
+import { applyRanked, firstLeader, QUEUE_FRESH_MS, QUEUE_WINDOW, rankedOf } from '../game/ranked';
 import {
   availableStats,
   autoMove,
@@ -232,7 +232,11 @@ async function tryPair(store: Store, ctx: Ctx, me: Omit<QueueRow, 'user'> & { jo
     return { queue: { waited: now - me.joinedAt, searching } };
   }
   // gara classificata: modalità Strategica (mano di 3 carte, jolly di gara per entrambi)
-  const first = newMatch(opp.deck.map(cardOrThrow), me.deck.map(cardOrThrow), ctx.rng, ctx.rng() < 0.5 ? 'player' : 'cpu', HAND_SIZE);
+  // guida il primo round chi ha la carta più debole (vedi firstLeader)
+  const hostDeck = opp.deck.map(cardOrThrow);
+  const guestDeck = me.deck.map(cardOrThrow);
+  const leader = firstLeader(hostDeck, guestDeck, opp.points, me.points, ctx.rng);
+  const first = newMatch(hostDeck, guestDeck, ctx.rng, leader, HAND_SIZE);
   const rec: PvpRecord = {
     code: newCode(ctx),
     status: 'playing',

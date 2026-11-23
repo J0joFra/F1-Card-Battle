@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Copy, Gift, Share2, Trophy, X } from 'lucide-react';
+import { ChevronRight, Copy, Gift, Share2, Trophy, X } from 'lucide-react';
 import { useI18n, type TFn, type TKey } from '../lib/i18n';
 import { callGame } from '../lib/api';
 import { inviteLink, shareLink } from '../lib/links';
@@ -19,13 +19,13 @@ export function LeagueBadge({ league, size = 44 }: { league: number; size?: numb
   );
 }
 
-export function RankedPanel({ progress, online, busy, onPlay, onProfile }: { progress: Progress; online: boolean; busy: boolean; onPlay: () => void; onProfile: () => void }) {
+export function RankedPanel({ progress, online, busy, onPlay, onOpen, onProfile }: { progress: Progress; online: boolean; busy: boolean; onPlay: () => void; onOpen: () => void; onProfile: () => void }) {
   const { t } = useI18n();
   const { points } = rankedOf(progress);
   const { league, ratio, toNext } = leagueProgress(points);
   return (
     <section className={`panel ranked-panel lg-${LEAGUES[league].id}`}>
-      <div className="ranked-head">
+      <button className="ranked-head" onClick={onOpen} aria-label={t('rk_screen')}>
         <LeagueBadge league={league} />
         <div className="ranked-info">
           <small>{t('rk_label')}</small>
@@ -34,7 +34,8 @@ export function RankedPanel({ progress, online, busy, onPlay, onProfile }: { pro
             <Trophy size={13} /> {points} {toNext !== null && <>· {t('rk_toNext', { n: toNext, league: leagueName(league + 1, t) })}</>}
           </span>
         </div>
-      </div>
+        <ChevronRight size={20} className="ranked-go" />
+      </button>
       <div className="bar small">
         <div style={{ width: `${Math.round(ratio * 100)}%` }} />
       </div>
