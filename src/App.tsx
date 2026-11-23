@@ -493,25 +493,34 @@ export default function App() {
       account.track(callGame({ action: "pvp_state", match: id, game }));
     return {
       start: adopt(first),
-      async play(stat) {
-        if (stat) {
+      async play(stat, move) {
+        // Strategica (gara classificata): la mossa è segreta; il round si gioca quando sceglie anche l'avversario
+        if (stat || move) {
+          const before = last.round;
           try {
-            return adopt(
+            adopt(
               await account.track(
-                callGame({ action: "pvp_play", match: id, game, stat })
+                callGame({
+                  action: "pvp_play",
+                  match: id,
+                  game,
+                  ...(stat ? { stat } : {}),
+                  ...(move ? { card: move.card, ...(move.jolly ? { jolly: move.jolly } : {}) } : {}),
+                })
               )
             );
           } catch (e) {
             // il tempo era scaduto e il server ha già scelto per te: si riparte dallo stato vero
             if (
               e instanceof ApiError &&
-              ["not_your_turn", "bad_stat", "match_finished", "busy"].includes(
+              ["not_your_turn", "bad_stat", "bad_card", "match_finished", "busy"].includes(
                 e.code
               )
             )
-              return adopt(await state());
-            throw e;
+              adopt(await state());
+            else throw e;
           }
+          if (last.round !== before || last.outcome || !move) return last;
         }
         // turno dell'amico: si aspetta la sua mossa (o la scelta automatica allo scadere del tempo)
         let failures = 0;

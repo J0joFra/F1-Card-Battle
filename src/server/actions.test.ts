@@ -1076,6 +1076,90 @@ describe('server: gara classificata', () => {
     return { db, anna: db.as('anna', 'Anna'), bruno: db.as('bruno', 'Bruno'), carla: db.as('carla', 'Carla'), c, tick: (ms: number) => (clock += ms) };
   }
   const join = (s: Store, c: Ctx) => handle({ action: 'ranked_join', date: '2026-10-16' }, s, c);
+  // Strategica: ogni round tutti e due scelgono la prima carta; chi guida anche la prima metrica libera
+  async function playRanked(a: Store, b: Store, id: string, c: Ctx) {
+    for (;;) {
+      const va = (await handle({ action: 'pvp_state', match: id }, a, c)).view!;
+      if (va.outcome) return va;
+      for (const s of [a, b]) {
+        const v = (await handle({ action: 'pvp_state', match: id }, s, c)).view!;
+        const stat = v.chooser === 'player' ? STATS.find((x) => !v.usedStats.includes(x.key))!.key : undefined;
+        await handle({ action: 'pvp_play', match: id, game: 0, card: 0, ...(stat ? { stat } : {}) }, s, c);
+      }
+    }
+  }
+
+  it('Strategica: mano di 3 carte, mosse segrete finché non scelgono entrambi; poi il round si scopre', async () => {
+    const t = setup();
+    await join(t.anna, t.c);
+    const b = await join(t.bruno, t.c);
+    const id = b.pvp!.id;
+    expect(b.view!.hand).toHaveLength(3);
+    const va = (await handle({ action: 'pvp_state', match: id }, t.anna, t.c)).view!;
+    const [leader, follower] = va.chooser === 'player' ? [t.anna, t.bruno] : [t.bruno, t.anna];
+    const lv = (await handle({ action: 'pvp_state', match: id }, leader, t.c)).view!;
+    const stat = STATS[0].key;
+    const fv = (await handle({ action: 'pvp_state', match: id }, follower, t.c)).view!;
+    // chi risponde non può scegliere la metrica: viene ignorata
+    const after = await handle({ action: 'pvp_play', match: id, game: 0, card: 2 }, follower, t.c);
+    expect(after.view).toMatchObject({ committed: true, round: 0 });
+    await expect(handle({ action: 'pvp_play', match: id, game: 0, card: 1 }, follower, t.c)).rejects.toThrow('not_your_turn');
+    // chi guida vede solo che l'altro ha scelto, non cosa
+    const seen = await handle({ action: 'pvp_state', match: id }, leader, t.c);
+    expect(seen.view!.oppCommitted).toBe(true);
+    expect(JSON.stringify(seen)).not.toContain(fv.hand![2]);
+    await expect(handle({ action: 'pvp_play', match: id, game: 0, card: 0 }, leader, t.c)).rejects.toThrow('bad_stat');
+    const done = await handle({ action: 'pvp_play', match: id, game: 0, card: 1, stat }, leader, t.c);
+    const h = done.view!.history[0];
+    expect(h).toMatchObject({ stat, player: lv.hand![1], cpu: fv.hand![2] });
+    expect(done.view!.committed).toBeUndefined();
+  });
+
+  it('Strategica: jolly di gara per entrambi, dalla propria scorta; uno a partita', async () => {
+    const t = setup();
+    for (const u of ['anna', 'bruno']) t.db.profiles.get(u)!.progress.boosts = { drs: 1, sc: 1 };
+    await join(t.anna, t.c);
+    const id = (await join(t.bruno, t.c)).pvp!.id;
+    const va = (await handle({ action: 'pvp_state', match: id }, t.anna, t.c)).view!;
+    const annaLeads = va.chooser === 'player';
+    const stat = STATS[0].key;
+    const r1 = await handle({ action: 'pvp_play', match: id, game: 0, card: 0, jolly: 'sc', ...(annaLeads ? { stat } : {}) }, t.anna, t.c);
+    expect(r1.progress!.boosts!.sc ?? 0).toBe(0);
+    const r2 = await handle({ action: 'pvp_play', match: id, game: 0, card: 0, jolly: 'drs', ...(annaLeads ? {} : { stat }) }, t.bruno, t.c);
+    const round = r2.view!.history[0];
+    // Bruno vede il suo DRS come "jolly" e la Safety Car di Anna come jolly dell'avversario
+    expect(round).toMatchObject({ jolly: 'drs', cpuJolly: 'sc' });
+    expect(round.winner).not.toBe('player'); // la Safety Car di Anna: Bruno al massimo pareggia
+    expect(r2.view!.jollyUsed).toBe(true);
+    const annaView = (await handle({ action: 'pvp_state', match: id }, t.anna, t.c)).view!;
+    expect(annaView.history[0]).toMatchObject({ jolly: 'sc', cpuJolly: 'drs' });
+    const v2 = annaView;
+    const stat2 = v2.chooser === 'player' ? STATS.find((x) => !v2.usedStats.includes(x.key))!.key : undefined;
+    await expect(handle({ action: 'pvp_play', match: id, game: 0, card: 0, jolly: 'drs', ...(stat2 ? { stat: stat2 } : {}) }, t.anna, t.c)).rejects.toThrow('bad_jolly');
+  });
+
+  it('Strategica: allo scadere del tempo chi non ha scelto gioca la prima carta (e la metrica migliore se guida)', async () => {
+    const t = setup();
+    await join(t.anna, t.c);
+    const id = (await join(t.bruno, t.c)).pvp!.id;
+    const va = (await handle({ action: 'pvp_state', match: id }, t.anna, t.c)).view!;
+    const follower = va.chooser === 'player' ? t.bruno : t.anna;
+    await handle({ action: 'pvp_play', match: id, game: 0, card: 1 }, follower, t.c);
+    t.tick(PVP_TURN_MS + 1);
+    const v = (await handle({ action: 'pvp_state', match: id }, t.anna, t.c)).view!;
+    expect(v.history).toHaveLength(1);
+    expect(v.round).toBe(1);
+  });
+
+  it('Strategica: senza jolly in scorta non si può usare', async () => {
+    const t = setup();
+    await join(t.anna, t.c);
+    const id = (await join(t.bruno, t.c)).pvp!.id;
+    const va = (await handle({ action: 'pvp_state', match: id }, t.anna, t.c)).view!;
+    await expect(
+      handle({ action: 'pvp_play', match: id, game: 0, card: 0, jolly: 'drs', ...(va.chooser === 'player' ? { stat: STATS[0].key } : {}) }, t.anna, t.c),
+    ).rejects.toThrow('no_jolly');
+  });
 
   it('nessuno in coda: si aspetta; arriva un giocatore con punti vicini e la gara parte per entrambi', async () => {
     const t = setup();
@@ -1119,15 +1203,7 @@ describe('server: gara classificata', () => {
     await join(t.anna, t.c);
     const b = await join(t.bruno, t.c);
     const id = b.pvp!.id;
-    const players = { anna: t.anna, bruno: t.bruno };
-    for (;;) {
-      const va = (await handle({ action: 'pvp_state', match: id }, t.anna, t.c)).view!;
-      if (va.outcome) break;
-      const who = va.chooser === 'player' ? 'anna' : 'bruno';
-      const vw = (await handle({ action: 'pvp_state', match: id }, players[who], t.c)).view!;
-      const stat = STATS.find((s) => !vw.usedStats.includes(s.key))!.key;
-      await handle({ action: 'pvp_play', match: id, game: 0, stat }, players[who], t.c);
-    }
+    await playRanked(t.anna, t.bruno, id, t.c);
     const ra = await handle({ action: 'pvp_state', match: id }, t.anna, t.c);
     const rb = await handle({ action: 'pvp_state', match: id }, t.bruno, t.c);
     expect(ra.pvp!.status).toBe('finished');

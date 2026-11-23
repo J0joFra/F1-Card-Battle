@@ -1512,3 +1512,4 @@ b.over-pack { color: #e8b931; }
   flex: 1; font: 800 1.4rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.15em; text-align: center;
   padding: 10px 8px; border-radius: 12px; border: 2px dashed var(--line); user-select: all;
 }
+.rj-used.opp { border-style: dashed; opacity: 0.92; margin-left: 6px; }

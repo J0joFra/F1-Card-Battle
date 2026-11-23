@@ -5,7 +5,7 @@ import { Flag, RotateCcw } from 'lucide-react';
 import { CARD_BY_ID, STATS, STAT_BY_KEY, formatStat, statLabel, statShort } from '../game/cards';
 import { useI18n, type TKey } from '../lib/i18n';
 import { errorMessage } from '../lib/api';
-import { JOLLY_KINDS, ROUNDS, TURN_SECONDS, type JollyKind, type Side } from '../game/engine';
+import { JOLLY_KINDS, ROUNDS, TURN_SECONDS, bestStat, type JollyKind, type Side } from '../game/engine';
 import type { MatchDriver, MatchRewards, MatchView } from '../game/match';
 import { FIRST_WIN_CREDITS, WINS_PER_PACK } from '../game/collection';
 import { DAILY_REWARD_CREDITS } from '../game/daily';
@@ -54,6 +54,8 @@ interface Round {
   winner: Side | 'tie';
   jolly?: JollyKind;
   neutralized?: boolean;
+  cpuJolly?: JollyKind; // gare online: jolly dell'avversario
+  cpuNeutralized?: boolean;
 }
 
 const cardOf = (id: string) => CARD_BY_ID.get(id)!;
@@ -85,6 +87,7 @@ export function MatchScreen({
     m_quitConfirm: 'pv_quitConfirm',
     m_timeUp: 'pv_timeUp',
     m_oppTimeUp: 'pv_oppTimeUp',
+    m_handFollow: 'pv_handFollow',
   };
   const t = (key: TKey, params: Record<string, string | number> = {}) => {
     if (!opponent) return tr(key, params);
@@ -254,6 +257,11 @@ export function MatchScreen({
   passRef.current = passTurn;
   function passTurn() {
     if (busy || view.chooser !== 'player') return;
+    // gara online Strategica: allo scadere si gioca la carta selezionata con la sua metrica migliore
+    if (hand && synced && current) {
+      pick(bestStat(current, free));
+      return;
+    }
     haptic('error');
     setError(null);
     setBusy(true);
@@ -444,6 +452,11 @@ export function MatchScreen({
                   {last.jolly === 'drs' ? tr('rj_drsUsed') : last.neutralized ? tr('rj_scUsed') : tr('rj_scSpare')}
                 </span>
               )}
+              {last.cpuJolly && (
+                <span className={`rj-used rj-${last.cpuJolly} opp`}>
+                  {t(last.cpuJolly === 'drs' ? 'pv_oppDrs' : last.cpuNeutralized ? 'pv_oppSc' : 'pv_oppScSpare')}
+                </span>
+              )}
             </div>
           ) : (
             <div className="banner">{statLabel(last.stat)}…</div>
@@ -477,7 +490,9 @@ export function MatchScreen({
             </div>
           )}
           <div className={`banner ${view.chooser === 'cpu' ? 'banner-cpu-turn' : ''}`}>
-            {hand && view.chooser === 'cpu' && !cpuPick && !busy
+            {hand && synced && busy
+              ? t('pv_waitMove')
+              : hand && view.chooser === 'cpu' && !cpuPick && !busy
               ? t('m_handFollow')
               : hand && view.chooser === 'player' && !view.passed && free.length > 1
               ? t('m_handLead')

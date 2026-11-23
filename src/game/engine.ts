@@ -80,6 +80,9 @@ export interface RoundResult {
   winner: Side | 'tie';
   jolly?: JollyKind; // jolly di gara giocato dal giocatore in questo round
   neutralized?: boolean; // Safety Car: il round perso è stato neutralizzato (conta come pareggio)
+  // gare online: anche l'avversario può giocare un jolly
+  cpuJolly?: JollyKind;
+  cpuNeutralized?: boolean;
 }
 
 // Jolly di gara (modalità Strategica): uno a partita, si comprano al mercato.
@@ -116,6 +119,9 @@ export interface MatchState {
   passed?: boolean; // in questo round chi doveva scegliere ha lasciato scadere il tempo: sceglie l'avversario
   hand?: number; // modalità Strategica: carte in mano (assente = classica, la carta del round è fissa)
   jollyUsed?: boolean; // il giocatore ha già usato il jolly di gara in questa partita
+  cpuJollyUsed?: boolean; // gare online: l'avversario ha già usato il suo
+  // gare online in modalità Strategica: mosse già scelte in questo round, segrete finché non hanno scelto entrambi
+  pending?: Partial<Record<Side, HandMove>>;
   level?: CpuLevel; // livello della CPU (assente = normale)
 }
 
@@ -147,17 +153,18 @@ export const isAvailable = (s: MatchState, stat: StatKey) => !s.usedStats.includ
 
 export const availableStats = (s: MatchState) => STATS.map((x) => x.key).filter((k) => isAvailable(s, k));
 
-export function playRound(state: MatchState, stat: StatKey, jolly?: JollyKind): MatchState {
+export function playRound(state: MatchState, stat: StatKey, jolly?: JollyKind, cpuJolly?: JollyKind): MatchState {
   if (matchOutcome(state)) throw new Error('Partita già finita');
   if (!isAvailable(state, stat)) throw new Error('Metrica già usata in questa partita');
   if (jolly && state.jollyUsed) throw new Error('Jolly già usato in questa partita');
+  if (cpuJolly && state.cpuJollyUsed) throw new Error('Jolly già usato in questa partita');
   const { player: playerCard, cpu: cpuCard } = currentCards(state);
-  let mine = playerCard.stats[stat];
-  if (jolly === 'drs') mine = mine * (STAT_BY_KEY[stat].lowerWins ? 1 - DRS_BOOST : 1 + DRS_BOOST);
-  const cmp = compareStat(stat, mine, cpuCard.stats[stat]);
+  const boost = (v: number, j?: JollyKind) => (j === 'drs' ? v * (STAT_BY_KEY[stat].lowerWins ? 1 - DRS_BOOST : 1 + DRS_BOOST) : v);
+  const cmp = compareStat(stat, boost(playerCard.stats[stat], jolly), boost(cpuCard.stats[stat], cpuJolly));
   let winner: Side | 'tie' = cmp > 0 ? 'player' : cmp < 0 ? 'cpu' : 'tie';
   const neutralized = jolly === 'sc' && winner === 'cpu';
-  if (neutralized) winner = 'tie';
+  const cpuNeutralized = cpuJolly === 'sc' && winner === 'player';
+  if (neutralized || cpuNeutralized) winner = 'tie';
   return {
     ...state,
     round: state.round + 1,
@@ -166,10 +173,22 @@ export function playRound(state: MatchState, stat: StatKey, jolly?: JollyKind): 
     score: winner === 'tie' ? state.score : { ...state.score, [winner]: state.score[winner] + 1 },
     history: [
       ...state.history,
-      { stat, chooser: state.chooser, playerCard, cpuCard, winner, ...(jolly ? { jolly } : {}), ...(neutralized ? { neutralized } : {}) },
+      {
+        stat,
+        chooser: state.chooser,
+        playerCard,
+        cpuCard,
+        winner,
+        ...(jolly ? { jolly } : {}),
+        ...(neutralized ? { neutralized } : {}),
+        ...(cpuJolly ? { cpuJolly } : {}),
+        ...(cpuNeutralized ? { cpuNeutralized } : {}),
+      },
     ],
     passed: false,
+    pending: undefined,
     ...(jolly ? { jollyUsed: true } : {}),
+    ...(cpuJolly ? { cpuJollyUsed: true } : {}),
   };
 }
 
@@ -234,6 +253,39 @@ export function playHandRound(s: MatchState, move: HandMove, rng: Rng = Math.ran
   const stat = next.chooser === 'cpu' ? cpu.stat! : move.stat;
   if (!stat) throw new Error('metrica mancante');
   return playRound(next, stat, move.jolly);
+}
+
+// ---- gare online in modalità Strategica: i due giocatori scelgono in segreto, poi si scopre ----
+
+export const jollyUsedBy = (s: MatchState, side: Side) => !!(side === 'player' ? s.jollyUsed : s.cpuJollyUsed);
+
+// Mossa di un giocatore (carta, metrica se guida lui, jolly): resta segreta finché non sceglie anche l'altro.
+export function commitMove(s: MatchState, side: Side, move: HandMove): MatchState {
+  if (!s.hand) throw new Error('Partita senza mano');
+  if (matchOutcome(s)) throw new Error('Partita già finita');
+  if (s.pending?.[side]) throw new Error('Mossa già scelta');
+  if (!Number.isInteger(move.card) || move.card < 0 || move.card >= handOf(s, side).length) throw new Error('Carta non in mano');
+  if (s.chooser === side && (!move.stat || !isAvailable(s, move.stat))) throw new Error('Metrica non valida');
+  if (move.jolly && (!isJollyKind(move.jolly) || jollyUsedBy(s, side))) throw new Error('Jolly non disponibile');
+  const clean: HandMove = { card: move.card, ...(s.chooser === side ? { stat: move.stat } : {}), ...(move.jolly ? { jolly: move.jolly } : {}) };
+  return { ...s, pending: { ...s.pending, [side]: clean } };
+}
+
+// Tempo scaduto: chi non ha scelto gioca la prima carta della mano (e, se guida, la sua metrica migliore).
+export function autoMove(s: MatchState, side: Side): HandMove {
+  const card = handOf(s, side)[0];
+  return { card: 0, ...(s.chooser === side ? { stat: bestStat(card, availableStats(s)) } : {}) };
+}
+
+// Hanno scelto entrambi: si giocano le due carte con la metrica di chi guida.
+export function resolveCommitted(s: MatchState): MatchState | null {
+  const p = s.pending?.player;
+  const c = s.pending?.cpu;
+  if (!p || !c) return null;
+  let next = pickCard(s, 'player', p.card);
+  next = pickCard(next, 'cpu', c.card);
+  const stat = (s.chooser === 'player' ? p : c).stat!;
+  return playRound(next, stat, p.jolly, c.jolly);
 }
 
 // Tempo scaduto: la scelta della metrica passa all'avversario (una volta sola per round).
