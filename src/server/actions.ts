@@ -20,7 +20,8 @@ import { CLASSIC, decksOverlap, fitsMode, parseMode } from '../game/deckRules';
 import { CPU_LEVEL, HAND_SIZE, buildCpuDeck, isCpuLevel, cpuChooseStat, handOf, isAvailable, isJollyKind, matchOutcome, newMatch, passTurn, playHandRound, playRound, type MatchState, type Rng } from '../game/engine';
 import { applyMatchEnd, loadMatch, storeMatch, toView, type MatchRewards, type MatchView, type StoredMatch } from '../game/match';
 import type { StatKey } from '../types';
-import { cardOrThrow, checkDate, GameError, validDeck, withProfile, type Ctx } from './common';
+import { cardOrThrow, checkDate, GameError, myProgress, validDeck, withProfile, type Ctx } from './common';
+import { MAX_REFERRALS, REFERRAL_PACKS } from '../game/ranked';
 import { handlePvp } from './pvp';
 import { buyAndOpen, buyFromStore, storeFor, storePrice } from '../game/shop';
 import type { AccountRow, GameRequest, GameResponse, Store, SupportAnswers, SupportRequestRow, SupportRequestView } from './types';
@@ -60,7 +61,7 @@ export function plausibleDevice(guest: Partial<Progress> | undefined): Progress 
       p.jolly >= 0 && p.jolly <= 5 &&
       Object.values(p.boosts ?? {}).every((n) => n >= 0 && n <= 3) &&
       p.wins >= 0 && p.wins <= 500;
-    return ok ? { ...p, missions: undefined, stats: undefined } : null;
+    return ok ? { ...p, missions: undefined, stats: undefined, ranked: undefined, referrals: undefined } : null;
   } catch {
     return null;
   }
@@ -110,6 +111,33 @@ async function supportView(store: Store, req: SupportRequestRow): Promise<Suppor
     .sort((a, b) => Number(b.match) - Number(a.match) || a.name.localeCompare(b.name))
     .slice(0, 12);
   return { ...req, account: { nickname: acc?.nickname ?? found.nickname, favorite: acc?.favorite ?? null, avatar: acc?.avatar ?? null, wins: progress.wins, rareCards } };
+}
+
+// ---- inviti ----
+
+const INVITE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // niente 0/O e 1/I
+export const INVITE_CODE_LENGTH = 6;
+export const normalizeInvite = (raw: unknown) =>
+  typeof raw === 'string' ? raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, INVITE_CODE_LENGTH) : '';
+
+// L'amico ha creato l'account con il codice: chi l'ha invitato riceve i pacchetti (al massimo MAX_REFERRALS amici).
+// Un codice sbagliato non blocca la creazione dell'account.
+async function rewardReferral(store: Store, ctx: Ctx, raw: string) {
+  const code = normalizeInvite(raw);
+  if (code.length !== INVITE_CODE_LENGTH) return;
+  const inviter = await store.findByInviteCode(code);
+  if (!inviter || inviter === store.me.id) return;
+  if (!(await store.setInvitedBy(inviter))) return;
+  await withProfile(
+    store,
+    ctx,
+    (p) => {
+      const n = p.referrals ?? 0;
+      if (n >= MAX_REFERRALS) return { progress: p };
+      return { progress: { ...p, packs: p.packs + REFERRAL_PACKS, referrals: n + 1 } };
+    },
+    inviter,
+  );
 }
 
 // Accesso da un altro dispositivo: username + codice di recupero. Il dispositivo viene collegato all'account
@@ -169,6 +197,8 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       if (!(await store.createProfile({ progress, nickname, avatar, favorite, recoveryHash }))) {
         throw new GameError((await store.nicknameTaken(nickname)) ? 'nickname_taken' : 'has_profile', 409);
       }
+      // iscritto con il codice invito di un amico: lui riceve i pacchetti (una volta sola per account nuovo)
+      if (typeof req.referral === 'string') await rewardReferral(store, ctx, req.referral);
       const row = await store.getProfile();
       if (!row) throw new GameError('busy', 409);
       const profile = profileOf(await store.getAccount());
@@ -177,6 +207,17 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
 
     case 'login':
       return login(store, req.username, req.code);
+
+    case 'invite_code': {
+      const p = await myProgress(store);
+      let code = await store.getInviteCode();
+      for (let i = 0; !code && i < 6; i++) {
+        const next = Array.from({ length: INVITE_CODE_LENGTH }, () => INVITE_CHARS[Math.floor(ctx.rng() * INVITE_CHARS.length)]).join('');
+        if (await store.setInviteCode(next)) code = next;
+      }
+      if (!code) throw new GameError('busy', 409);
+      return { inviteCode: code, referrals: p.referrals ?? 0 };
+    }
 
     case 'logout':
       await store.linkDevice(null);

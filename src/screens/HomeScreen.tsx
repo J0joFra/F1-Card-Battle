@@ -22,6 +22,7 @@ import { coin } from '../lib/season';
 import { CardView } from '../components/CardView';
 import { HelpButton } from '../components/TutorialSection';
 import { DailyCard, MissionsPanel } from '../components/Daily';
+import { RankedPanel } from '../components/Ranked';
 import { themeMode, type DailyChallenge, type MissionsState } from '../game/daily';
 
 interface Props {
@@ -39,6 +40,8 @@ interface Props {
   onDeck: (slot: number) => void; // cambia il mazzo in uso (partita classica)
   onDaily: () => void;
   onFriend: () => void;
+  onRanked: () => void; // gara classificata online
+  rankedBusy: boolean;
   onClaim: (i: number) => void;
   onPacks: () => void;
   onProfile: () => void; // crea il profilo (salvataggio online e sfide tra amici)
@@ -59,6 +62,8 @@ export function HomeScreen({
   onDeck,
   onDaily,
   onFriend,
+  onRanked,
+  rankedBusy,
   onClaim,
   onPacks,
   onProfile,
@@ -139,6 +144,8 @@ export function HomeScreen({
           <p className="muted">{t('home_needCards', { n: DECK_SIZE })}</p>
         )}
       </section>
+
+      {canPlay && <RankedPanel progress={progress} online={account.online} busy={rankedBusy} onPlay={onRanked} onProfile={onProfile} />}
 
       <DailyCard challenge={challenge} state={progress.daily} canPlay={daily.ok} have={daily.have} onPlay={onDaily} />
       <MissionsPanel missions={missions} onClaim={onClaim} />

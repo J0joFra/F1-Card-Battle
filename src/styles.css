@@ -1462,3 +1462,51 @@ b.over-pack { color: #e8b931; }
 .card-timer { font-size: 12px; font-weight: 800; color: var(--muted); text-align: center; }
 .card-timer.hurry { color: var(--lose); }
 .card-timer.locked { color: var(--win); }
+
+/* gara classificata: campionati dal Karting alla Formula 1 */
+.league-badge {
+  --lg: #7a8899;
+  display: inline-grid; place-items: center; flex: none; border-radius: 50%;
+  font-weight: 900; letter-spacing: 0.02em; color: #fff;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--lg) 55%, #fff), var(--lg) 60%, color-mix(in srgb, var(--lg) 60%, #000));
+  border: 3px solid color-mix(in srgb, var(--lg) 50%, #fff);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--lg) 45%, transparent);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+.lg-kart { --lg: #3fa34d; }
+.lg-f4 { --lg: #2f7fd8; }
+.lg-fr { --lg: #8b5cf6; }
+.lg-f3 { --lg: #d9822b; }
+.lg-f2 { --lg: #7c8aa0; }
+.lg-f1 { --lg: #e10600; }
+.league-badge.lg-f2 { background: radial-gradient(circle at 35% 30%, #fff, #c9d3df 45%, #6f7d90); color: #1d2733; text-shadow: none; }
+.league-badge.lg-f1 { border-color: #ffd54a; box-shadow: 0 0 0 2px #ffd54a55, 0 4px 14px #e1060066; }
+.ranked-panel { border-color: color-mix(in srgb, var(--lg) 45%, var(--line)); background: linear-gradient(135deg, color-mix(in srgb, var(--lg) 14%, var(--surface)), var(--surface) 70%); }
+.ranked-panel .bar > div { background: var(--lg); }
+.ranked-head { display: flex; gap: 12px; align-items: center; }
+.ranked-info { display: grid; gap: 1px; min-width: 0; }
+.ranked-info small { text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; color: var(--muted); }
+.ranked-info b { font-size: 1.15rem; }
+.ranked-info span { font-size: 13px; display: inline-flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.ranked-queue .modal { text-align: center; }
+.ranked-queue h3 { margin: 0; }
+.ranked-queue p { margin: 0; }
+.ranked-queue .waiting-dots::after { content: '…'; animation: timer-pulse 1.4s ease-in-out infinite; display: inline-block; }
+.rk-lonely { display: grid; gap: 10px; width: 100%; padding-top: 6px; border-top: 1px solid var(--line); }
+.rk-lonely > p { font-size: 14px; }
+.ranked-outcome { display: flex; gap: 12px; align-items: center; justify-content: center; padding: 10px 14px; border-radius: 14px; background: var(--surface-2, var(--surface)); border: 1px solid var(--line); }
+.ranked-outcome > div { display: grid; gap: 2px; text-align: left; }
+.ranked-outcome b { display: inline-flex; gap: 4px; align-items: center; }
+.ranked-outcome b.up { color: var(--win); }
+.ranked-outcome b.down { color: var(--lose); }
+.ranked-outcome.promoted { border-color: #ffd54a; background: linear-gradient(135deg, #ffd54a22, transparent); animation: rk-pop 0.45s; }
+@keyframes rk-pop { from { transform: scale(0.85); opacity: 0; } }
+.ranked-outcome.promoted strong { font-size: 1.05rem; }
+.invite-friend { display: grid; gap: 8px; }
+.invite-friend > b { display: inline-flex; gap: 6px; align-items: center; }
+.invite-friend p { margin: 0; font-size: 14px; }
+.invite-row { display: flex; gap: 10px; align-items: center; }
+.invite-row .code-big.small {
+  flex: 1; font: 800 1.4rem/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.15em; text-align: center;
+  padding: 10px 8px; border-radius: 12px; border: 2px dashed var(--line); user-select: all;
+}

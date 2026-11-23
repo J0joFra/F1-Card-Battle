@@ -72,6 +72,8 @@ export interface Progress {
   store?: { date: string; cards: string[]; bought: string[] }; // card del giorno nel negozio
   firstWin?: string; // giorno dell'ultimo premio "prima vittoria del giorno"
   stats?: Partial<Stats>; // contatori per gli obiettivi di Play Giochi
+  ranked?: { points: number; best: number }; // gara classificata: punti campionato e campionato più alto raggiunto
+  referrals?: number; // amici portati con il codice invito (premiati)
   updatedAt: number; // ultima modifica (ms), per capire quale copia è più recente tra dispositivo e cloud
 }
 
@@ -328,6 +330,10 @@ export function normalizeProgress(raw: Partial<Progress>): Progress {
     }
     p.boosts = b;
   } else delete p.boosts;
+  if (p.ranked && typeof p.ranked === 'object') {
+    const points = Math.max(0, Math.floor(Number(p.ranked.points) || 0));
+    p.ranked = { points, best: Math.max(0, Math.min(5, Math.floor(Number(p.ranked.best) || 0))) };
+  } else delete p.ranked;
   p.daily ??= emptyDaily();
   p.updatedAt ??= 0;
   return p;
@@ -363,6 +369,9 @@ export function mergeProgress(account: Progress, device: Progress): Progress {
     store: (device.store?.date ?? '') > (account.store?.date ?? '') ? device.store : account.store,
     firstWin: (device.firstWin ?? '') > (account.firstWin ?? '') ? device.firstWin : account.firstWin,
     stats: mergeStats(account.stats, device.stats),
+    // punti campionato e inviti esistono solo sul server (mai dal telefono)
+    ...(account.ranked ? { ranked: account.ranked } : {}),
+    ...(account.referrals ? { referrals: account.referrals } : {}),
     updatedAt: Date.now(),
   };
 }

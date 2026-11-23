@@ -85,7 +85,10 @@ import type {
   GameResponse,
   Invite,
   PvpInfo,
+  QueueInfo,
 } from "./server/actions";
+import { RankedOutcome, RankedQueue, leagueName } from "./components/Ranked";
+import { QUEUE_POLL_MS, REFERRAL_PACKS, leagueOf } from "./game/ranked";
 import { themeLabel } from "./components/Daily";
 import type { OpenedPack } from "./screens/PacksScreen";
 
@@ -119,7 +122,7 @@ const SettingsSheet = lazy(() =>
 );
 import { Onboarding, onboardingDone } from "./components/Onboarding";
 import { ConfirmHost, askConfirm } from "./components/ConfirmDialog";
-import { clearChallengeCode, takeChallengeCode } from "./lib/links";
+import { clearChallengeCode, takeChallengeCode, takeInviteCode } from "./lib/links";
 import { listen, pvpTopic, userTopic, type Live } from "./lib/live";
 import { buyAndOpen, buyFromStore, storeFor, storePrice } from "./game/shop";
 
@@ -615,6 +618,89 @@ export default function App() {
     void joinPvp(linkCode);
   }, [linkCode, account.online, account.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ---- Gara classificata: coda per trovare un avversario con punti simili (con il mazzo in uso) ----
+  const [queue, setQueue] = useState<QueueInfo | null>(null);
+  // risposta del server: avversario trovato (si gioca) oppure ancora in coda
+  function onQueue(res: GameResponse | null) {
+    if (res?.pvp && res.view) {
+      setQueue(null);
+      sfx("select");
+      haptic("success");
+      startPvp(res);
+      return true;
+    }
+    if (res?.queue) setQueue(res.queue);
+    return false;
+  }
+
+  async function startRanked() {
+    if (starting || queue) return;
+    const deck = savedDeck(progress);
+    if (deck.length < DECK_SIZE || deckProblems(deck).length) {
+      setToast(t("rk_deckNeeded"));
+      go("builder");
+      return;
+    }
+    setStarting(true);
+    onQueue(await server({ action: "ranked_join", date: today }));
+    setStarting(false);
+  }
+
+  async function cancelQueue() {
+    setQueue(null);
+    // preso da un avversario proprio adesso: la gara è già iniziata
+    onQueue(await callGame({ action: "ranked_cancel" }).catch(() => null));
+  }
+
+  // in coda: il server avvisa quando un avversario ti ha preso; in ogni caso si controlla ogni pochi secondi
+  // (il controllo dice anche al server che sei ancora lì)
+  const queued = !!queue;
+  useEffect(() => {
+    if (!queued) return;
+    let alive = true;
+    const uid = account.accountId;
+    const live = uid ? listen(userTopic(uid)) : null;
+    void (async () => {
+      while (alive) {
+        if (live) await live.wait(QUEUE_POLL_MS);
+        else await new Promise((r) => setTimeout(r, QUEUE_POLL_MS));
+        if (!alive) return;
+        try {
+          const r = await callGame({ action: "ranked_poll" });
+          if (alive && onQueue(r)) return;
+        } catch (e) {
+          // fuori dalla coda (es. app rimasta in pausa a lungo): si rientra
+          if (alive && e instanceof ApiError && e.code === "not_queued") {
+            const r = await callGame({ action: "ranked_join", date: today }).catch(() => null);
+            if (alive && onQueue(r)) return;
+          }
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+      live?.close();
+    };
+  }, [queued]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // inviti: link …/?invito=CODICE ricordato fino alla creazione del profilo
+  useEffect(() => {
+    takeInviteCode();
+  }, []);
+  // un amico si è iscritto con il tuo codice: avviso (una volta)
+  useEffect(() => {
+    const n = progress.referrals ?? 0;
+    const key = "f1-card-battle:referrals-seen";
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw !== null && n > Number(raw))
+        setToast(t("inv_reward", { n: (n - Number(raw)) * REFERRAL_PACKS }));
+      if (raw === null || n > Number(raw)) localStorage.setItem(key, String(n));
+    } catch {
+      /* niente memoria: niente avviso */
+    }
+  }, [progress.referrals]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function cancelLobby(declined = false) {
     if (declined)
       setToast(t("fr_declined", { name: lobby?.opponent ?? t("fr_opponent") }));
@@ -718,7 +804,9 @@ export default function App() {
     else if (r?.missionsCompleted) setToast(t("mis_completed"));
     else if (r?.packEarned)
       setToast(t("toast_packEarned", { n: WINS_PER_PACK }));
-    setScreen(r?.packEarned || r?.dailyWon ? "packs" : "home");
+    else if (r?.ranked?.promoted !== undefined)
+      setToast(t("rk_promoted", { league: leagueName(r.ranked.promoted, t) }));
+    setScreen(r?.packEarned || r?.dailyWon || r?.ranked?.packs ? "packs" : "home");
   }
 
   // Rivincita: stessa modalità e stesso mazzo, contro un nuovo mazzo della CPU.
@@ -957,8 +1045,13 @@ export default function App() {
     me: series?.results.filter((r) => r === "player").length ?? 0,
     opp: series?.results.filter((r) => r === "cpu").length ?? 0,
   };
+  const ranked = series?.bestOf === 1;
   const seriesExtra = series ? (
     <div className="series">
+      {ranked ? (
+        rewards?.ranked && <RankedOutcome result={rewards.ranked} />
+      ) : (
+      <>
       <div className="series-dots">
         {[0, 1, 2].map((i) => (
           <span
@@ -982,6 +1075,8 @@ export default function App() {
             : t("sr_draw", { a: seriesWins.me, b: seriesWins.opp })
           : t("sr_score", { a: seriesWins.me, b: seriesWins.opp })}
       </b>
+      </>
+      )}
       {series.status === "finished" &&
         !series.opponentIsFriend &&
         !friendAdded && (
@@ -1073,6 +1168,8 @@ export default function App() {
               }
               onDaily={() => play(true)}
               onFriend={() => go("friend")}
+              onRanked={startRanked}
+              rankedBusy={starting || !!queue}
               onClaim={claim}
               onPacks={() => go("packs")}
               onProfile={() => setProfileEditor({ mode: "create" })}
@@ -1110,7 +1207,12 @@ export default function App() {
               key={matchKey}
               driver={driver}
               title={
-                opponent
+                opponent && ranked
+                  ? t("rk_title", {
+                      name: opponent,
+                      league: leagueName(leagueOf(series?.opponentPoints ?? 0), t),
+                    })
+                  : opponent
                   ? t("sr_title", {
                       name: opponent,
                       n: matchGame + 1,
@@ -1237,6 +1339,9 @@ export default function App() {
         </Suspense>
       )}
       {intro && <Onboarding onClose={() => setIntro(false)} />}
+      {queue && screen !== "match" && (
+        <RankedQueue queue={queue} progress={progress} onCancel={cancelQueue} />
+      )}
       {/* profilo: alla prima apertura (dopo il tutorial) o dalle impostazioni */}
       {!intro && profileEditor && (
         <ProfileEditor

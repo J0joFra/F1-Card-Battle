@@ -1,0 +1,91 @@
+import type { Progress } from './collection';
+import type { MatchOutcome } from './engine';
+
+/*
+ * Gara classificata (stile Clash Royale): sfide online contro altri giocatori con punti simili.
+ * I punti campionato decidono il campionato: dal Karting alla Formula 1.
+ * Una volta promosso non si scende sotto l'inizio del campionato raggiunto.
+ */
+
+export const LEAGUES = [
+  { id: 'kart', min: 0 },
+  { id: 'f4', min: 300 },
+  { id: 'fr', min: 700 },
+  { id: 'f3', min: 1200 },
+  { id: 'f2', min: 1800 },
+  { id: 'f1', min: 2600 },
+] as const;
+export type LeagueId = (typeof LEAGUES)[number]['id'];
+
+export const RANKED_POINTS = { player: 30, draw: 5, cpu: -20 } as const;
+
+// premio della prima promozione in ogni campionato: pacchetti base da aprire e crediti
+export const PROMOTION_REWARD: { packs: number; credits: number }[] = [
+  { packs: 0, credits: 0 },
+  { packs: 1, credits: 100 },
+  { packs: 2, credits: 150 },
+  { packs: 2, credits: 250 },
+  { packs: 3, credits: 350 },
+  { packs: 5, credits: 500 },
+];
+
+// Inviti: chi porta un amico (che crea l'account con il suo codice) riceve 2 pacchetti base, per al massimo 10 amici.
+export const REFERRAL_PACKS = 2;
+export const MAX_REFERRALS = 10;
+
+export interface RankedState {
+  points: number;
+  best: number; // campionato più alto raggiunto (per dare il premio di promozione una volta sola)
+}
+
+export const rankedOf = (p: Progress): RankedState => ({ points: p.ranked?.points ?? 0, best: p.ranked?.best ?? 0 });
+
+export function leagueOf(points: number): number {
+  let i = 0;
+  while (i + 1 < LEAGUES.length && points >= LEAGUES[i + 1].min) i++;
+  return i;
+}
+
+// avanzamento nel campionato (0-1) e punti per il prossimo (null in F1)
+export function leagueProgress(points: number) {
+  const i = leagueOf(points);
+  const next = LEAGUES[i + 1];
+  if (!next) return { league: i, ratio: 1, toNext: null };
+  const from = LEAGUES[i].min;
+  return { league: i, ratio: (points - from) / (next.min - from), toNext: next.min - points };
+}
+
+export interface RankedResult {
+  delta: number;
+  points: number;
+  league: number;
+  promoted?: number; // nuovo campionato raggiunto per la prima volta
+  packs?: number;
+  credits?: number;
+}
+
+// Fine di una gara classificata: punti, eventuale promozione e premio (dal punto di vista del giocatore).
+export function applyRanked(p: Progress, outcome: Exclude<MatchOutcome, null>): { progress: Progress; result: RankedResult } {
+  const r = rankedOf(p);
+  const floor = LEAGUES[leagueOf(r.points)].min;
+  const points = Math.max(floor, r.points + RANKED_POINTS[outcome]);
+  const league = leagueOf(points);
+  const result: RankedResult = { delta: points - r.points, points, league };
+  let next: Progress = { ...p, ranked: { points, best: Math.max(r.best, league) } };
+  if (league > r.best) {
+    let packs = 0;
+    let credits = 0;
+    for (let i = r.best + 1; i <= league; i++) {
+      packs += PROMOTION_REWARD[i].packs;
+      credits += PROMOTION_REWARD[i].credits;
+    }
+    next = { ...next, packs: next.packs + packs, credits: next.credits + credits };
+    Object.assign(result, { promoted: league, packs, credits });
+  }
+  return { progress: next, result };
+}
+
+// Coda: si cerca un avversario con punti vicini; più si aspetta, più la ricerca si allarga.
+export const QUEUE_WINDOW = (waitedMs: number) => Math.min(1500, 100 + Math.floor(waitedMs / 1000) * 15);
+export const QUEUE_FRESH_MS = 12_000; // in coda solo chi ha controllato da poco (app ancora aperta)
+export const QUEUE_POLL_MS = 3000;
