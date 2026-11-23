@@ -9,7 +9,7 @@ import { hashRecoveryCode, usernameOf } from '../game/profile';
 import { FIRST_WIN_CREDITS, MATCH_CREDITS, PACK_PRICE } from '../game/collection';
 import { CLASSIC, fillDeck } from '../game/deckRules';
 import { PVP_REVEAL_MS, PVP_TURN_MS, handle, type AccountRow, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type QueueRow, type Store, type SupportRequestRow } from './actions';
-import { LEAGUES, MAX_REFERRALS, PROMOTION_REWARD, RANKED_POINTS, REFERRAL_PACKS, applyRanked, leagueOf } from '../game/ranked';
+import { firstLeader, LEAGUES, MAX_REFERRALS, PROMOTION_REWARD, RANKED_POINTS, REFERRAL_PACKS, applyRanked, leagueOf } from '../game/ranked';
 
 const AVATAR = { skin: 2, hair: 3, hairColor: 1, eyes: 0, eyeColor: 1, brows: 0, mouth: 0, beard: 4, glasses: 0, suit: 0 };
 const NEW_PROFILE = { nickname: 'Joaquim', avatar: { ...AVATAR }, favorite: 'lewis-hamilton' };
@@ -1058,6 +1058,20 @@ describe('campionati: punti e promozioni', () => {
     expect(up.progress.packs).toBe(PROMOTION_REWARD[3].packs);
     const again = applyRanked({ ...up.progress, ranked: { points: 290, best: 3 } }, 'player');
     expect(again.result.promoted).toBeUndefined();
+  });
+});
+
+describe('campionati: chi inizia', () => {
+  const card = (ovr: number) => ({ ovr }) as unknown as import('../types').Card;
+  const deck = (...o: number[]) => o.map(card);
+  const never = () => { throw new Error('niente sorteggio'); };
+  it('guida chi ha la carta più debole; a parità la seconda più debole, poi meno coppe, poi a sorte', () => {
+    expect(firstLeader(deck(80, 60, 90), deck(70, 75, 99), 0, 0, never)).toBe('player');
+    expect(firstLeader(deck(60, 90), deck(95, 59), 0, 0, never)).toBe('cpu');
+    expect(firstLeader(deck(60, 70, 90), deck(60, 72, 50 + 30), 0, 0, never)).toBe('player');
+    expect(firstLeader(deck(60, 70), deck(70, 60), 300, 100, never)).toBe('cpu');
+    expect(firstLeader(deck(60, 70), deck(70, 60), 100, 100, () => 0.9)).toBe('cpu');
+    expect(firstLeader(deck(60, 70), deck(70, 60), 100, 100, () => 0.1)).toBe('player');
   });
 });
 

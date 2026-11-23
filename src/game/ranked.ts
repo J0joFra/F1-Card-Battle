@@ -1,5 +1,6 @@
 import type { Progress } from './collection';
-import type { MatchOutcome } from './engine';
+import type { MatchOutcome, Rng, Side } from './engine';
+import type { Card } from '../types';
 
 /*
  * Gara classificata (stile Clash Royale): sfide online contro altri giocatori con punti simili.
@@ -88,6 +89,17 @@ export function applyRanked(p: Progress, outcome: Exclude<MatchOutcome, null>): 
     Object.assign(result, { promoted: league, packs, credits });
   }
   return { progress: next, result };
+}
+
+// Chi guida il primo round: chi ha la carta più debole (overall più basso). A parità si confronta la seconda
+// più debole, poi la terza…; mazzi uguali: chi ha meno coppe; ancora pari: a sorte.
+// (player = host, cpu = ospite)
+export function firstLeader(host: Card[], guest: Card[], hostPoints: number, guestPoints: number, rng: Rng): Side {
+  const a = host.map((c) => c.ovr).sort((x, y) => x - y);
+  const b = guest.map((c) => c.ovr).sort((x, y) => x - y);
+  for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) return a[i] < b[i] ? 'player' : 'cpu';
+  if (hostPoints !== guestPoints) return hostPoints < guestPoints ? 'player' : 'cpu';
+  return rng() < 0.5 ? 'player' : 'cpu';
 }
 
 // Coda: si cerca un avversario con punti vicini; più si aspetta, più la ricerca si allarga.

@@ -10,7 +10,8 @@ import {
 } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as NativeApp } from "@capacitor/app";
-import { Gift, Layers, Settings, SquareStack, Swords, UserPlus } from "lucide-react";
+import { Gift, Layers, Settings, SquareStack, Swords, Trophy, UserPlus } from "lucide-react";
+import { RankedScreen } from "./screens/RankedScreen";
 import type { Card } from "./types";
 import {
   WINS_PER_PACK,
@@ -133,7 +134,8 @@ type Screen =
   | "match"
   | "collection"
   | "packs"
-  | "friend";
+  | "friend"
+  | "ranked";
 
 const MODE_KEY = "f1-card-battle:mode";
 function savedMode(): MatchMode {
@@ -143,7 +145,7 @@ function savedMode(): MatchMode {
     return CLASSIC;
   }
 }
-type Tab = "home" | "collection" | "packs" | "builder";
+type Tab = "home" | "collection" | "packs" | "builder" | "ranked";
 
 // regole della partita veloce: Strategica (mano di 3 carte + jolly di gara) o Classica
 export type Rules = "hand" | "classic";
@@ -1104,7 +1106,8 @@ export default function App() {
     screen === "home" ||
     screen === "collection" ||
     screen === "packs" ||
-    screen === "builder"
+    screen === "builder" ||
+    screen === "ranked"
       ? screen
       : screen === "pick"
       ? "home"
@@ -1178,6 +1181,7 @@ export default function App() {
               onDaily={() => play(true)}
               onFriend={() => go("friend")}
               onRanked={startRanked}
+              onLeagues={() => go("ranked")}
               rankedBusy={starting || !!queue}
               onClaim={claim}
               onPacks={() => go("packs")}
@@ -1259,6 +1263,15 @@ export default function App() {
               onUseJolly={applyJolly}
             />
           )}
+          {screen === "ranked" && (
+            <RankedScreen
+              progress={progress}
+              online={account.online}
+              busy={starting || !!queue}
+              onPlay={startRanked}
+              onProfile={() => setProfileEditor({ mode: "create" })}
+            />
+          )}
           {screen === "friend" && (
             <FriendScreen
               account={account}
@@ -1308,6 +1321,13 @@ export default function App() {
           >
             <Swords size={22} />
             <span>{t("nav_play")}</span>
+          </button>
+          <button
+            className={tab === "ranked" ? "on" : ""}
+            onClick={() => go("ranked")}
+          >
+            <Trophy size={22} />
+            <span>{t("nav_ranked")}</span>
           </button>
           <button
             className={tab === "packs" ? "on" : ""}
