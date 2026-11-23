@@ -223,35 +223,6 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
         })}
       </div>
 
-      {/* jolly di gara: sempre in vendita, al massimo BOOST_MAX per tipo */}
-      <h3 className="shop-title">{t('rj_title')}</h3>
-      <p className="muted small rj-note">{t('rj_note', { n: BOOST_MAX })}</p>
-      <div className="rj-list">
-        {JOLLY_KINDS.map((k) => {
-          const n = boostsOf(progress, k);
-          return (
-            <div key={k} className={`rj-item rj-${k}`}>
-              <span className="rj-icon" aria-hidden>
-                {k === 'drs' ? 'DRS' : 'SC'}
-              </span>
-              <div className="rj-text">
-                <b>
-                  {t(k === 'drs' ? 'rj_drs' : 'rj_sc')} <span className="muted">{n}/{BOOST_MAX}</span>
-                </b>
-                <small>{t(k === 'drs' ? 'rj_drs_desc' : 'rj_sc_desc')}</small>
-              </div>
-              <button
-                className="btn primary small"
-                onClick={() => onBuyJolly(k)}
-                disabled={n >= BOOST_MAX || progress.credits < BOOST_PRICE}
-              >
-                {n >= BOOST_MAX ? t('rj_full') : `${coin()} ${BOOST_PRICE}`}
-              </button>
-            </div>
-          );
-        })}
-      </div>
-
       {/* card del giorno */}
       <h3 className="shop-title">
         {t('shop_daily')} <small className="muted">⏱ {clock}</small>
@@ -288,6 +259,34 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
           })}
         </div>
       )}
+      {/* jolly di gara: sempre in vendita, al massimo BOOST_MAX per tipo */}
+      <h3 className="shop-title">{t('rj_title')}</h3>
+      <p className="muted small rj-note">{t('rj_note', { n: BOOST_MAX })}</p>
+      <div className="rj-list">
+        {JOLLY_KINDS.map((k) => {
+          const n = boostsOf(progress, k);
+          return (
+            <div key={k} className={`rj-item rj-${k}`}>
+              <span className="rj-icon" aria-hidden>
+                {k === 'drs' ? 'DRS' : 'SC'}
+              </span>
+              <div className="rj-text">
+                <b>
+                  {t(k === 'drs' ? 'rj_drs' : 'rj_sc')} <span className="muted">{n}/{BOOST_MAX}</span>
+                </b>
+                <small>{t(k === 'drs' ? 'rj_drs_desc' : 'rj_sc_desc')}</small>
+              </div>
+              <button
+                className="btn primary small"
+                onClick={() => onBuyJolly(k)}
+                disabled={n >= BOOST_MAX || progress.credits < BOOST_PRICE}
+              >
+                {n >= BOOST_MAX ? t('rj_full') : `${coin()} ${BOOST_PRICE}`}
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -88,7 +88,7 @@ import type {
   PvpInfo,
   QueueInfo,
 } from "./server/actions";
-import { RankedOutcome, RankedQueue, leagueName } from "./components/Ranked";
+import { RankedOutcome, RankedQueue, SocialTabs, leagueName } from "./components/Ranked";
 import { QUEUE_POLL_MS, REFERRAL_PACKS, leagueOf } from "./game/ranked";
 import { themeLabel } from "./components/Daily";
 import type { OpenedPack } from "./screens/PacksScreen";
@@ -1099,6 +1099,14 @@ export default function App() {
     </div>
   ) : undefined;
 
+  // sezione Ranked: schede Campionato / Amici
+  const socialTabs = (
+    <SocialTabs
+      value={screen === "friend" ? "friends" : "league"}
+      onChange={(v) => go(v === "friends" ? "friend" : "ranked")}
+    />
+  );
+
   const inMatch = screen === "match";
   // musica: brano "partita" durante la partita, i due jazz alternati nel resto del gioco
   useEffect(() => setMusicMode(inMatch ? "match" : "menu"), [inMatch]);
@@ -1109,6 +1117,8 @@ export default function App() {
     screen === "builder" ||
     screen === "ranked"
       ? screen
+      : screen === "friend"
+      ? "ranked"
       : screen === "pick"
       ? "home"
       : null;
@@ -1270,6 +1280,7 @@ export default function App() {
               busy={starting || !!queue}
               onPlay={startRanked}
               onProfile={() => setProfileEditor({ mode: "create" })}
+              tabs={socialTabs}
             />
           )}
           {screen === "friend" && (
@@ -1283,6 +1294,7 @@ export default function App() {
               onStart={(res) => startPvp(res, lobby?.opponent)}
               onCancel={cancelLobby}
               onProfile={() => setProfileEditor({ mode: "create" })}
+              tabs={socialTabs}
             />
           )}
           {screen === "packs" && (

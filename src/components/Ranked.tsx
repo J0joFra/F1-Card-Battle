@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ChevronRight, Copy, Gift, Share2, Trophy, X } from 'lucide-react';
+import { ChevronRight, Copy, Gift, Share2, Trophy, Users, X } from 'lucide-react';
 import { useI18n, type TFn, type TKey } from '../lib/i18n';
 import { callGame } from '../lib/api';
 import { inviteLink, shareLink } from '../lib/links';
@@ -152,6 +152,20 @@ export function InviteFriend({ compact = false }: { compact?: boolean }) {
         </button>
       </div>
       {info && !compact && <small className="muted">{t('inv_count', { a: Math.min(info.n, MAX_REFERRALS), b: MAX_REFERRALS })}</small>}
+    </div>
+  );
+}
+
+// Sezione Ranked: due schede, il campionato (gara classificata) e gli amici (sfide e inviti)
+export function SocialTabs({ value, onChange }: { value: 'league' | 'friends'; onChange: (v: 'league' | 'friends') => void }) {
+  const { t } = useI18n();
+  return (
+    <div className="social-tabs" role="tablist">
+      {(['league', 'friends'] as const).map((v) => (
+        <button key={v} role="tab" aria-selected={value === v} className={value === v ? 'on' : ''} onClick={() => onChange(v)}>
+          {v === 'league' ? <Trophy size={16} /> : <Users size={16} />} {t(v === 'league' ? 'soc_league' : 'soc_friends')}
+        </button>
+      ))}
     </div>
   );
 }
