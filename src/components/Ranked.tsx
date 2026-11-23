@@ -14,7 +14,7 @@ export const leagueName = (i: number, t: TFn) => t(`lg_${LEAGUES[i].id}` as TKey
 export function LeagueBadge({ league, size = 44 }: { league: number; size?: number }) {
   return (
     <span className={`league-badge lg-${LEAGUES[league].id}`} style={{ width: size, height: size, fontSize: size * 0.34 }} aria-hidden>
-      {['KART', 'F4', 'FR', 'F3', 'F2', 'F1'][league]}
+      {['OKJ', 'OK', 'KZ', 'F4', 'FR', 'F3', 'F2', 'F1'][league]}
     </span>
   );
 }

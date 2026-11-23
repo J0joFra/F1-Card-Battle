@@ -332,7 +332,7 @@ export function normalizeProgress(raw: Partial<Progress>): Progress {
   } else delete p.boosts;
   if (p.ranked && typeof p.ranked === 'object') {
     const points = Math.max(0, Math.floor(Number(p.ranked.points) || 0));
-    p.ranked = { points, best: Math.max(0, Math.min(5, Math.floor(Number(p.ranked.best) || 0))) };
+    p.ranked = { points, best: Math.max(0, Math.min(7, Math.floor(Number(p.ranked.best) || 0))) };
   } else delete p.ranked;
   p.daily ??= emptyDaily();
   p.updatedAt ??= 0;

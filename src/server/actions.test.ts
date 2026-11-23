@@ -1034,26 +1034,29 @@ describe('server: livello della CPU', () => {
 describe('campionati: punti e promozioni', () => {
   const base = () => starterProgress(seededRng('r'));
   it('dal Karting alla Formula 1', () => {
-    expect(LEAGUES.map((l) => l.id)).toEqual(['kart', 'f4', 'fr', 'f3', 'f2', 'f1']);
+    expect(LEAGUES.map((l) => l.id)).toEqual(['okj', 'ok', 'kz', 'f4', 'fr', 'f3', 'f2', 'f1']);
     expect(leagueOf(0)).toBe(0);
-    expect(leagueOf(299)).toBe(0);
-    expect(leagueOf(300)).toBe(1);
-    expect(leagueOf(99999)).toBe(5);
+    expect(leagueOf(100)).toBe(1);
+    expect(leagueOf(299)).toBe(2);
+    expect(leagueOf(300)).toBe(3);
+    expect(leagueOf(99999)).toBe(7);
   });
   it('vittoria, pareggio, sconfitta; non si scende sotto l\'inizio del campionato', () => {
     const w = applyRanked(base(), 'player');
     expect(w.result).toMatchObject({ delta: RANKED_POINTS.player, points: 30, league: 0 });
+    // anche le categorie del Karting proteggono: da OK (100) non si torna in OK-Junior
+    expect(applyRanked({ ...base(), ranked: { points: 110, best: 1 } }, 'cpu').result.points).toBe(100);
     expect(applyRanked(base(), 'cpu').result.points).toBe(0);
-    const p = { ...base(), ranked: { points: 310, best: 1 } };
+    const p = { ...base(), ranked: { points: 310, best: 3 } };
     expect(applyRanked(p, 'cpu').result).toMatchObject({ points: 300, delta: -10 });
-    expect(applyRanked({ ...p, ranked: { points: 350, best: 1 } }, 'cpu').result.points).toBe(330);
+    expect(applyRanked({ ...p, ranked: { points: 350, best: 3 } }, 'cpu').result.points).toBe(330);
   });
   it('la promozione dà il premio una volta sola', () => {
-    const p = { ...base(), packs: 0, credits: 0, ranked: { points: 290, best: 0 } };
+    const p = { ...base(), packs: 0, credits: 0, ranked: { points: 290, best: 2 } };
     const up = applyRanked(p, 'player');
-    expect(up.result).toMatchObject({ promoted: 1, packs: PROMOTION_REWARD[1].packs, credits: PROMOTION_REWARD[1].credits });
-    expect(up.progress.packs).toBe(PROMOTION_REWARD[1].packs);
-    const again = applyRanked({ ...up.progress, ranked: { points: 290, best: 1 } }, 'player');
+    expect(up.result).toMatchObject({ promoted: 3, packs: PROMOTION_REWARD[3].packs, credits: PROMOTION_REWARD[3].credits });
+    expect(up.progress.packs).toBe(PROMOTION_REWARD[3].packs);
+    const again = applyRanked({ ...up.progress, ranked: { points: 290, best: 3 } }, 'player');
     expect(again.result.promoted).toBeUndefined();
   });
 });
@@ -1129,8 +1132,9 @@ describe('server: gara classificata', () => {
     const rb = await handle({ action: 'pvp_state', match: id }, t.bruno, t.c);
     expect(ra.pvp!.status).toBe('finished');
     const oa = ra.pvp!.seriesOutcome!;
-    expect(ra.rewards!.ranked!.points).toBe(Math.max(0, 100 + RANKED_POINTS[oa]));
-    expect(rb.rewards!.ranked!.points).toBe(Math.max(0, 150 + RANKED_POINTS[rb.pvp!.seriesOutcome!]));
+    const after = (pts: number, o: keyof typeof RANKED_POINTS) => Math.max(LEAGUES[leagueOf(pts)].min, pts + RANKED_POINTS[o]);
+    expect(ra.rewards!.ranked!.points).toBe(after(100, oa));
+    expect(rb.rewards!.ranked!.points).toBe(after(150, rb.pvp!.seriesOutcome!));
     expect(t.db.profiles.get('anna')!.progress.ranked!.points).toBe(ra.rewards!.ranked!.points);
     // nuova gara, Anna abbandona subito
     await join(t.anna, t.c);

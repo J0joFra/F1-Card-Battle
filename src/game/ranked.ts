@@ -7,8 +7,11 @@ import type { MatchOutcome } from './engine';
  * Una volta promosso non si scende sotto l'inizio del campionato raggiunto.
  */
 
+// il Karting è diviso nelle sue categorie: OK-Junior, OK, KZ
 export const LEAGUES = [
-  { id: 'kart', min: 0 },
+  { id: 'okj', min: 0 },
+  { id: 'ok', min: 100 },
+  { id: 'kz', min: 200 },
   { id: 'f4', min: 300 },
   { id: 'fr', min: 700 },
   { id: 'f3', min: 1200 },
@@ -22,6 +25,8 @@ export const RANKED_POINTS = { player: 30, draw: 5, cpu: -20 } as const;
 // premio della prima promozione in ogni campionato: pacchetti base da aprire e crediti
 export const PROMOTION_REWARD: { packs: number; credits: number }[] = [
   { packs: 0, credits: 0 },
+  { packs: 0, credits: 50 },
+  { packs: 1, credits: 50 },
   { packs: 1, credits: 100 },
   { packs: 2, credits: 150 },
   { packs: 2, credits: 250 },
