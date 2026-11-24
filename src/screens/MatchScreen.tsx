@@ -338,7 +338,7 @@ export function MatchScreen({
   return (
     <div className={`screen match ${hand && choosing ? 'has-hand' : ''}`}>
       {title && <div className="match-title">{title}</div>}
-      <div className="scoreboard">
+      <div className={`scoreboard ${shown.player > shown.cpu ? 'lead-player' : shown.cpu > shown.player ? 'lead-cpu' : ''}`}>
         <div className="side you">
           <small>{t('m_you')}</small>
           <b key={`p${shown.player}`} className={shown.player ? 'bump' : ''}>
@@ -378,20 +378,41 @@ export function MatchScreen({
 
       {finished ? (
         <div className="match-over">
-          <h2 className={`over-${outcome}`}>{outcome === 'player' ? t('m_win') : outcome === 'cpu' ? t('m_lose') : t('m_draw')}</h2>
+          <div className={`over-hero over-hero-${outcome}`}>
+            <span className="over-icon" aria-hidden>
+              {outcome === 'player' ? '🏆' : outcome === 'cpu' ? '🏁' : '🤝'}
+            </span>
+            <h2 className={`over-${outcome}`}>{outcome === 'player' ? t('m_win') : outcome === 'cpu' ? t('m_lose') : t('m_draw')}</h2>
+            <div className="over-score">
+              <span>
+                <small>{t('m_you')}</small>
+                <b className="you">{view.score.player}</b>
+              </span>
+              <i>–</i>
+              <span>
+                <small>{t('m_cpu')}</small>
+                <b className="cpu">{view.score.cpu}</b>
+              </span>
+            </div>
+          </div>
           {view.opponentLeft && <p className="muted">{t('pv_left')}</p>}
           <ol className="recap">
             {history.map((h, i) => {
               const def = STAT_BY_KEY[h.stat];
               return (
-                <li key={i} className={`rd-${h.winner}`}>
-                  <span>
+                <li key={i} className={`rd-${h.winner}`} style={{ animationDelay: `${0.25 + i * 0.07}s` }}>
+                  <span className="rc-n">{i + 1}</span>
+                  <span className="rc-stat">
                     {statLabel(h.stat)}
-                    <small className="muted"> · {h.chooser === 'player' ? t('m_byYou') : t('m_byCpu')}</small>
+                    <small className="muted">{h.chooser === 'player' ? t('m_byYou') : t('m_byCpu')}</small>
                   </span>
-                  <span>
-                    {h.playerCard.driver.abbreviation} {formatStat(def, h.playerCard.stats[h.stat])} –{' '}
-                    {formatStat(def, h.cpuCard.stats[h.stat])} {h.cpuCard.driver.abbreviation}
+                  <span className="rc-vals">
+                    <b className={h.winner === 'player' ? 'w' : ''}>
+                      <small>{h.playerCard.driver.abbreviation}</small> {formatStat(def, h.playerCard.stats[h.stat])}
+                    </b>
+                    <b className={h.winner === 'cpu' ? 'w' : ''}>
+                      {formatStat(def, h.cpuCard.stats[h.stat])} <small>{h.cpuCard.driver.abbreviation}</small>
+                    </b>
                   </span>
                 </li>
               );
@@ -472,6 +493,11 @@ export function MatchScreen({
             <span className="vs-badge" aria-hidden>
               VS
             </span>
+            {settled && last.winner !== 'tie' && (
+              <span className={`plus-one plus-${last.winner}`} aria-hidden>
+                +1
+              </span>
+            )}
             <div className="duel-opp flip-reveal" key={`cpu-${view.round}`}>
               <CardView
                 card={last.cpuCard}
