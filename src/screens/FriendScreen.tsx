@@ -139,9 +139,13 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
           {tabs ?? <h2>{t('fr_title')}</h2>}
           {help}
         </header>
-        <section className="panel">
+        <section className="fr-hero">
+          <span className="fr-emblem" aria-hidden>
+            <Swords size={34} />
+          </span>
+          <h3>{t('fr_title')}</h3>
           <p>{t('fr_needLogin')}</p>
-          <button className="btn primary block" onClick={onProfile}>
+          <button className="btn primary big block" onClick={onProfile}>
             {t('pr_createTitle')}
           </button>
         </section>
@@ -155,7 +159,10 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
         <header className="screen-head">
           {tabs ?? <h2>{t('fr_title')}</h2>}
         </header>
-        <section className="panel">
+        <section className="fr-hero fr-lobby">
+          <span className="fr-emblem pulse" aria-hidden>
+            <Swords size={34} />
+          </span>
           {lobby.invited ? (
             <p className="center waiting-dots">{t('fr_waitingFriend', { name: lobby.opponent ?? t('fr_opponent') })}</p>
           ) : (
@@ -183,14 +190,82 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
         {tabs ?? <h2>{t('fr_title')}</h2>}
         {help}
       </header>
-      <ul className="odds-chips">
-        <li>⚔️ {t('fr_bo3')}</li>
-        <li>🃏 {t('rules_hand')} · {t('rules_hand_sub')}</li>
-        <li>🏆 {coin()} +{FRIEND_WIN_CREDITS}</li>
-        <li>🤝 {coin()} +{FRIEND_DRAW_CREDITS}</li>
-      </ul>
+      {/* sfida: regole, crea una sfida con codice o entra con il codice di un amico */}
+      <section className="fr-hero">
+        <span className="fr-emblem" aria-hidden>
+          <Swords size={34} />
+        </span>
+        <h3>{t('fr_title')}</h3>
+        <ul className="odds-chips fr-rules">
+          <li>⚔️ {t('fr_bo3')}</li>
+          <li>🃏 {t('rules_hand')}</li>
+          <li>🏆 {coin()} +{FRIEND_WIN_CREDITS}</li>
+          <li>🤝 {coin()} +{FRIEND_DRAW_CREDITS}</li>
+        </ul>
+        <button className="btn primary big block friend-btn" onClick={() => onCreate()}>
+          <Users size={18} /> {t('fr_create')}
+        </button>
+        <div className="code-row">
+          <input
+            className="code-input"
+            value={clean}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder={t('fr_codePh')}
+            autoCapitalize="characters"
+            autoComplete="off"
+            maxLength={8}
+            aria-label={t('fr_codePh')}
+          />
+          <button className="btn" onClick={() => onJoin(clean)} disabled={clean.length !== 6}>
+            {t('fr_join')}
+          </button>
+        </div>
+      </section>
 
-      <section className="panel">
+      <section className="panel fr-friends">
+        <div className="fr-friends-head">
+          <b>
+            <Users size={16} /> {t('fr_friends')}
+          </b>
+          {friends && friends.length > 0 && (
+            <span className="fr-online-n">
+              <i /> {t('fr_onlineN', { n: friends.filter((f) => f.online).length })}
+            </span>
+          )}
+        </div>
+        {friends === null ? (
+          <p className="muted">…</p>
+        ) : friends.length === 0 ? (
+          <p className="muted">{t('fr_noFriends')}</p>
+        ) : (
+          <ul className="friend-list">
+            {[...friends].sort((a, b) => Number(b.online) - Number(a.online)).map((f) => (
+              <li key={f.id} className={f.online ? 'on' : ''}>
+                {f.avatar ? (
+                  <span className={`presence ${f.online ? 'online' : ''}`}>
+                    <PlayerAvatar avatar={f.avatar} size={40} />
+                  </span>
+                ) : (
+                  <span className={`avatar presence ${f.online ? 'online' : ''}`}>{(f.name ?? '?').trim().charAt(0).toUpperCase()}</span>
+                )}
+                <span className="who">
+                  <b>{f.name ?? t('fr_opponent')}</b>
+                  <small>{f.online ? t('fr_online') : t('fr_offline')}</small>
+                </span>
+                <button className="btn primary small friend-btn" onClick={() => onCreate(f)}>
+                  <Swords size={15} /> {t('fr_challenge')}
+                </button>
+                <button className="icon-btn" onClick={() => remove(f)} aria-label={t('fr_remove')}>
+                  <UserMinus size={18} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* mazzi pronti per la sfida */}
+      <section className="panel fr-decks">
         <div className="decks-ready">
           <div>
             <b>{t('fr_decks')}</b>
@@ -206,64 +281,10 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
               })}
             </div>
           </div>
-          <button className="btn ghost friend-btn" onClick={onEditDecks}>
+          <button className="btn ghost small friend-btn" onClick={onEditDecks}>
             <Layers size={16} /> {t('fr_editDecks')}
           </button>
         </div>
-      </section>
-
-      <section className="panel">
-        <b>{t('fr_friends')}</b>
-        {friends === null ? (
-          <p className="muted">…</p>
-        ) : friends.length === 0 ? (
-          <p className="muted">{t('fr_noFriends')}</p>
-        ) : (
-          <ul className="friend-list">
-            {friends.map((f) => (
-              <li key={f.id}>
-                {f.avatar ? (
-                  <span className={`presence ${f.online ? 'online' : ''}`}>
-                    <PlayerAvatar avatar={f.avatar} size={40} />
-                  </span>
-                ) : (
-                  <span className={`avatar presence ${f.online ? 'online' : ''}`}>{(f.name ?? '?').trim().charAt(0).toUpperCase()}</span>
-                )}
-                <span className="who">
-                  <b>{f.name ?? t('fr_opponent')}</b>
-                  <small>{f.online ? t('fr_online') : t('fr_offline')}</small>
-                </span>
-                <button className="btn primary friend-btn" onClick={() => onCreate(f)}>
-                  <Swords size={16} /> {t('fr_challenge')}
-                </button>
-                <button className="icon-btn" onClick={() => remove(f)} aria-label={t('fr_remove')}>
-                  <UserMinus size={18} />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="panel">
-        <div className="code-row">
-          <input
-            className="code-input"
-            value={clean}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder={t('fr_codePh')}
-            autoCapitalize="characters"
-            autoComplete="off"
-            maxLength={8}
-            aria-label={t('fr_codePh')}
-          />
-          <button className="btn primary" onClick={() => onJoin(clean)} disabled={clean.length !== 6}>
-            {t('fr_join')}
-          </button>
-        </div>
-        <button className="btn ghost block friend-btn" onClick={() => onCreate()}>
-          <Users size={18} /> {t('fr_create')}
-        </button>
       </section>
 
       <InviteFriend />

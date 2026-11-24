@@ -179,8 +179,14 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
         />
       </header>
 
-      {/* i tuoi pacchetti (vinti o comprati) */}
-      <div className="pack-hero">
+      {/* i tuoi pacchetti (vinti o comprati): il pacchetto sotto i riflettori, a fianco il conteggio e "Apri" */}
+      <div className={`pack-hero shop-hero ${progress.packs > 0 ? 'has' : ''}`}>
+        <span className="sh-spot" aria-hidden />
+        <span className="sh-sparks" aria-hidden>
+          {Array.from({ length: 8 }, (_, i) => (
+            <i key={i} style={{ '--i': i } as CSSProperties} />
+          ))}
+        </span>
         <button
           className={`pack pack-${heroKind} ${progress.packs > 0 ? 'ready' : ''} ${tearing ? 'tearing' : ''}`}
           style={heroKind === 'team' ? ({ '--team': teamColor(team.id) } as CSSProperties) : undefined}
@@ -191,18 +197,31 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
           <small>{packName(heroKind)}</small>
           {progress.packs > 0 && !tearing && <span className="badge">{progress.packs}</span>}
         </button>
-        {progress.packs > 0 ? (
-          <button className="btn primary big block" onClick={open} disabled={!!tearing}>
-            {t('p_open')}
-          </button>
-        ) : (
-          <p className="muted center">🏆 {progress.winsTowardPack}/{WINS_PER_PACK}</p>
-        )}
+        <div className="sh-side">
+          <small>{t('shop_yourPacks')}</small>
+          <b className="sh-count">{progress.packs}</b>
+          {progress.packs > 0 ? (
+            <button className="btn primary big block" onClick={open} disabled={!!tearing}>
+              {t('p_open')}
+            </button>
+          ) : (
+            <>
+              <div className="bar small">
+                <div style={{ width: `${(progress.winsTowardPack / WINS_PER_PACK) * 100}%` }} />
+              </div>
+              <small className="sh-next">
+                🏆 {t('home_winsOf', { a: progress.winsTowardPack, b: WINS_PER_PACK })}
+              </small>
+            </>
+          )}
+        </div>
       </div>
       {progress.jolly > 0 && <JollyPicker progress={progress} onPick={onUseJolly} />}
 
       {/* tre tipi di pacchetto */}
-      <h3 className="shop-title">{t('shop_packs')}</h3>
+      <h3 className="shop-title">
+        <span>🎁 {t('shop_packs')}</span>
+      </h3>
       <div className="shop-packs">
         {(['classic', 'premium', 'team'] as PackKind[]).map((k) => {
           const type = PACK_TYPES[k];
@@ -217,7 +236,10 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
               <span className="mini-pack">F1</span>
               <b>{packName(k)}</b>
               <small>{t(k === 'classic' ? 'shop_classic_sub' : k === 'premium' ? 'shop_premium_sub' : 'shop_team_sub', { n: type.size, team: team.name })}</small>
-              <span className="price">{coin()} {type.price}</span>
+              <span className="price">
+                {coin()} {type.price}
+              </span>
+              <span className="sp-shine" aria-hidden />
             </button>
           );
         })}
@@ -225,7 +247,7 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
 
       {/* card del giorno */}
       <h3 className="shop-title">
-        {t('shop_daily')} <small className="muted">⏱ {clock}</small>
+        <span>🃏 {t('shop_daily')}</span> <small className="sh-clock">⏱ {clock}</small>
       </h3>
       {!store ? (
         <p className="muted center">…</p>
@@ -239,11 +261,11 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
             const price = storePrice(card);
             const buyBtn = (
               <button
-                className={`btn ${owned || bought ? 'ghost' : 'primary'} block`}
+                className={`btn small ${owned || bought ? 'ghost' : 'primary'} block`}
                 onClick={() => onBuyCard(card)}
                 disabled={owned || bought || progress.credits < price}
               >
-                {bought || owned ? `✓ ${t('shop_owned')}` : `${coin()} ${price}`}
+                {bought || owned ? '✓' : `${coin()} ${price}`}
               </button>
             );
             return (
@@ -260,7 +282,9 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
         </div>
       )}
       {/* jolly di gara: sempre in vendita, al massimo BOOST_MAX per tipo */}
-      <h3 className="shop-title">{t('rj_title')}</h3>
+      <h3 className="shop-title">
+        <span>⚡ {t('rj_title')}</span>
+      </h3>
       <p className="muted small rj-note">{t('rj_note', { n: BOOST_MAX })}</p>
       <div className="rj-list">
         {JOLLY_KINDS.map((k) => {

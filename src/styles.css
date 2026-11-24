@@ -1940,3 +1940,96 @@ button.ranked-head { background: none; border: 0; padding: 0; color: inherit; te
 @media (min-width: 400px) { .col-grid.dense .grid-item .flip { zoom: 0.56; } }
 @media (min-width: 460px) { .col-grid.dense .grid-item .flip { zoom: 0.64; } }
 @media (min-width: 560px) { .col-grid.dense { grid-template-columns: repeat(5, minmax(0, 1fr)); } .col-grid.dense .grid-item .flip { zoom: 0.62; } }
+
+/* negozio 2: pacchetto sotto i riflettori, pacchetti con riflesso, card del giorno a 3 per riga */
+.shop-hero {
+  position: relative; overflow: hidden; display: grid; grid-template-columns: auto 1fr; align-items: center; justify-items: stretch;
+  gap: 16px; padding: 16px; border-radius: 24px; color: #fff;
+  background: radial-gradient(90% 120% at 22% 10%, rgba(225, 6, 0, 0.45), transparent 60%), linear-gradient(180deg, #23262e, #121419);
+  border: 1px solid #3a1210; box-shadow: 0 12px 30px rgba(225, 6, 0, 0.18);
+  animation: hero-in 0.4s ease-out both;
+}
+.shop-hero .pack { width: 116px; height: 162px; font-size: 38px; border-radius: 14px; transform: rotate(-6deg); justify-self: center; }
+.shop-hero .pack small { font-size: 11px; }
+.shop-hero .pack.ready { animation: pack-bob 2.4s ease-in-out infinite; }
+.shop-hero .pack.tearing { animation: tear 0.75s ease-in both; }
+@keyframes pack-bob { 0%, 100% { transform: rotate(-6deg) translateY(0); } 50% { transform: rotate(-3deg) translateY(-6px); } }
+.shop-hero .pack::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.35) 50%, transparent 65%) -200% 0 / 250% 100% no-repeat;
+  animation: sp-sweep 3.2s ease-in-out infinite;
+}
+:root[data-season] .shop-hero .pack::after { content: none; }
+.sh-spot { position: absolute; left: -10%; top: -40%; width: 70%; height: 180%; background: conic-gradient(from 160deg at 50% 0%, transparent 0 10deg, rgba(255, 255, 255, 0.1) 18deg 32deg, transparent 40deg); pointer-events: none; }
+.sh-sparks i { position: absolute; left: calc(8% + var(--i) * 4%); top: 70%; width: 4px; height: 4px; border-radius: 50%; background: #ffd54a; opacity: 0; animation: sh-spark 3s calc(var(--i) * 0.37s) ease-out infinite; }
+.shop-hero:not(.has) .sh-sparks { display: none; }
+@keyframes sh-spark { 0% { opacity: 0; transform: translateY(0); } 20% { opacity: 1; } 100% { opacity: 0; transform: translateY(-120px) translateX(20px); } }
+.sh-side { position: relative; display: grid; gap: 6px; align-content: center; min-width: 0; }
+.sh-side > small:first-child { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.75; }
+.sh-count { font-size: 46px; line-height: 1; font-weight: 900; font-style: italic; }
+.shop-hero:not(.has) .sh-count { opacity: 0.5; }
+.sh-side .bar { background: rgba(255, 255, 255, 0.15); }
+.sh-next { font-size: 12px; font-weight: 700; opacity: 0.85; }
+.shop-title { align-items: center; margin: 8px 0 -4px; }
+.shop-title > span { display: inline-flex; align-items: center; gap: 6px; }
+.sh-clock { padding: 3px 9px; border-radius: 99px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+.shop-pack { position: relative; overflow: hidden; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, var(--surface)), var(--surface)); }
+.shop-premium { background: linear-gradient(180deg, color-mix(in srgb, var(--oro) 18%, var(--surface)), var(--surface)); box-shadow: 0 6px 18px color-mix(in srgb, var(--oro) 25%, transparent); }
+.shop-team { background: linear-gradient(180deg, color-mix(in srgb, var(--team) 20%, var(--surface)), var(--surface)); }
+.shop-pack .mini-pack { transform: rotate(-5deg); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.35); }
+.shop-pack .price { padding: 3px 10px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--line); font-size: 14px; }
+.sp-shine { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.22) 50%, transparent 65%) -200% 0 / 250% 100% no-repeat; animation: sp-sweep 4s ease-in-out infinite; }
+.shop-premium .sp-shine { animation-delay: 1.3s; }
+.shop-team .sp-shine { animation-delay: 2.6s; }
+.shop-pack:disabled .sp-shine { display: none; }
+@keyframes sp-sweep { 0%, 60% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+.shop .shop-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 8px; }
+.shop .shop-card .flip { width: 150px; zoom: 0.68; }
+@media (min-width: 400px) { .shop .shop-card .flip { zoom: 0.76; } }
+@media (min-width: 460px) { .shop .shop-card .flip { zoom: 0.86; } }
+.shop .shop-card > .btn { padding: 6px 4px; font-size: 13px; }
+.rj-list { grid-template-columns: 1fr; }
+.rj-item { background: linear-gradient(90deg, color-mix(in srgb, var(--rj, var(--accent)) 10%, var(--surface)), var(--surface) 60%); }
+.rj-drs { --rj: #1fbf63; } .rj-sc { --rj: #ffb31a; }
+@media (prefers-reduced-motion: reduce) { .shop-hero .pack.ready, .shop-hero .pack::after, .sp-shine, .sh-sparks i { animation: none; } }
+
+/* amici 2: riquadro sfida con lo stemma, lista amici con chi è online in alto */
+.fr-hero {
+  position: relative; overflow: hidden; display: grid; justify-items: center; gap: 10px; text-align: center;
+  padding: 18px 16px 16px; border-radius: 24px; color: #fff;
+  background: radial-gradient(100% 80% at 50% 0%, rgba(124, 92, 255, 0.55), transparent 70%), repeating-linear-gradient(100deg, transparent 0 46px, rgba(255, 255, 255, 0.04) 46px 48px), linear-gradient(180deg, #23262e, #121419);
+  border: 1px solid #3b2f73; box-shadow: 0 12px 30px rgba(124, 92, 255, 0.2);
+  animation: hero-in 0.4s ease-out both;
+}
+.fr-hero h3 { margin: 0; font-size: 24px; font-weight: 900; font-style: italic; }
+.fr-hero p { margin: 0; opacity: 0.9; }
+.fr-emblem {
+  width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; color: #fff;
+  background: radial-gradient(circle at 35% 30%, #a48bff, #5b37e0 65%, #33208a); border: 3px solid #d9ceff;
+  box-shadow: 0 0 0 6px rgba(124, 92, 255, 0.2), 0 8px 20px rgba(0, 0, 0, 0.4);
+  animation: fr-clash 2.6s ease-in-out infinite;
+}
+.fr-emblem.pulse { animation: fr-pulse 1.4s ease-in-out infinite; }
+@keyframes fr-clash { 0%, 80%, 100% { transform: none; } 85% { transform: rotate(-12deg) scale(1.08); } 90% { transform: rotate(10deg) scale(1.08); } }
+@keyframes fr-pulse { 50% { box-shadow: 0 0 0 14px rgba(124, 92, 255, 0.05), 0 8px 20px rgba(0, 0, 0, 0.4); } }
+.fr-rules { justify-content: center; margin: 0; }
+.fr-hero .odds-chips li { background: rgba(255, 255, 255, 0.1); color: #fff; border-color: rgba(255, 255, 255, 0.15); }
+.fr-hero .code-row { display: flex; gap: 8px; width: 100%; }
+.fr-hero .code-input { flex: 1; min-width: 0; padding: 10px; font-size: 1.15rem; background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.2); color: #fff; }
+.fr-hero .code-input::placeholder { color: rgba(255, 255, 255, 0.5); }
+.fr-hero .code-row .btn { flex: none; background: #fff; color: #1b1b1b; border: 0; }
+.fr-hero .code-row .btn:disabled { opacity: 0.5; }
+.fr-hero .code-big { width: 100%; background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.3); color: #fff; }
+.fr-hero .btn.ghost { color: #fff; border-color: rgba(255, 255, 255, 0.25); }
+.fr-hero .muted { color: rgba(255, 255, 255, 0.7); }
+.fr-friends-head { display: flex; align-items: center; justify-content: space-between; }
+.fr-friends-head b { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 900; }
+.fr-online-n { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; color: var(--win); }
+.fr-online-n i { width: 8px; height: 8px; border-radius: 50%; background: var(--win); box-shadow: 0 0 0 3px color-mix(in srgb, var(--win) 25%, transparent); }
+.fr-friends .friend-list li { padding: 8px 10px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); }
+.fr-friends .friend-list li.on { border-color: color-mix(in srgb, var(--win) 45%, var(--line)); background: linear-gradient(90deg, color-mix(in srgb, var(--win) 10%, var(--surface-2)), var(--surface-2) 60%); }
+.fr-friends .friend-list li.on .who small { color: var(--win); font-weight: 800; }
+.fr-decks { padding-top: 10px; padding-bottom: 10px; }
+@media (prefers-reduced-motion: reduce) { .fr-emblem { animation: none; } }
+.sh-sparks { position: absolute; inset: 0; pointer-events: none; }
+.shop-hero .btn.big { font-size: 15px; padding-left: 10px; padding-right: 10px; }
