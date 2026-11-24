@@ -1620,3 +1620,22 @@ button.ranked-head { background: none; border: 0; padding: 0; color: inherit; te
 @media (min-width: 400px) { .col-grid .grid-item .flip { zoom: 0.76; } }
 @media (min-width: 460px) { .col-grid .grid-item .flip { zoom: 0.86; } }
 @media (min-width: 560px) { .col-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } .col-grid .grid-item .flip { zoom: 0.8; } }
+
+/* mazzi: forza del mazzo, linguette con l'overall medio, ricerca e griglia compatta */
+.deck-tabs button { height: auto; min-height: 44px; padding: 4px 14px; flex-direction: column; gap: 0; line-height: 1.1; }
+.deck-tabs .dt-num { display: inline-flex; align-items: center; gap: 4px; }
+.deck-tabs .dt-ovr { display: inline-flex; align-items: center; gap: 2px; font-size: 10.5px; font-weight: 800; color: var(--muted); }
+.deck-ovr { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 800; color: var(--muted); margin-right: auto; }
+.deck-ovr b { font-size: 15px; color: var(--text); }
+.deck-count > b { margin-right: 0; }
+.limits-label { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.pick-head { flex-wrap: wrap; }
+.pick-search { flex: 1 1 100%; order: 3; }
+.pick-grid.compact { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 8px; }
+.pick-grid.compact > div { display: flex; justify-content: center; }
+.pick-grid.compact .flip { width: 150px; zoom: 0.68; }
+@media (min-width: 400px) { .pick-grid.compact .flip { zoom: 0.76; } }
+@media (min-width: 460px) { .pick-grid.compact .flip { zoom: 0.86; } }
+@media (min-width: 560px) { .pick-grid.compact { grid-template-columns: repeat(4, minmax(0, 1fr)); } .pick-grid.compact .flip { zoom: 0.8; } }
+.pick-badge.blocked-badge { background: #555c6b; }
+.deck-limits { display: flex; align-items: center; gap: 6px; flex-basis: 100%; flex-wrap: wrap; }

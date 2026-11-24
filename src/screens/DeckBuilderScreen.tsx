@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Card, Rarity, StatKey } from '../types';
-import { ArrowDownWideNarrow, ArrowLeft, Check, Dices, LayoutGrid, Minus, Play, Plus, Table2, Trash2, X, Sparkles } from 'lucide-react';
+import { ArrowDownWideNarrow, ArrowLeft, Check, Dices, Gauge, LayoutGrid, Minus, Play, Plus, Search, Table2, Trash2, X, Sparkles } from 'lucide-react';
 import { STATS, formatStat, rarityLabel, statLabel, statShort } from '../game/cards';
 import { useI18n } from '../lib/i18n';
 import { HelpButton } from '../components/TutorialSection';
@@ -42,6 +42,9 @@ const BLOCK_LABEL: Record<SlotBlock, TKey> = {
   allDecks: 'deck_blockAll',
   similar: 'deck_blockSimilar',
 };
+
+// forza del mazzo: overall medio delle sue card
+const avgOvr = (d: Card[]) => (d.length ? Math.round(d.reduce((n, c) => n + c.ovr, 0) / d.length) : null);
 
 function savedView(): View {
   try {
@@ -115,6 +118,7 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
     setSlot(i);
   }
   const [sort, setSort] = useState<SortKey>('rarita');
+  const [query, setQuery] = useState('');
   const [view, setViewRaw] = useState<View>(savedView);
   const setView = (v: View) => {
     setViewRaw(v);
@@ -133,15 +137,16 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
 
   // ordina per rarità (dalla più rara) o per una metrica (dal valore migliore)
   const rows = useMemo(() => {
-    const cards = [...usable];
+    const q = query.trim().toLowerCase();
+    const cards = q ? usable.filter((c) => `${c.driver.name} ${c.team.name}`.toLowerCase().includes(q)) : [...usable];
     const byName = (a: Card, b: Card) => a.driver.lastName.localeCompare(b.driver.lastName) || a.firstYear - b.firstYear;
     if (sort === 'rarita')
       return cards.sort((a, b) => RARITY_RANK[b.rarity] - RARITY_RANK[a.rarity] || b.ovr - a.ovr || byName(a, b));
     if (sort === 'ovr') return cards.sort((a, b) => b.ovr - a.ovr || byName(a, b));
     const def = STATS.find((s) => s.key === sort)!;
     return cards.sort((a, b) => (def.lowerWins ? a.stats[sort] - b.stats[sort] : b.stats[sort] - a.stats[sort]) || byName(a, b));
-  }, [usable, sort]);
-  const { limit, sentinel } = useProgressive(rows.length, 40, `${sort}|${view}`);
+  }, [usable, sort, query]);
+  const { limit, sentinel } = useProgressive(rows.length, 48, `${sort}|${view}|${query}`);
 
   const toggle = (c: Card) =>
     setDeck((d) => (d.some((x) => x.id === c.id) ? d.filter((x) => x.id !== c.id) : !addBlock(d, c, mode, others) ? [...d, c] : d));
@@ -177,8 +182,15 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
                 className={i === slot ? 'on' : ''}
                 onClick={() => openSlot(i)}
               >
-                {i + 1}
-                {ok && <Check size={12} />}
+                <span className="dt-num">
+                  {i + 1}
+                  {ok && <Check size={12} />}
+                </span>
+                {avgOvr(d) !== null && (
+                  <small className="dt-ovr">
+                    <Gauge size={11} /> {avgOvr(d)}
+                  </small>
+                )}
               </button>
             );
           })}
@@ -191,15 +203,24 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
           <b className={deck.length === DECK_SIZE ? 'ok' : ''}>
             {deck.length}/{DECK_SIZE}
           </b>
-          {mode.kind !== 'rarity' &&
-            rarityCaps(deck).map(([r, n]) => {
+          {avgOvr(deck) !== null && (
+            <span className="deck-ovr" title={t('deck_strength')}>
+              <Gauge size={14} /> {t('deck_strength')} <b>{avgOvr(deck)}</b>
+            </span>
+          )}
+          {mode.kind !== 'rarity' && (
+            <div className="deck-limits">
+              <small className="limits-label">{t('deck_limitsLabel')}</small>
+              {rarityCaps(deck).map(([r, n]) => {
               const used = deck.filter((c) => c.rarity === r).length;
               return (
                 <span key={r} className={`limit ${used > n ? 'over' : ''}`} title={t('deck_maxRarity', { n, r: rarityLabel(r) })}>
                   <span className={`dot rarity-${r}`} /> {used}/{n}
                 </span>
               );
-            })}
+              })}
+            </div>
+          )}
         </div>
         <div className="deck-cards">
           {Array.from({ length: DECK_SIZE }, (_, i) => {
@@ -251,6 +272,10 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
 
       <div className="pick-head">
         <b>{t('deck_collection', { n: rows.length })}</b>
+        <label className="search pick-search">
+          <Search size={16} />
+          <input type="search" placeholder={t('col_search')} value={query} onChange={(e) => setQuery(e.target.value)} />
+        </label>
         <label className="sort-label" title={t('deck_sortBy')}>
           <ArrowDownWideNarrow size={18} aria-hidden />
           <select
@@ -344,7 +369,7 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
           {limit < rows.length && <div ref={sentinel} className="grid-sentinel" />}
         </div>
       ) : (
-        <div className="pick-grid">
+        <div className="pick-grid compact">
           {rows.slice(0, limit).map((c) => {
             const selected = deck.some((x) => x.id === c.id);
             const block = selected ? null : blockOf(c);
@@ -353,7 +378,13 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
               <div key={c.id} className={`${selected ? 'in-deck' : ''} ${blocked ? 'blocked' : ''}`}>
                 <FlipCard
                   card={c}
-                  badge={selected ? <span className="pick-badge">{t('deck_inDeck')}</span> : undefined}
+                  badge={
+                    selected ? (
+                      <span className="pick-badge">{t('deck_inDeck')}</span>
+                    ) : block && block !== 'full' ? (
+                      <span className="pick-badge blocked-badge">{t(BLOCK_LABEL[block])}</span>
+                    ) : undefined
+                  }
                   action={
                     <button
                       className={`btn ${selected ? 'ghost' : 'primary'}`}
