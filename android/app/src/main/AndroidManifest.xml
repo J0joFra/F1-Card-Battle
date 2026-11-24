@@ -34,6 +34,4 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- acquisti in app con Google Play (crediti): serve anche per creare i prodotti in Play Console -->
-    <uses-permission android:name="com.android.vending.BILLING" />
 </manifest>
