@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import type { Card, Rarity } from '../types';
-import { ArrowDownUp, Search } from 'lucide-react';
+import { ArrowDownUp, ChevronDown, Grid2x2, Grid3x3, Search } from 'lucide-react';
 import { ALL_CARDS, careerCardOf, rarityLabel, teamCardsOfDriver } from '../game/cards';
 import { useI18n } from '../lib/i18n';
 import { HelpButton } from '../components/TutorialSection';
@@ -25,6 +25,23 @@ const RARITY_ROW: Rarity[] = ['bronzo', 'argento', 'oro', 'platino', 'leggendari
 const RARITY_RANK: Record<Rarity, number> = { leggendaria: 7, platino: 6, oro: 5, pioniere: 4, classica: 3, argento: 2, bronzo: 1 };
 const TOTAL_BY_RARITY = Object.fromEntries(RARITY_ROW.map((r) => [r, ALL_CARDS.filter((c) => c.rarity === r).length])) as Record<Rarity, number>;
 const SORT_KEY = 'f1-card-battle:col-sort';
+const DENSE_KEY = 'f1-card-battle:col-dense';
+const CLOSED_KEY = 'f1-card-battle:col-closed';
+const MORE_STEP = 24;
+const readLS = (k: string) => {
+  try {
+    return localStorage.getItem(k);
+  } catch {
+    return null;
+  }
+};
+const writeLS = (k: string, v: string) => {
+  try {
+    localStorage.setItem(k, v);
+  } catch {
+    /* niente memoria */
+  }
+};
 
 export function CollectionScreen({ progress, today, onShop, onUseJolly }: Props) {
   const { t } = useI18n();
@@ -47,6 +64,28 @@ export function CollectionScreen({ progress, today, onShop, onUseJolly }: Props)
       /* niente memoria */
     }
   };
+  // vista compatta (4 per riga) e sezioni chiuse, ricordate sul telefono
+  const [dense, setDenseRaw] = useState(() => readLS(DENSE_KEY) === '1');
+  const setDense = (v: boolean) => {
+    setDenseRaw(v);
+    writeLS(DENSE_KEY, v ? '1' : '0');
+  };
+  const [closed, setClosedRaw] = useState<Rarity[]>(() => {
+    try {
+      return JSON.parse(readLS(CLOSED_KEY) ?? '[]') as Rarity[];
+    } catch {
+      return [];
+    }
+  });
+  const toggleClosed = (r: Rarity) => {
+    const next = closed.includes(r) ? closed.filter((x) => x !== r) : [...closed, r];
+    setClosedRaw(next);
+    writeLS(CLOSED_KEY, JSON.stringify(next));
+  };
+  // quante card si vedono in ogni sezione: all'inizio due righe, poi "mostra altre"
+  const cols = dense ? 4 : 3;
+  const [shown, setShown] = useState<Partial<Record<Rarity, number>>>({});
+  const preview = cols * 2;
   // carte possedute per rarità (riepilogo in alto)
   const ownedBy = useMemo(() => {
     const n = Object.fromEntries(RARITY_ROW.map((r) => [r, 0])) as Record<Rarity, number>;
@@ -71,6 +110,23 @@ export function CollectionScreen({ progress, today, onShop, onUseJolly }: Props)
   }, [query, rarity, ownedFilter, sort, progress.owned]);
   const inShop = (c: Card) => progress.store?.date === today && progress.store.cards.includes(c.id);
   const { limit, sentinel } = useProgressive(cards.length, 48, `${query}|${rarity}|${ownedFilter}|${sort}`);
+  // sezioni per rarità (dalla più rara), solo quelle con card da mostrare
+  const sections = useMemo(() => {
+    const by = new Map<Rarity, Card[]>();
+    for (const c of cards) by.set(c.rarity, [...(by.get(c.rarity) ?? []), c]);
+    return [...by.entries()].sort((a, b) => RARITY_RANK[b[0]] - RARITY_RANK[a[0]]);
+  }, [cards]);
+  const renderCard = (c: Card) => (
+    <div key={c.id} className="grid-item">
+      <FlipCard
+        card={c}
+        dimmed={!progress.owned[c.id]}
+        count={progress.owned[c.id]}
+        action={<CardInfo card={c} progress={progress} inShop={inShop(c)} onShop={onShop} onUseJolly={onUseJolly} />}
+      />
+    </div>
+  );
+  const pct = Math.round((collectionSize(progress) / TOTAL_CARDS) * 1000) / 10;
 
   return (
     <div className="screen collection">
@@ -79,12 +135,18 @@ export function CollectionScreen({ progress, today, onShop, onUseJolly }: Props)
         <HelpButton items={['tut_coll_1', 'tut_coll_2', 'tut_coll_3']} />
       </header>
       {/* riepilogo: quante card hai per rarità (tocca una rarità per vedere solo quella) */}
-      <section className="panel col-summary">
+      <section className="panel col-summary col-hero">
         <div className="col-total">
-          <b>{collectionSize(progress)}</b>
-          <span className="muted">/ {TOTAL_CARDS}</span>
-          <div className="bar small">
-            <div style={{ width: `${(collectionSize(progress) / TOTAL_CARDS) * 100}%` }} />
+          <div className="col-ring" style={{ '--p': `${pct}%` } as CSSProperties}>
+            <span>
+              <b>{pct}%</b>
+            </span>
+          </div>
+          <div className="col-total-txt">
+            <small>{t('col_title')}</small>
+            <b>
+              {collectionSize(progress)} <span className="muted">/ {TOTAL_CARDS}</span>
+            </b>
           </div>
         </div>
         <div className="col-rarities">
@@ -95,12 +157,14 @@ export function CollectionScreen({ progress, today, onShop, onUseJolly }: Props)
               onClick={() => setRarity(rarity === r ? 'tutte' : r)}
               aria-pressed={rarity === r}
             >
-              <span className="cr-dot" aria-hidden />
               <small>{rarityLabel(r)}</small>
               <b>
                 {ownedBy[r]}
                 <span className="muted">/{TOTAL_BY_RARITY[r]}</span>
               </b>
+              <span className="cr-bar" aria-hidden>
+                <span style={{ width: `${(ownedBy[r] / TOTAL_BY_RARITY[r]) * 100}%` }} />
+              </span>
             </button>
           ))}
         </div>
@@ -127,6 +191,9 @@ export function CollectionScreen({ progress, today, onShop, onUseJolly }: Props)
               <option value="name">{t('col_sortName')}</option>
             </select>
           </label>
+          <button className="icon-btn col-dense" onClick={() => setDense(!dense)} aria-label={t(dense ? 'col_big' : 'col_dense')} title={t(dense ? 'col_big' : 'col_dense')}>
+            {dense ? <Grid2x2 size={18} /> : <Grid3x3 size={18} />}
+          </button>
         </div>
         {(rarity !== 'tutte' || query) && (
           <p className="col-result muted">
@@ -142,18 +209,54 @@ export function CollectionScreen({ progress, today, onShop, onUseJolly }: Props)
 
       {cards.length === 0 ? (
         <p className="muted empty">{t('col_empty')}</p>
+      ) : sort === 'rarity' ? (
+        /* per rarità: una sezione per rarità, richiudibile, con le prime due righe e "mostra altre" */
+        <div className="col-sections">
+          {sections.map(([r, list]) => {
+            const open = rarity === r || !closed.includes(r);
+            const n = rarity === r ? Math.max(shown[r] ?? 0, MORE_STEP) : (shown[r] ?? preview);
+            const more = list.length - n;
+            return (
+              <section key={r} className={`col-section rarity-${r} ${open ? 'open' : ''}`}>
+                <button className="cs-head" onClick={() => toggleClosed(r)} aria-expanded={open}>
+                  <span className="cs-gem" aria-hidden />
+                  <b>{rarityLabel(r)}</b>
+                  <span className="cs-count">
+                    {ownedBy[r]}/{TOTAL_BY_RARITY[r]}
+                  </span>
+                  <span className="cs-bar" aria-hidden>
+                    <span style={{ width: `${(ownedBy[r] / TOTAL_BY_RARITY[r]) * 100}%` }} />
+                  </span>
+                  {ownedFilter !== 'mie' || query ? <span className="cs-n">{list.length}</span> : null}
+                  <ChevronDown size={18} className="cs-chev" />
+                </button>
+                {open && (
+                  <>
+                    <div className={`grid col-grid ${dense ? 'dense' : ''}`}>{list.slice(0, n).map(renderCard)}</div>
+                    {(more > 0 || n > preview) && (
+                      <div className="cs-more">
+                        {more > 0 && (
+                          <button className="btn small" onClick={() => setShown({ ...shown, [r]: n + MORE_STEP })}>
+                            {t('col_showMore', { n: Math.min(MORE_STEP, more) })}
+                            {more > MORE_STEP && <span className="muted"> · {more}</span>}
+                          </button>
+                        )}
+                        {n > preview && rarity !== r && (
+                          <button className="btn small ghost" onClick={() => setShown({ ...shown, [r]: preview })}>
+                            {t('col_showLess')}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </section>
+            );
+          })}
+        </div>
       ) : (
-        <div className="grid col-grid">
-          {cards.slice(0, limit).map((c) => (
-            <div key={c.id} className="grid-item">
-              <FlipCard
-                card={c}
-                dimmed={!progress.owned[c.id]}
-                count={progress.owned[c.id]}
-                action={<CardInfo card={c} progress={progress} inShop={inShop(c)} onShop={onShop} onUseJolly={onUseJolly} />}
-              />
-            </div>
-          ))}
+        <div className={`grid col-grid ${dense ? 'dense' : ''}`}>
+          {cards.slice(0, limit).map(renderCard)}
           {limit < cards.length && <div ref={sentinel} className="grid-sentinel" />}
         </div>
       )}
