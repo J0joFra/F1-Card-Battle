@@ -401,10 +401,7 @@ export function MatchScreen({
               return (
                 <li key={i} className={`rd-${h.winner}`} style={{ animationDelay: `${0.25 + i * 0.07}s` }}>
                   <span className="rc-n">{i + 1}</span>
-                  <span className="rc-stat">
-                    {statLabel(h.stat)}
-                    <small className="muted">{h.chooser === 'player' ? t('m_byYou') : t('m_byCpu')}</small>
-                  </span>
+                  <span className="rc-stat">{statLabel(h.stat)}</span>
                   <span className="rc-vals">
                     <b className={h.winner === 'player' ? 'w' : ''}>
                       <small>{h.playerCard.driver.abbreviation}</small> {formatStat(def, h.playerCard.stats[h.stat])}
