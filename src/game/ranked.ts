@@ -21,7 +21,11 @@ export const LEAGUES = [
 ] as const;
 export type LeagueId = (typeof LEAGUES)[number]['id'];
 
-export const RANKED_POINTS = { player: 30, draw: 5, cpu: -20 } as const;
+export const RANKED_POINTS = { player: 10, draw: 2, cpu: -7 } as const;
+
+// Oro ammesse nel mazzo in ogni campionato (Platino e Leggendaria restano limitate come sempre):
+// più si sale, più i mazzi sono fatti di Oro; in Formula 1 nessun limite (7 su 7).
+export const LEAGUE_MAX_ORO = [2, 2, 2, 3, 4, 5, 6, 7];
 
 // premio della prima promozione in ogni campionato: pacchetti base da aprire e crediti
 export const PROMOTION_REWARD: { packs: number; credits: number }[] = [

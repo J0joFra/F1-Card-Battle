@@ -57,13 +57,14 @@ interface Props {
   mode: MatchMode;
   owned: Card[];
   decks: Card[][];
+  maxOro?: number; // Oro ammesse nel mazzo (dipende dal campionato)
   slot: number;
   onMode: (m: MatchMode) => void;
   onDeck: (slot: number) => void;
 }
 
 // Scelta della modalità per la partita veloce: classica (con uno dei 3 mazzi) o a tema.
-export function ModePicker({ mode, owned, decks, slot, onMode, onDeck }: Props) {
+export function ModePicker({ mode, owned, decks, slot, onMode, onDeck, maxOro }: Props) {
   const { t } = useI18n();
   const kind = mode.kind as Kind;
   const pickKind = (k: Kind) => {
@@ -86,7 +87,7 @@ export function ModePicker({ mode, owned, decks, slot, onMode, onDeck }: Props) 
           {decks.map((d, i) => (
             <button key={i} role="tab" aria-selected={i === slot} className={i === slot ? 'on' : ''} onClick={() => onDeck(i)}>
               {i + 1}
-              {d.length === DECK_SIZE && !deckProblems(d).length && !decksProblems(decks, i).length && <Check size={12} />}
+              {d.length === DECK_SIZE && !deckProblems(d, CLASSIC, maxOro).length && !decksProblems(decks, i).length && <Check size={12} />}
             </button>
           ))}
         </div>

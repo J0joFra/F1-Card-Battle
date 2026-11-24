@@ -4,7 +4,7 @@ import { coin } from '../lib/season';
 import { Copy, Layers, Share2, Swords, UserMinus, Users } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 import { callGame } from '../lib/api';
-import { DECK_SLOTS, FRIEND_DRAW_CREDITS, FRIEND_WIN_CREDITS, savedDeck, type Progress } from '../game/collection';
+import { DECK_SLOTS, FRIEND_DRAW_CREDITS, FRIEND_WIN_CREDITS, maxOroOf, savedDeck, type Progress } from '../game/collection';
 import { deckProblems } from '../game/deckRules';
 import { DECK_SIZE, TURN_SECONDS } from '../game/engine';
 import type { Account } from '../hooks/useAccount';
@@ -197,7 +197,7 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
             <div className="marks">
               {Array.from({ length: DECK_SLOTS }, (_, i) => {
                 const d = savedDeck(progress, i);
-                const ok = d.length === DECK_SIZE && !deckProblems(d).length;
+                const ok = d.length === DECK_SIZE && !deckProblems(d, undefined, maxOroOf(progress)).length;
                 return (
                   <span key={i} className={ok ? 'ok' : ''}>
                     {ok ? '✓' : i + 1}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Card, Rarity, StatKey } from '../types';
 import { ArrowLeft, Check, Dices, Gauge, LayoutGrid, List, Minus, Play, Plus, Search, Trash2, X, Sparkles } from 'lucide-react';
 import { STATS, formatStat, rarityLabel, statLabel, statShort } from '../game/cards';
@@ -7,8 +7,8 @@ import { HelpButton } from '../components/TutorialSection';
 import { CardView } from '../components/CardView';
 import { FlipCard } from '../components/FlipCard';
 import { useProgressive } from '../hooks/useProgressive';
-import { DECK_SLOTS, activeSlot, autoFillDeck, ownedCards, savedDeck, type Progress } from '../game/collection';
-import { DECK_SIZE, statStrength } from '../game/engine';
+import { DECK_SLOTS, activeSlot, autoFillDeck, maxOroOf, ownedCards, savedDeck, type Progress } from '../game/collection';
+import { DECK_SIZE, percentile } from '../game/engine';
 import { CLASSIC, addBlock, deckProblems, decksProblems, fillDeck, fitsMode, rarityCaps, MIN_DIFFERENT, type MatchMode, type SlotBlock } from '../game/deckRules';
 import type { TKey } from '../lib/i18n';
 
@@ -43,6 +43,14 @@ const BLOCK_LABEL: Record<SlotBlock, TKey> = {
   similar: 'deck_blockSimilar',
 };
 
+// Fascia di una statistica rispetto a tutte le card giocabili (quartili della sua distribuzione):
+// top 10% eccellente, top 25% forte, metà centrale nella media, ultimo 25% debole.
+type Band = 'top' | 'good' | 'mid' | 'low';
+const bandOf = (key: StatKey, value: number): Band => {
+  const p = percentile(key, value); // 1 = il valore migliore tra tutte le card (già girato per le metriche ↓)
+  return p >= 0.9 ? 'top' : p >= 0.75 ? 'good' : p >= 0.25 ? 'mid' : 'low';
+};
+
 // forza del mazzo: overall medio delle sue card
 const avgOvr = (d: Card[]) => (d.length ? Math.round(d.reduce((n, c) => n + c.ovr, 0) / d.length) : null);
 
@@ -59,11 +67,13 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
   const themed = !!onPlay;
   // le card che si possono usare: tutte quelle possedute, o solo quelle adatte alla modalità
   const usable = useMemo(() => ownedCards(progress).filter((c) => fitsMode(mode, c)), [progress, mode]);
+  // Oro ammesse: dipende dal campionato (più si sale, più Oro)
+  const maxOro = maxOroOf(progress);
   // 3 mazzi salvati (stile Clash Royale): si passa dall'uno all'altro con le linguette 1-2-3
   const [slot, setSlot] = useState(() => (themed ? 0 : activeSlot(progress)));
   // uno slot vuoto (o incompleto) lo completiamo noi la prima volta che lo apri: si gioca subito
   const [initial] = useState(() => {
-    if (themed) return { drafts: [fillDeck(usable, [], mode, Math.random, true)] };
+    if (themed) return { drafts: [fillDeck(usable, [], mode, Math.random, true, [], false, maxOro)] };
     const active = activeSlot(progress);
     const saved = Array.from({ length: DECK_SLOTS }, (_, i) => savedDeck(progress, i));
     return {
@@ -119,7 +129,6 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
   }
   const [query, setQuery] = useState('');
   const [rarityF, setRarityF] = useState<Rarity | 'tutte'>('tutte');
-  const [onlyAddable, setOnlyAddable] = useState(false);
   const [view, setViewRaw] = useState<View>(savedView);
   const setView = (v: View) => {
     setViewRaw(v);
@@ -129,12 +138,12 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
       /* niente memoria: va bene lo stesso */
     }
   };
-  const problems = [...deckProblems(deck, mode), ...(themed ? [] : decksProblems(drafts, slot))];
+  const problems = [...deckProblems(deck, mode, maxOro), ...(themed ? [] : decksProblems(drafts, slot))];
   const refill = (d: Card[], rest: Card[][] = others) =>
-    themed ? fillDeck(usable, d, mode) : autoFillDeck(progress, d, Math.random, rest);
+    themed ? fillDeck(usable, d, mode, Math.random, false, [], false, maxOro) : autoFillDeck(progress, d, Math.random, rest);
   // completa con le card dalla valutazione più alta, sempre nei limiti di rarità
-  const fillBest = (d: Card[]) => fillDeck(usable, d, mode, Math.random, true, themed ? [] : others);
-  const blockOf = (c: Card) => addBlock(deck, c, mode, others);
+  const fillBest = (d: Card[]) => fillDeck(usable, d, mode, Math.random, true, themed ? [] : others, false, maxOro);
+  const blockOf = (c: Card) => addBlock(deck, c, mode, others, maxOro);
 
   // ordina per rarità (dalla più rara) o per una metrica (dal valore migliore)
   const rows = useMemo(() => {
@@ -142,14 +151,13 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
     const cards = usable.filter(
       (c) =>
         (!q || `${c.driver.name} ${c.team.name}`.toLowerCase().includes(q)) &&
-        (rarityF === 'tutte' || c.rarity === rarityF) &&
-        (!onlyAddable || deck.some((x) => x.id === c.id) || !addBlock(deck, c, mode, others)),
+        (rarityF === 'tutte' || c.rarity === rarityF),
     );
     const byName = (a: Card, b: Card) => a.driver.lastName.localeCompare(b.driver.lastName) || a.firstYear - b.firstYear;
     // dalla card più rara, poi per valutazione
     return cards.sort((a, b) => RARITY_RANK[b.rarity] - RARITY_RANK[a.rarity] || b.ovr - a.ovr || byName(a, b));
-  }, [usable, query, rarityF, onlyAddable, onlyAddable ? deck : null]); // eslint-disable-line react-hooks/exhaustive-deps
-  const listKey = `${view}|${query}|${rarityF}|${onlyAddable}`;
+  }, [usable, query, rarityF]);
+  const listKey = `${view}|${query}|${rarityF}`;
   const { limit: loaded, sentinel } = useProgressive(rows.length, 48, listKey);
   // all'inizio si vedono solo le prime card dell'ordinamento scelto: con tante card non si scorre all'infinito
   const [showAll, setShowAll] = useState(false);
@@ -170,7 +178,7 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
   }, [usable]);
 
   const toggle = (c: Card) =>
-    setDeck((d) => (d.some((x) => x.id === c.id) ? d.filter((x) => x.id !== c.id) : !addBlock(d, c, mode, others) ? [...d, c] : d));
+    setDeck((d) => (d.some((x) => x.id === c.id) ? d.filter((x) => x.id !== c.id) : !addBlock(d, c, mode, others, maxOro) ? [...d, c] : d));
 
   // per ogni metrica, il valore migliore presente nel mazzo: aiuta a vedere i punti deboli
   const bestInDeck = (key: StatKey) => {
@@ -194,7 +202,7 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
       {!themed && (
         <div className="deck-tabs" role="tablist" aria-label={t('deck_slots')}>
           {drafts.map((d, i) => {
-            const ok = d.length === DECK_SIZE && !deckProblems(d).length && !decksProblems(drafts, i).length;
+            const ok = d.length === DECK_SIZE && !deckProblems(d, CLASSIC, maxOro).length && !decksProblems(drafts, i).length;
             return (
               <button
                 key={i}
@@ -232,7 +240,7 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
           {mode.kind !== 'rarity' && (
             <div className="deck-limits">
               <small className="limits-label">{t('deck_limitsLabel')}</small>
-              {rarityCaps(deck).map(([r, n]) => {
+              {rarityCaps(deck, maxOro).map(([r, n]) => {
               const used = deck.filter((c) => c.rarity === r).length;
               return (
                 <span key={r} className={`limit ${used > n ? 'over' : ''}`} title={t('deck_maxRarity', { n, r: rarityLabel(r) })}>
@@ -326,16 +334,18 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
               <span className={`dot rarity-${r}`} /> {rarityLabel(r)} <small>{n}</small>
             </button>
           ))}
-          <span className="sep" />
-          <button className={`chip ${onlyAddable ? 'on' : ''}`} onClick={() => setOnlyAddable(!onlyAddable)} aria-pressed={onlyAddable}>
-            <Plus size={12} /> {t('deck_onlyAddable')}
-          </button>
         </div>
       </div>
       {view === 'table' ? (
         <>
           {/* lista: le 7 statistiche di ogni card, colorate dal debole (rosso) al forte (verde);
               ▲ = migliorerebbe il valore migliore del mazzo in quella statistica */}
+          <p className="band-legend">
+            <span className="band-top">{t('band_top')}</span>
+            <span className="band-good">{t('band_good')}</span>
+            <span className="band-mid">{t('band_mid')}</span>
+            <span className="band-low">{t('band_low')}</span>
+          </p>
           <ul className="stat-list">
             {rows.slice(0, limit).map((c) => {
               const selected = deck.some((x) => x.id === c.id);
@@ -370,8 +380,7 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
                       return (
                         <span
                           key={st.key}
-                          className="sr-stat"
-                          style={{ '--s': statStrength(st.key, v) } as CSSProperties}
+                          className={`sr-stat band-${bandOf(st.key, v)}`}
                           title={statLabel(st.key)}
                         >
                           <small>{statShort(st.key)}</small>

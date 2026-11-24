@@ -1690,3 +1690,18 @@ button.ranked-head { background: none; border: 0; padding: 0; color: inherit; te
 .pt-row .pick-search { order: 0; flex: 1 1 auto; }
 .pt-row .search input { min-width: 0; width: 100%; }
 .pt-row .view-toggle { flex: none; }
+
+/* fasce delle statistiche (quartili su tutte le card giocabili) */
+.sr-stat { background: var(--surface-2); }
+.sr-stat.band-top { background: color-mix(in srgb, #12a150 45%, var(--surface-2)); }
+.sr-stat.band-good { background: color-mix(in srgb, #2fbf71 24%, var(--surface-2)); }
+.sr-stat.band-mid { background: color-mix(in srgb, #e8b931 22%, var(--surface-2)); }
+.sr-stat.band-low { background: color-mix(in srgb, #e5484d 24%, var(--surface-2)); }
+.band-legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; font-size: 11px; font-weight: 800; color: var(--muted); }
+.band-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.band-legend span::before { content: ''; width: 10px; height: 10px; border-radius: 3px; }
+.band-legend .band-top::before { background: color-mix(in srgb, #12a150 60%, var(--surface-2)); }
+.band-legend .band-good::before { background: color-mix(in srgb, #2fbf71 40%, var(--surface-2)); }
+.band-legend .band-mid::before { background: color-mix(in srgb, #e8b931 45%, var(--surface-2)); }
+.band-legend .band-low::before { background: color-mix(in srgb, #e5484d 45%, var(--surface-2)); }
+.rk-oro { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--oro); }

@@ -9,6 +9,7 @@ import {
   collectionSize,
   ownedCards,
   savedDeck,
+  maxOroOf,
   type Progress,
 } from '../game/collection';
 import { fitsMode, type MatchMode } from '../game/deckRules';
@@ -214,7 +215,7 @@ export function HomeScreen({
                 <X size={20} />
               </button>
             </header>
-            <ModePicker mode={mode} owned={mine} decks={decks} slot={slot} onMode={onMode} onDeck={onDeck} />
+            <ModePicker mode={mode} owned={mine} decks={decks} slot={slot} onMode={onMode} onDeck={onDeck} maxOro={maxOroOf(progress)} />
             <div className="rules-pick" role="radiogroup" aria-label={t('rules_label')}>
               {(['hand', 'classic'] as Rules[]).map((r) => (
                 <button key={r} role="radio" aria-checked={rules === r} className={rules === r ? 'on' : ''} onClick={() => onRules(r)}>

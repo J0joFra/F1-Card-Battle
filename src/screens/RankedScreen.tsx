@@ -1,6 +1,6 @@
 import { Check, Lock, Trophy } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
-import { LEAGUES, PROMOTION_REWARD, RANKED_POINTS, leagueProgress, rankedOf } from '../game/ranked';
+import { LEAGUES, LEAGUE_MAX_ORO, PROMOTION_REWARD, RANKED_POINTS, leagueProgress, rankedOf } from '../game/ranked';
 import type { Progress } from '../game/collection';
 import { LeagueBadge, leagueName } from '../components/Ranked';
 import type { ReactNode } from 'react';
@@ -69,7 +69,7 @@ export function RankedScreen({ progress, online, busy, onPlay, onProfile, tabs }
                 <div className="rk-step-info">
                   <b>{leagueName(i, t)}</b>
                   <small>
-                    <Trophy size={12} /> {min}
+                    <Trophy size={12} /> {min} · <span className="rk-oro" /> {t('rk_maxOro', { n: LEAGUE_MAX_ORO[i] })}
                   </small>
                 </div>
                 <div className="rk-step-side">
