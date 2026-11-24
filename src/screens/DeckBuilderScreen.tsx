@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { Card, Rarity, StatKey } from '../types';
-import { ArrowDownWideNarrow, ArrowLeft, Check, Dices, Gauge, LayoutGrid, List, Minus, Play, Plus, Search, Trash2, X, Sparkles } from 'lucide-react';
+import { ArrowLeft, Check, Dices, Gauge, LayoutGrid, List, Minus, Play, Plus, Search, Trash2, X, Sparkles } from 'lucide-react';
 import { STATS, formatStat, rarityLabel, statLabel, statShort } from '../game/cards';
 import { useI18n } from '../lib/i18n';
 import { HelpButton } from '../components/TutorialSection';
@@ -23,7 +23,6 @@ interface Props {
   banner?: string;
 }
 
-type SortKey = StatKey | 'rarita' | 'ovr';
 type View = 'cards' | 'table';
 
 const RARITY_RANK: Record<Rarity, number> = {
@@ -118,7 +117,6 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
     }
     setSlot(i);
   }
-  const [sort, setSort] = useState<SortKey>('rarita');
   const [query, setQuery] = useState('');
   const [rarityF, setRarityF] = useState<Rarity | 'tutte'>('tutte');
   const [onlyAddable, setOnlyAddable] = useState(false);
@@ -148,13 +146,10 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
         (!onlyAddable || deck.some((x) => x.id === c.id) || !addBlock(deck, c, mode, others)),
     );
     const byName = (a: Card, b: Card) => a.driver.lastName.localeCompare(b.driver.lastName) || a.firstYear - b.firstYear;
-    if (sort === 'rarita')
-      return cards.sort((a, b) => RARITY_RANK[b.rarity] - RARITY_RANK[a.rarity] || b.ovr - a.ovr || byName(a, b));
-    if (sort === 'ovr') return cards.sort((a, b) => b.ovr - a.ovr || byName(a, b));
-    const def = STATS.find((s) => s.key === sort)!;
-    return cards.sort((a, b) => (def.lowerWins ? a.stats[sort] - b.stats[sort] : b.stats[sort] - a.stats[sort]) || byName(a, b));
-  }, [usable, sort, query, rarityF, onlyAddable, onlyAddable ? deck : null]); // eslint-disable-line react-hooks/exhaustive-deps
-  const listKey = `${sort}|${view}|${query}|${rarityF}|${onlyAddable}`;
+    // dalla card più rara, poi per valutazione
+    return cards.sort((a, b) => RARITY_RANK[b.rarity] - RARITY_RANK[a.rarity] || b.ovr - a.ovr || byName(a, b));
+  }, [usable, query, rarityF, onlyAddable, onlyAddable ? deck : null]); // eslint-disable-line react-hooks/exhaustive-deps
+  const listKey = `${view}|${query}|${rarityF}|${onlyAddable}`;
   const { limit: loaded, sentinel } = useProgressive(rows.length, 48, listKey);
   // all'inizio si vedono solo le prime card dell'ordinamento scelto: con tante card non si scorre all'infinito
   const [showAll, setShowAll] = useState(false);
@@ -322,15 +317,6 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
             </button>
           </div>
         </div>
-        {/* ordina con un tocco: in cima le migliori per quella statistica */}
-        <div className="chips pick-sort" role="radiogroup" aria-label={t('deck_sortBy')}>
-          <ArrowDownWideNarrow size={16} className="pt-icon" aria-hidden />
-          {(['rarita', 'ovr', ...STATS.map((x) => x.key)] as SortKey[]).map((k) => (
-            <button key={k} role="radio" aria-checked={sort === k} className={`chip ${sort === k ? 'on' : ''}`} onClick={() => setSort(k)} title={k === 'rarita' || k === 'ovr' ? undefined : statLabel(k)}>
-              {k === 'rarita' ? t('deck_sortRarity') : k === 'ovr' ? 'OVR' : statShort(k)}
-            </button>
-          ))}
-        </div>
         <div className="chips pick-filters">
           <button className={`chip ${rarityF === 'tutte' ? 'on' : ''}`} onClick={() => setRarityF('tutte')}>
             {t('f_anyRarity')}
@@ -374,7 +360,7 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
                         {block && block !== 'full' ? ` · ${t(BLOCK_LABEL[block])}` : ''}
                       </small>
                     </span>
-                    <span className={`sr-ovr ${sort === 'ovr' ? 'on' : ''}`}>{c.ovr}</span>
+                    <span className="sr-ovr">{c.ovr}</span>
                   </div>
                   <div className="sr-stats">
                     {STATS.map((st) => {
@@ -384,7 +370,7 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
                       return (
                         <span
                           key={st.key}
-                          className={`sr-stat ${sort === st.key ? 'on' : ''}`}
+                          className="sr-stat"
                           style={{ '--s': statStrength(st.key, v) } as CSSProperties}
                           title={statLabel(st.key)}
                         >
