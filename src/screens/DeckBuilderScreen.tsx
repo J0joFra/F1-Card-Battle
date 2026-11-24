@@ -329,9 +329,6 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
           </div>
         </div>
         <div className="chips pick-filters">
-          <button className={`chip ${rarityF === 'tutte' ? 'on' : ''}`} onClick={() => setRarityF('tutte')}>
-            {t('f_anyRarity')}
-          </button>
           {rarityCounts.map(([r, n]) => (
             <button key={r} className={`chip ${rarityF === r ? 'on' : ''}`} onClick={() => setRarityF(rarityF === r ? 'tutte' : r)}>
               <span className={`dot rarity-${r}`} /> {rarityLabel(r)} <small>{n}</small>
