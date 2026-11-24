@@ -2,8 +2,8 @@ import { Check, Lock, Trophy } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 import { LEAGUES, LEAGUE_MAX_ORO, PROMOTION_REWARD, RANKED_POINTS, leagueProgress, rankedOf } from '../game/ranked';
 import type { Progress } from '../game/collection';
-import { LeagueBadge, leagueName } from '../components/Ranked';
-import type { ReactNode } from 'react';
+import { LeagueBadge, LeagueIntro, leagueName } from '../components/Ranked';
+import { useState, type ReactNode } from 'react';
 import { coin } from '../lib/season';
 
 /*
@@ -23,13 +23,17 @@ export function RankedScreen({ progress, online, busy, onPlay, onProfile, tabs }
   const { t } = useI18n();
   const { points, best } = rankedOf(progress);
   const { league, ratio, toNext } = leagueProgress(points);
+  const [intro, setIntro] = useState(false);
   const road = LEAGUES.map((l, i) => ({ ...l, i })).reverse();
   return (
     <div className="screen ranked">
       <header className="screen-head">{tabs}</header>
 
       <section className={`rk-hero lg-${LEAGUES[league].id}`}>
-        <LeagueBadge league={league} size={96} />
+        <span className="rk-pattern" aria-hidden />
+        <button className="rk-emblem" onClick={() => setIntro(true)} aria-label={t('rk_replay')} title={t('rk_replay')}>
+          <LeagueBadge league={league} size={112} />
+        </button>
         <small>{t('rk_yourLeague')}</small>
         <h3>{leagueName(league, t)}</h3>
         <div className="rk-cups">
@@ -93,6 +97,7 @@ export function RankedScreen({ progress, online, busy, onPlay, onProfile, tabs }
         </ol>
       </section>
 
+      {intro && <LeagueIntro league={league} onDone={() => setIntro(false)} />}
     </div>
   );
 }
