@@ -1,6 +1,7 @@
 import { DECK_SIZE } from '../game/engine';
 import { coin } from '../lib/season';
-import { CalendarDays, Check, Target } from 'lucide-react';
+import { CalendarDays, Check, ChevronDown, Target } from 'lucide-react';
+import { useState } from 'react';
 import { statLabel } from '../game/cards';
 import {
   DAILY_REWARD_CREDITS,
@@ -89,18 +90,74 @@ export function DailyCard({ challenge, state, canPlay, have, onPlay }: DailyProp
   );
 }
 
-// Le tre missioni del giorno, con barra di avanzamento e pulsante per ritirare il premio.
-export function MissionsPanel({ missions, onClaim }: { missions: MissionsState; onClaim: (i: number) => void }) {
+// Sfida del giorno in una riga (home compatta)
+export function DailyRow({ challenge, state, canPlay, onPlay }: Omit<DailyProps, 'have'>) {
   const { t } = useI18n();
+  const played = dailyPlayed(state, challenge.date);
+  const streak = currentStreak(state, challenge.date);
+  const accent = challenge.theme.kind === 'team' ? teamColor(challenge.theme.team) : '#e8b931';
   return (
-    <section className="panel missions">
-      <h3>
-        <Target size={18} /> {t('mis_title')}
-        <span className="mis-count">
-          {missions.list.filter(missionDone).length}/{missions.list.length}
-        </span>
-      </h3>
-      <ul>
+    <div className={`today-row daily-row ${played ? 'done' : ''}`} style={{ '--daily': accent } as React.CSSProperties}>
+      <span className="today-icon daily-icon">
+        <CalendarDays size={18} />
+      </span>
+      <div className="today-main">
+        <small>
+          {t('daily_title')}
+          {streak > 0 && <> · {t('daily_streak', { n: streak })}</>}
+        </small>
+        <b>{themeLabel(challenge.theme, t)}</b>
+        {!played && !canPlay && <small className="muted">{t('daily_loanShort')}</small>}
+      </div>
+      {played ? (
+        <span className={`today-side daily-res ${state.won ? 'won' : 'lost'}`}>{state.won ? '✓' : '✗'}</span>
+      ) : (
+        <button className="btn small primary today-go" onClick={onPlay}>
+          {t('home_go')}
+          <small>🎁 +1 · {coin()} +{DAILY_REWARD_CREDITS}</small>
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Le tre missioni del giorno, con barra di avanzamento e pulsante per ritirare il premio.
+export function MissionsPanel({ missions, onClaim, compact = false }: { missions: MissionsState; onClaim: (i: number) => void; compact?: boolean }) {
+  const { t } = useI18n();
+  const claimable = missions.list.some((s) => missionDone(s) && !s.claimed);
+  const [openState, setOpen] = useState(false);
+  const open = !compact || openState || claimable; // con un premio da ritirare la lista resta aperta
+  const done = missions.list.filter(missionDone).length;
+  const count = (
+    <span className="mis-count">
+      {done}/{missions.list.length}
+    </span>
+  );
+  return (
+    <section className={compact ? 'missions compact' : 'panel missions'}>
+      {compact ? (
+        <button className="today-row mis-toggle" onClick={() => setOpen(!openState)} aria-expanded={open}>
+          <span className="today-icon">
+            <Target size={18} />
+          </span>
+          <div className="today-main">
+            <small>{t('mis_title')}</small>
+            <span className="mis-segs" aria-hidden>
+              {missions.list.map((s, i) => (
+                <i key={i} className={missionDone(s) ? 'on' : ''} style={{ '--p': `${Math.min(1, s.progress / s.mission.target) * 100}%` } as React.CSSProperties} />
+              ))}
+            </span>
+          </div>
+          {count}
+          <ChevronDown size={18} className={`mis-chev ${open ? 'up' : ''}`} />
+        </button>
+      ) : (
+        <h3>
+          <Target size={18} /> {t('mis_title')}
+          {count}
+        </h3>
+      )}
+      {open && <ul>
         {missions.list.map((s, i) => {
           const done = missionDone(s);
           return (
@@ -127,7 +184,7 @@ export function MissionsPanel({ missions, onClaim }: { missions: MissionsState; 
             </li>
           );
         })}
-      </ul>
+      </ul>}
     </section>
   );
 }

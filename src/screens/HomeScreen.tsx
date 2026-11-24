@@ -22,10 +22,10 @@ import { LEVEL_CREDITS } from '../game/match';
 import { coin } from '../lib/season';
 import { CardView } from '../components/CardView';
 import { HelpButton } from '../components/TutorialSection';
-import { DailyCard, MissionsPanel } from '../components/Daily';
+import { DailyRow, MissionsPanel } from '../components/Daily';
 import { LeagueBadge, leagueName } from '../components/Ranked';
 import { PlayerAvatar } from '../components/PlayerAvatar';
-import { leagueProgress, rankedOf } from '../game/ranked';
+import { LEAGUES, leagueProgress, rankedOf } from '../game/ranked';
 import { themeMode, type DailyChallenge, type MissionsState } from '../game/daily';
 
 interface Props {
@@ -121,13 +121,15 @@ export function HomeScreen({
         </button>
       )}
 
-      <section className="garage">
+      {/* garage: le tue card migliori sull'asfalto, con i colori del tuo campionato */}
+      <section className={`garage hero lg-${LEAGUES[league].id}`}>
         <div className="garage-help">
           <HelpButton
             items={['tut_home_1', 'tut_home_2', 'tut_home_3', 'tut_home_4', 'tut_home_5']}
             params={{ n: DECK_SIZE, w: WINS_PER_PACK }}
           />
         </div>
+        <span className="hero-lines" aria-hidden />
         <div className="fan" aria-hidden>
           {showcase.map((c, i) => (
             <div key={c.id} className={`fan-card fan-${i}`}>
@@ -135,74 +137,75 @@ export function HomeScreen({
             </div>
           ))}
         </div>
-        {canPlay ? (
-          <>
-            {/* la gara classificata è il modo principale di giocare */}
-            <button
-              className={`btn primary big block race-btn lg-${['okj', 'ok', 'kz', 'f4', 'fr', 'f3', 'f2', 'f1'][league]}`}
-              onClick={account.online ? onRanked : onProfile}
-              disabled={rankedBusy}
-            >
-              <Trophy size={22} />
-              <span>
-                {t('rk_play')}
-                <small>
-                  {leagueName(league, t)} · 🏆 {points}
-                </small>
-              </span>
-              <span className="race-bar" aria-hidden>
-                <span style={{ width: `${Math.round(ratio * 100)}%` }} />
-              </span>
-            </button>
-            <div className="play-tiles">
-              <button className="play-tile" onClick={() => setTraining(true)}>
-                <Dumbbell size={22} />
-                <b>{t('home_training')}</b>
-                <small>{trainingSub}</small>
-              </button>
-              <button className="play-tile" onClick={onFriend}>
-                <Users size={22} />
-                <b>{t('home_friend')}</b>
-                <small>{t('fr_bo3')}</small>
-              </button>
-            </div>
-          </>
-        ) : (
-          <p className="muted">{t('home_needCards', { n: DECK_SIZE })}</p>
-        )}
-      </section>
-
-      <DailyCard challenge={challenge} state={progress.daily} canPlay={daily.ok} have={daily.have} onPlay={onDaily} />
-      <MissionsPanel missions={missions} onClaim={onClaim} />
-
-      <section className="panel pack-progress">
-        <div className="row">
+        <p className="hero-stats">
           <span>
-            <Gift size={16} /> {t('home_nextPack')}
+            <b>{progress.wins}</b> {t('home_wins')}
           </span>
-          <span className="muted">{t('home_winsOf', { a: progress.winsTowardPack, b: WINS_PER_PACK })}</span>
-        </div>
-        <div className="bar">
-          <div style={{ width: `${(progress.winsTowardPack / WINS_PER_PACK) * 100}%` }} />
-        </div>
-        {progress.packs > 0 && (
-          <button className="btn accent block" onClick={onPacks}>
-            🎁 {progress.packs === 1 ? t('home_packReady') : t('home_packsReady', { n: progress.packs })}
+          <span>
+            <b>{progress.losses}</b> {t('home_losses')}
+          </span>
+          <span>
+            <b>{owned}</b>/{TOTAL_CARDS} {t('home_collection')}
+          </span>
+        </p>
+        {canPlay ? (
+          /* la gara classificata è il modo principale di giocare */
+          <button className="btn primary big block race-btn" onClick={account.online ? onRanked : onProfile} disabled={rankedBusy}>
+            <Trophy size={22} />
+            <span>
+              {t('rk_play')}
+              <small>
+                {leagueName(league, t)} · 🏆 {points}
+              </small>
+            </span>
+            <span className="race-bar" aria-hidden>
+              <span style={{ width: `${Math.round(ratio * 100)}%` }} />
+            </span>
           </button>
+        ) : (
+          <p className="hero-need">{t('home_needCards', { n: DECK_SIZE })}</p>
         )}
+        <span className="kerb" aria-hidden />
       </section>
 
-      <p className="stats-line">
-        <span>
-          <b>{progress.wins}</b> {t('home_wins')}
-        </span>
-        <span>
-          <b>{progress.losses}</b> {t('home_losses')}
-        </span>
-        <span>
-          <b>{owned}</b>/{TOTAL_CARDS} {t('home_collection')}
-        </span>
-      </p>
+      {canPlay && (
+        <div className="play-tiles">
+          <button className="play-tile" onClick={() => setTraining(true)}>
+            <Dumbbell size={22} />
+            <b>{t('home_training')}</b>
+            <small>{trainingSub}</small>
+          </button>
+          <button className="play-tile" onClick={onFriend}>
+            <Users size={22} />
+            <b>{t('home_friend')}</b>
+            <small>{t('fr_bo3')}</small>
+          </button>
+        </div>
+      )}
+
+      {/* oggi: sfida del giorno, missioni e pacchetti in un unico riquadro compatto */}
+      <section className="panel today">
+        <DailyRow challenge={challenge} state={progress.daily} canPlay={daily.ok} onPlay={onDaily} />
+        <MissionsPanel missions={missions} onClaim={onClaim} compact />
+        <div className="today-row pack-row">
+          <span className="today-icon">
+            <Gift size={18} />
+          </span>
+          <div className="today-main">
+            <small>{t('home_nextPack')}</small>
+            <div className="bar small">
+              <div style={{ width: `${(progress.winsTowardPack / WINS_PER_PACK) * 100}%` }} />
+            </div>
+          </div>
+          {progress.packs > 0 ? (
+            <button className="btn small accent today-go" onClick={onPacks}>
+              🎁 {progress.packs} · {t('home_open')}
+            </button>
+          ) : (
+            <span className="today-side">{t('home_winsOf', { a: progress.winsTowardPack, b: WINS_PER_PACK })}</span>
+          )}
+        </div>
+      </section>
 
       {/* Allenamento contro la CPU: modalità, mazzo, regole e livello in una finestra dal basso */}
       {training && (
