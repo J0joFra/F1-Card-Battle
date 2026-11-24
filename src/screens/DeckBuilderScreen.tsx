@@ -36,6 +36,7 @@ const RARITY_RANK: Record<Rarity, number> = {
   classica: -1,
 };
 const VIEW_KEY = 'f1-card-battle:deck-view';
+const SHOW_FIRST = 24;
 const BLOCK_LABEL: Record<SlotBlock, TKey> = {
   full: 'deck_full',
   rarity: 'deck_rarityFull',
@@ -153,7 +154,19 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
     const def = STATS.find((s) => s.key === sort)!;
     return cards.sort((a, b) => (def.lowerWins ? a.stats[sort] - b.stats[sort] : b.stats[sort] - a.stats[sort]) || byName(a, b));
   }, [usable, sort, query, rarityF, onlyAddable, onlyAddable ? deck : null]); // eslint-disable-line react-hooks/exhaustive-deps
-  const { limit, sentinel } = useProgressive(rows.length, 48, `${sort}|${view}|${query}|${rarityF}|${onlyAddable}`);
+  const listKey = `${sort}|${view}|${query}|${rarityF}|${onlyAddable}`;
+  const { limit: loaded, sentinel } = useProgressive(rows.length, 48, listKey);
+  // all'inizio si vedono solo le prime card dell'ordinamento scelto: con tante card non si scorre all'infinito
+  const [showAll, setShowAll] = useState(false);
+  useEffect(() => setShowAll(false), [listKey]);
+  const limit = showAll ? loaded : Math.min(SHOW_FIRST, rows.length);
+  const deckRef = useRef<HTMLDivElement>(null);
+  const moreButton =
+    !showAll && rows.length > SHOW_FIRST ? (
+      <button className="btn ghost block show-all" onClick={() => setShowAll(true)}>
+        {t('deck_showAll', { a: SHOW_FIRST, n: rows.length })}
+      </button>
+    ) : null;
   // rarità presenti tra le card utilizzabili, con quante ne hai
   const rarityCounts = useMemo(() => {
     const n = new Map<Rarity, number>();
@@ -211,7 +224,7 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
       )}
       {banner && <p className="daily-banner">{banner}</p>}
 
-      <div className="deck-bar">
+      <div className="deck-bar" ref={deckRef}>
         <div className="deck-count">
           <b className={deck.length === DECK_SIZE ? 'ok' : ''}>
             {deck.length}/{DECK_SIZE}
@@ -283,62 +296,55 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
         </div>
       </div>
 
-      <div className="pick-head">
-        <b>{t('deck_collection', { n: rows.length })}</b>
-        <label className="search pick-search">
-          <Search size={16} />
-          <input type="search" placeholder={t('col_search')} value={query} onChange={(e) => setQuery(e.target.value)} />
-        </label>
-        <label className="sort-label" title={t('deck_sortBy')}>
-          <ArrowDownWideNarrow size={18} aria-hidden />
-          <select
-            aria-label={t('deck_sortBy')}
-            className="sort-select"
-            value={sort}
-            onChange={(e) => setSort(e.target.value as SortKey)}
-          >
-            <option value="rarita">{t('deck_sortRarity')}</option>
-            <option value="ovr">OVR</option>
-            {STATS.map((s) => (
-              <option key={s.key} value={s.key}>
-                {statLabel(s.key)}
-                {s.lowerWins ? ' ↓' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="view-toggle" role="group">
-          <button
-            className={view === 'cards' ? 'on' : ''}
-            onClick={() => setView('cards')}
-            aria-label={t('deck_viewCards')}
-            title={t('deck_viewCards')}
-          >
-            <LayoutGrid size={18} />
+      {/* strumenti della lista, sempre a portata mentre scorri: mazzo, ricerca, ordinamento e filtri */}
+      <div className="pick-tools">
+        <div className="pt-row">
+          <button className={`pt-deck ${deck.length === DECK_SIZE ? 'ok' : ''}`} onClick={() => deckRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
+            <b>
+              {deck.length}/{DECK_SIZE}
+            </b>
+            {avgOvr(deck) !== null && (
+              <small>
+                <Gauge size={11} /> {avgOvr(deck)}
+              </small>
+            )}
           </button>
-          <button
-            className={view === 'table' ? 'on' : ''}
-            onClick={() => setView('table')}
-            aria-label={t('deck_viewTable')}
-            title={t('deck_viewTable')}
-          >
-            <List size={18} />
+          <label className="search pick-search">
+            <Search size={16} />
+            <input type="search" placeholder={t('col_search')} value={query} onChange={(e) => setQuery(e.target.value)} />
+          </label>
+          <div className="view-toggle" role="group">
+            <button className={view === 'cards' ? 'on' : ''} onClick={() => setView('cards')} aria-label={t('deck_viewCards')} title={t('deck_viewCards')}>
+              <LayoutGrid size={18} />
+            </button>
+            <button className={view === 'table' ? 'on' : ''} onClick={() => setView('table')} aria-label={t('deck_viewTable')} title={t('deck_viewTable')}>
+              <List size={18} />
+            </button>
+          </div>
+        </div>
+        {/* ordina con un tocco: in cima le migliori per quella statistica */}
+        <div className="chips pick-sort" role="radiogroup" aria-label={t('deck_sortBy')}>
+          <ArrowDownWideNarrow size={16} className="pt-icon" aria-hidden />
+          {(['rarita', 'ovr', ...STATS.map((x) => x.key)] as SortKey[]).map((k) => (
+            <button key={k} role="radio" aria-checked={sort === k} className={`chip ${sort === k ? 'on' : ''}`} onClick={() => setSort(k)} title={k === 'rarita' || k === 'ovr' ? undefined : statLabel(k)}>
+              {k === 'rarita' ? t('deck_sortRarity') : k === 'ovr' ? 'OVR' : statShort(k)}
+            </button>
+          ))}
+        </div>
+        <div className="chips pick-filters">
+          <button className={`chip ${rarityF === 'tutte' ? 'on' : ''}`} onClick={() => setRarityF('tutte')}>
+            {t('f_anyRarity')}
+          </button>
+          {rarityCounts.map(([r, n]) => (
+            <button key={r} className={`chip ${rarityF === r ? 'on' : ''}`} onClick={() => setRarityF(rarityF === r ? 'tutte' : r)}>
+              <span className={`dot rarity-${r}`} /> {rarityLabel(r)} <small>{n}</small>
+            </button>
+          ))}
+          <span className="sep" />
+          <button className={`chip ${onlyAddable ? 'on' : ''}`} onClick={() => setOnlyAddable(!onlyAddable)} aria-pressed={onlyAddable}>
+            <Plus size={12} /> {t('deck_onlyAddable')}
           </button>
         </div>
-      </div>
-      <div className="chips pick-filters">
-        <button className={`chip ${rarityF === 'tutte' ? 'on' : ''}`} onClick={() => setRarityF('tutte')}>
-          {t('f_anyRarity')}
-        </button>
-        {rarityCounts.map(([r, n]) => (
-          <button key={r} className={`chip ${rarityF === r ? 'on' : ''}`} onClick={() => setRarityF(rarityF === r ? 'tutte' : r)}>
-            <span className={`dot rarity-${r}`} /> {rarityLabel(r)} <small>{n}</small>
-          </button>
-        ))}
-        <span className="sep" />
-        <button className={`chip ${onlyAddable ? 'on' : ''}`} onClick={() => setOnlyAddable(!onlyAddable)} aria-pressed={onlyAddable}>
-          <Plus size={12} /> {t('deck_onlyAddable')}
-        </button>
       </div>
       {view === 'table' ? (
         <>
@@ -395,7 +401,8 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
               );
             })}
           </ul>
-          {limit < rows.length && <div ref={sentinel} className="grid-sentinel" />}
+          {showAll && limit < rows.length && <div ref={sentinel} className="grid-sentinel" />}
+          {moreButton}
         </>
       ) : (
         <div className="pick-grid compact">
@@ -433,9 +440,10 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
               </div>
             );
           })}
-          {limit < rows.length && <div ref={sentinel} className="grid-sentinel" />}
+          {showAll && limit < rows.length && <div ref={sentinel} className="grid-sentinel" />}
         </div>
       )}
+      {view !== 'table' && moreButton}
     </div>
   );
 }

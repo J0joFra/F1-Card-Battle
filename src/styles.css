@@ -1665,3 +1665,28 @@ button.ranked-head { background: none; border: 0; padding: 0; color: inherit; te
 .sr-stat b { font-size: 11.5px; font-weight: 900; white-space: nowrap; display: inline-flex; align-items: center; gap: 1px; }
 .sr-stat.on { border-color: var(--accent); }
 .sr-up { font-style: normal; font-size: 8px; color: var(--win); }
+
+/* mazzi: strumenti della lista fissati in alto (sotto la barra dell'app) mentre si scorre */
+.pick-tools {
+  position: sticky; top: calc(var(--safe-top) + 61px); z-index: 5; display: grid; gap: 6px;
+  margin: 0 -16px; padding: 8px 16px 6px; background: color-mix(in srgb, var(--bg) 96%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+}
+.pt-row { display: flex; align-items: center; gap: 8px; }
+.pt-row .pick-search { flex: 1; min-width: 0; }
+.pt-deck {
+  display: grid; justify-items: center; line-height: 1.05; flex: none; padding: 4px 8px; min-width: 48px; cursor: pointer;
+  border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: inherit;
+}
+.pt-deck b { font-size: 14px; font-weight: 900; color: var(--muted); }
+.pt-deck.ok b { color: var(--win); }
+.pt-deck small { display: inline-flex; align-items: center; gap: 2px; font-size: 10px; font-weight: 800; color: var(--muted); }
+.pick-sort { align-items: center; }
+.pick-sort .pt-icon { flex: none; color: var(--muted); }
+.pick-sort .chip { flex: none; white-space: nowrap; }
+.pick-tools .chip { padding: 5px 11px; font-size: 12.5px; }
+.pick-filters { margin-top: 0; }
+.show-all { margin-top: 4px; }
+.pt-row .pick-search { order: 0; flex: 1 1 auto; }
+.pt-row .search input { min-width: 0; width: 100%; }
+.pt-row .view-toggle { flex: none; }
