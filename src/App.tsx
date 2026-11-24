@@ -89,7 +89,7 @@ import type {
   PvpInfo,
   QueueInfo,
 } from "./server/actions";
-import { RankedOutcome, RankedQueue, SocialTabs, leagueName } from "./components/Ranked";
+import { LeagueIntro, RankedOutcome, RankedQueue, SocialTabs, leagueName } from "./components/Ranked";
 import { QUEUE_POLL_MS, REFERRAL_PACKS, leagueOf } from "./game/ranked";
 import { themeLabel } from "./components/Daily";
 import type { OpenedPack } from "./screens/PacksScreen";
@@ -699,6 +699,21 @@ export default function App() {
   useEffect(() => {
     takeInviteCode();
   }, []);
+  // nuovo campionato raggiunto: animazione d'ingresso (una volta, fuori dalla partita)
+  const reachedLeague = leagueOf(progress.ranked?.points ?? 0);
+  const [leagueIntro, setLeagueIntro] = useState<number | null>(null);
+  useEffect(() => {
+    if (screen === "match") return;
+    const key = "f1-card-battle:league-seen";
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw !== null && reachedLeague > Number(raw)) setLeagueIntro(reachedLeague);
+      if (raw === null || reachedLeague !== Number(raw)) localStorage.setItem(key, String(reachedLeague));
+    } catch {
+      /* niente memoria: niente animazione */
+    }
+  }, [reachedLeague, screen]);
+
   // un amico si è iscritto con il tuo codice: avviso (una volta)
   useEffect(() => {
     const n = progress.referrals ?? 0;
@@ -1127,6 +1142,7 @@ export default function App() {
   return (
     <div className={`app ${inMatch ? "in-match" : ""}`}>
       {season.season && !inMatch && <SeasonFx season={season.season} />}
+      {leagueIntro !== null && !inMatch && <LeagueIntro league={leagueIntro} onDone={() => setLeagueIntro(null)} />}
       {!inMatch && (
         <header className="hud">
           <button className="brand" onClick={() => setScreen("home")}>

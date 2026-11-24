@@ -1795,3 +1795,93 @@ button.ranked-head { background: none; border: 0; padding: 0; color: inherit; te
 .mis-segs i { display: block; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--accent-2) var(--p), var(--surface-3) var(--p)); }
 .mis-segs i.on { background: var(--win); }
 .missions.compact ul { padding: 0 0 10px; }
+
+/* stemmi disegnati (SVG) per ogni campionato */
+.league-badge {
+  background: none; border: 0; border-radius: 0; box-shadow: none; text-shadow: none;
+  filter: drop-shadow(0 3px 6px color-mix(in srgb, var(--lg) 45%, rgba(0, 0, 0, 0.35)));
+}
+.league-badge.lg-f2, .league-badge.lg-f1 { background: none; border: 0; box-shadow: none; }
+.league-badge svg { display: block; overflow: visible; }
+.lb-shine { animation: lb-shine 4.5s ease-in-out infinite; }
+@keyframes lb-shine { 0%, 55% { transform: translateX(0); } 100% { transform: translateX(220px); } }
+.rk-step.next .lb-shine { animation: none; }
+
+/* sezione Ranked: sfondo a tema del campionato */
+.rk-hero { position: relative; overflow: hidden; isolation: isolate;
+  background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--lg) 42%, var(--surface)), var(--surface) 75%); }
+.rk-hero > *:not(.rk-pattern) { position: relative; z-index: 1; }
+.rk-pattern { position: absolute; inset: 0; z-index: 0; opacity: 0.16; pointer-events: none; animation: rk-drift 18s linear infinite; }
+.lg-okj .rk-pattern, .lg-ok .rk-pattern, .lg-kz .rk-pattern {
+  background: conic-gradient(var(--text) 25%, transparent 0 50%, var(--text) 0 75%, transparent 0) 0 0 / 28px 28px;
+  -webkit-mask: linear-gradient(transparent 45%, #000); mask: linear-gradient(transparent 45%, #000); }
+.lg-f4 .rk-pattern { background: repeating-linear-gradient(120deg, var(--lg) 0 14px, transparent 14px 34px); }
+.lg-fr .rk-pattern { background: radial-gradient(circle, var(--lg) 2.5px, transparent 3px) 0 0 / 18px 18px; opacity: 0.35; }
+.lg-f3 .rk-pattern { background: repeating-conic-gradient(from 0deg at 50% 0%, var(--lg) 0 6deg, transparent 6deg 14deg); animation: none; }
+.lg-f2 .rk-pattern { background: repeating-linear-gradient(45deg, var(--text) 0 2px, transparent 2px 7px), repeating-linear-gradient(-45deg, var(--text) 0 2px, transparent 2px 7px); opacity: 0.08; }
+.lg-f1 .rk-pattern { background: repeating-conic-gradient(from 0deg at 50% 0%, #ffd54a 0 5deg, transparent 5deg 12deg); opacity: 0.22; animation: none; }
+.lg-f1.rk-hero { border-color: #ffd54a; }
+@keyframes rk-drift { to { background-position: 280px 140px; } }
+.rk-emblem { background: none; border: 0; padding: 0; cursor: pointer; animation: rk-float 4s ease-in-out infinite; }
+@keyframes rk-float { 50% { transform: translateY(-5px); } }
+.rk-hero .bar > div { background: linear-gradient(90deg, color-mix(in srgb, var(--lg) 70%, #fff), var(--lg)); }
+
+/* animazione del nuovo campionato */
+.league-intro {
+  position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; overflow: hidden; color: #fff; cursor: pointer;
+  background: radial-gradient(circle at 50% 42%, var(--lg), color-mix(in srgb, var(--lg) 35%, #05060a) 55%, #05060a 100%);
+  animation: li-fade 0.35s ease-out both;
+}
+.li-rays {
+  position: absolute; left: 50%; top: 42%; width: 220vmax; height: 220vmax; translate: -50% -50%; opacity: 0.28;
+  background: repeating-conic-gradient(#fff 0 6deg, transparent 6deg 18deg);
+  -webkit-mask: radial-gradient(circle, #000 8%, transparent 45%); mask: radial-gradient(circle, #000 8%, transparent 45%);
+  animation: li-spin 24s linear infinite;
+}
+.li-bits { position: absolute; left: 50%; top: 42%; }
+.li-bits i {
+  position: absolute; width: 10px; height: 16px; margin: -8px -5px; border-radius: 2px; background: #fff; opacity: 0;
+  transform: rotate(var(--a)) translateY(0);
+  animation: li-burst 1.4s var(--d) cubic-bezier(0.15, 0.7, 0.3, 1) 0.35s both;
+}
+.li-bits i:nth-child(3n) { background: color-mix(in srgb, var(--lg) 60%, #fff); }
+.li-bits i:nth-child(3n + 1) { width: 8px; height: 8px; border-radius: 50%; }
+.li-okj .li-bits i:nth-child(odd), .li-ok .li-bits i:nth-child(odd), .li-kz .li-bits i:nth-child(odd) { background: #111; border: 2px solid #fff; }
+.li-f1 .li-bits i { background: #ffd54a; }
+.li-f1 .li-bits i:nth-child(even) { background: #ff3b2f; }
+.li-body { position: relative; display: grid; justify-items: center; gap: 8px; text-align: center; padding: 24px; }
+.li-body > small { font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.2em; opacity: 0.9; animation: li-up 0.5s 0.9s both; }
+.li-body h2 { margin: 4px 0 0; font-size: clamp(28px, 8vw, 40px); font-weight: 900; font-style: italic; text-shadow: 0 3px 14px rgba(0, 0, 0, 0.45); animation: li-up 0.5s 1.05s both; }
+.li-body p { margin: 0; display: inline-flex; align-items: center; gap: 4px; font-weight: 800; opacity: 0.95; animation: li-up 0.5s 1.2s both; }
+.li-go { margin-top: 12px; min-width: 200px; background: #fff; color: #111; border: 0; animation: li-up 0.5s 1.4s both; }
+.li-badge { filter: drop-shadow(0 12px 30px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 30px color-mix(in srgb, var(--lg) 70%, transparent)); }
+/* ogni campionato entra a modo suo */
+.li-okj .li-badge { animation: li-drop 1s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+.li-ok .li-badge { animation: li-coin 1.1s ease-out both; }
+.li-kz .li-badge { animation: li-rev 1.1s ease-out both; }
+.li-f4 .li-badge { animation: li-dash 0.9s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.li-fr .li-badge { animation: li-flip 1.1s ease-out both; }
+.li-f3 .li-badge { animation: li-zoom 0.9s cubic-bezier(0.2, 0.8, 0.3, 1.1) both; }
+.li-f2 .li-badge { animation: li-metal 1.3s ease-out both; }
+.li-f1 .li-badge { animation: li-crown 1.3s cubic-bezier(0.25, 1.4, 0.4, 1) both; }
+.li-f1 .li-rays { background: repeating-conic-gradient(#ffd54a 0 6deg, transparent 6deg 18deg); opacity: 0.4; }
+@keyframes li-fade { from { opacity: 0; } }
+@keyframes li-spin { to { rotate: 360deg; } }
+@keyframes li-up { from { opacity: 0; transform: translateY(14px); } }
+@keyframes li-burst { 0% { opacity: 1; transform: rotate(var(--a)) translateY(0) scale(0.4); } 100% { opacity: 0; transform: rotate(var(--a)) translateY(-46vmin) scale(1) rotate(200deg); } }
+@keyframes li-drop { 0% { transform: translateY(-80vh); } 100% { transform: none; } }
+@keyframes li-coin { 0% { transform: perspective(600px) rotateY(0) scale(0.2); opacity: 0; } 100% { transform: perspective(600px) rotateY(720deg) scale(1); opacity: 1; } }
+@keyframes li-rev { 0% { transform: scale(0); } 40% { transform: scale(1.1); } 50%, 70%, 90% { transform: translateX(-6px) rotate(-3deg); } 60%, 80% { transform: translateX(6px) rotate(3deg); } 100% { transform: none; } }
+@keyframes li-dash { 0% { transform: translateX(-120vw) skewX(-25deg); filter: blur(6px); } 70% { transform: translateX(14px) skewX(8deg); filter: none; } 100% { transform: none; } }
+@keyframes li-flip { 0% { transform: perspective(600px) rotateX(-180deg) scale(0.5); opacity: 0; } 100% { transform: perspective(600px) rotateX(0) scale(1); opacity: 1; } }
+@keyframes li-zoom { 0% { transform: scale(4); opacity: 0; filter: blur(10px) brightness(3); } 100% { transform: none; opacity: 1; filter: none; } }
+@keyframes li-metal { 0% { transform: scale(0.3); filter: brightness(3) saturate(0); opacity: 0; } 60% { transform: scale(1.08); filter: brightness(1.6); opacity: 1; } 100% { transform: none; filter: none; } }
+@keyframes li-crown { 0% { transform: scale(0) rotate(-40deg); } 60% { transform: scale(1.18) rotate(6deg); } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .league-intro *, .league-intro, .rk-pattern, .rk-emblem, .lb-shine { animation: none !important; }
+  .li-bits { display: none; }
+}
+.lg-okj { --lgd: #3a8a1b; } .lg-ok { --lgd: #13653a; } .lg-kz { --lgd: #0b544c; } .lg-f4 { --lgd: #1449a0; }
+.lg-fr { --lgd: #5427cc; } .lg-f3 { --lgd: #b0500c; } .lg-f2 { --lgd: #4f5d70; } .lg-f1 { --lgd: #940300; }
+.rk-hero .btn.primary { background: linear-gradient(180deg, color-mix(in srgb, var(--lg) 80%, #fff), var(--lgd, var(--lg))); border-color: var(--lgd, var(--lg)); box-shadow: 0 8px 20px color-mix(in srgb, var(--lg) 40%, transparent); }
+.lg-f2.rk-hero .btn.primary { background: linear-gradient(180deg, #8d9cb0, #4f5d70); }

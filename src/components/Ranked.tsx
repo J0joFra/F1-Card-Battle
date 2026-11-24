@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState, type CSSProperties } from 'react';
 import { ChevronRight, Copy, Gift, Share2, Trophy, Users, X } from 'lucide-react';
 import { useI18n, type TFn, type TKey } from '../lib/i18n';
 import { callGame } from '../lib/api';
 import { inviteLink, shareLink } from '../lib/links';
-import { LEAGUES, MAX_REFERRALS, REFERRAL_PACKS, leagueProgress, rankedOf, type RankedResult } from '../game/ranked';
+import { LEAGUES, LEAGUE_MAX_ORO, PROMOTION_REWARD, MAX_REFERRALS, REFERRAL_PACKS, leagueProgress, rankedOf, type RankedResult } from '../game/ranked';
 import type { Progress } from '../game/collection';
 import type { QueueInfo } from '../server/actions';
 
@@ -11,11 +11,135 @@ import type { QueueInfo } from '../server/actions';
 
 export const leagueName = (i: number, t: TFn) => t(`lg_${LEAGUES[i].id}` as TKey);
 
-export function LeagueBadge({ league, size = 44 }: { league: number; size?: number }) {
+// Stemma di ogni campionato: Karting = rondella a scacchi (1-3 chevron), F4/FR = esagono, F3/F2 = scudo alato, F1 = scudo con corona e alloro.
+const BADGE: { c1: string; c2: string; trim: string; ink: string }[] = [
+  { c1: '#8be04e', c2: '#3a8a1b', trim: '#eaffd9', ink: '#fff' },
+  { c1: '#3cc46f', c2: '#13653a', trim: '#dcffe9', ink: '#fff' },
+  { c1: '#22b8a5', c2: '#0b544c', trim: '#ccfff8', ink: '#fff' },
+  { c1: '#4aa3ff', c2: '#1449a0', trim: '#e2f1ff', ink: '#fff' },
+  { c1: '#ab8dff', c2: '#5427cc', trim: '#f0eaff', ink: '#fff' },
+  { c1: '#ffb04f', c2: '#b0500c', trim: '#fff2df', ink: '#fff' },
+  { c1: '#f4f7fb', c2: '#7d8da2', trim: '#ffffff', ink: '#243042' },
+  { c1: '#ff4a3a', c2: '#940300', trim: '#ffd54a', ink: '#fff' },
+];
+const ABBR = ['OKJ', 'OK', 'KZ', 'F4', 'FR', 'F3', 'F2', 'F1'];
+const HEX = 'M50 5 L89 27 L89 73 L50 95 L11 73 L11 27 Z';
+const SHIELD = 'M50 8 L84 18 L84 50 C84 72 68 86 50 94 C32 86 16 72 16 50 L16 18 Z';
+
+export function LeagueBadge({ league, size = 44, className = '' }: { league: number; size?: number; className?: string }) {
+  const uid = useId().replace(/:/g, '');
+  const b = BADGE[league];
+  const g = `lbg${uid}`;
+  const sh = `lbs${uid}`;
+  const kart = league <= 2;
+  const winged = league === 5 || league === 6;
+  const f1 = league === 7;
+  const body = kart ? null : league <= 4 ? HEX : SHIELD;
   return (
-    <span className={`league-badge lg-${LEAGUES[league].id}`} style={{ width: size, height: size, fontSize: size * 0.34 }} aria-hidden>
-      {['OKJ', 'OK', 'KZ', 'F4', 'FR', 'F3', 'F2', 'F1'][league]}
+    <span className={`league-badge lg-${LEAGUES[league].id} ${className}`} style={{ width: size, height: size }} aria-hidden>
+      <svg viewBox="0 0 100 100" width={size} height={size}>
+        <defs>
+          <linearGradient id={g} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor={b.c1} />
+            <stop offset="1" stopColor={b.c2} />
+          </linearGradient>
+          <linearGradient id={sh} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0.35" stopColor="#fff" stopOpacity="0" />
+            <stop offset="0.5" stopColor="#fff" stopOpacity="0.55" />
+            <stop offset="0.65" stopColor="#fff" stopOpacity="0" />
+          </linearGradient>
+          <pattern id={`chk${uid}`} width="10" height="10" patternUnits="userSpaceOnUse">
+            <rect width="10" height="10" fill="#fff" />
+            <rect width="5" height="5" fill="#111" />
+            <rect x="5" y="5" width="5" height="5" fill="#111" />
+          </pattern>
+          <clipPath id={`cl${uid}`}>{body ? <path d={body} /> : <circle cx="50" cy="50" r="44" />}</clipPath>
+        </defs>
+        {winged && (
+          <g fill={b.trim} stroke={b.c2} strokeWidth="2">
+            <path d="M18 30 C4 32 0 46 2 58 C8 52 12 50 18 50 Z" />
+            <path d="M82 30 C96 32 100 46 98 58 C92 52 88 50 82 50 Z" />
+          </g>
+        )}
+        {f1 && (
+          <g fill="none" stroke="#ffd54a" strokeWidth="4" strokeLinecap="round">
+            <path d="M14 34 C4 52 10 76 30 90" />
+            <path d="M86 34 C96 52 90 76 70 90" />
+            {[0, 1, 2, 3].map((i) => (
+              <g key={i}>
+                <ellipse cx={9 + i * 2.4} cy={44 + i * 12} rx="5" ry="2.6" fill="#ffd54a" stroke="none" transform={`rotate(${-50 + i * 14} ${9 + i * 2.4} ${44 + i * 12})`} />
+                <ellipse cx={91 - i * 2.4} cy={44 + i * 12} rx="5" ry="2.6" fill="#ffd54a" stroke="none" transform={`rotate(${50 - i * 14} ${91 - i * 2.4} ${44 + i * 12})`} />
+              </g>
+            ))}
+          </g>
+        )}
+        {body ? (
+          <path d={body} fill={`url(#${g})`} stroke={b.trim} strokeWidth="5" strokeLinejoin="round" />
+        ) : (
+          <circle cx="50" cy="50" r="44" fill={`url(#${g})`} stroke={b.trim} strokeWidth="5" />
+        )}
+        <g clipPath={`url(#cl${uid})`}>
+          {kart && <rect x="0" y="70" width="100" height="30" fill={`url(#chk${uid})`} opacity="0.85" />}
+          {league >= 3 && league <= 4 && <path d="M0 78 L100 58 L100 66 L0 86 Z" fill={b.trim} opacity="0.5" />}
+          {(winged || f1) && <path d="M50 8 L50 94" stroke={b.trim} strokeWidth="3" opacity="0.25" />}
+          <rect className="lb-shine" x="-100" y="0" width="100" height="100" fill={`url(#${sh})`} />
+        </g>
+        {f1 && (
+          <path d="M30 14 L36 0 L43 10 L50 -2 L57 10 L64 0 L70 14 Z" fill="#ffd54a" stroke="#a87b00" strokeWidth="1.5" transform="translate(0 6)" />
+        )}
+        <text x="50" y={kart ? 54 : 58} textAnchor="middle" fontSize={ABBR[league].length > 2 ? 26 : 32} fontWeight="900" fontStyle="italic" fill={b.ink} stroke={b.c2} strokeWidth="1" paintOrder="stroke">
+          {ABBR[league]}
+        </text>
+        {kart &&
+          Array.from({ length: league + 1 }, (_, i) => (
+            <path key={i} d={`M${50 - league * 6 + i * 12 - 5} 22 l5 -5 l5 5`} fill="none" stroke={b.trim} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+          ))}
+        {(league === 3 || league === 4) && <circle cx="50" cy="20" r="4" fill={b.trim} />}
+        {league === 6 && <path d="M50 14 l3 6 l6 1 l-4.5 4 l1 6 l-5.5 -3 l-5.5 3 l1 -6 l-4.5 -4 l6 -1 Z" fill={b.c2} />}
+      </svg>
     </span>
+  );
+}
+
+// Animazione d'ingresso del campionato appena raggiunto (diversa per ogni campionato). Tocca per continuare.
+export function LeagueIntro({ league, onDone }: { league: number; onDone: () => void }) {
+  const { t } = useI18n();
+  const id = LEAGUES[league].id;
+  const reward = PROMOTION_REWARD[league];
+  useEffect(() => {
+    try {
+      navigator.vibrate?.([30, 60, 30]);
+    } catch {
+      /* niente vibrazione */
+    }
+  }, []);
+  return (
+    <div className={`league-intro li-${id} lg-${id}`} role="dialog" aria-modal="true" onClick={onDone}>
+      <span className="li-rays" aria-hidden />
+      <span className="li-bits" aria-hidden>
+        {Array.from({ length: 18 }, (_, i) => (
+          <i key={i} style={{ '--a': `${i * 20}deg`, '--d': `${(i % 6) * 0.05}s` } as CSSProperties} />
+        ))}
+      </span>
+      <div className="li-body">
+        <small>{t('rk_newLeague')}</small>
+        <LeagueBadge league={league} size={170} className="li-badge" />
+        <h2>{leagueName(league, t)}</h2>
+        <p>
+          <span className="rk-oro" /> {t('rk_maxOro', { n: LEAGUE_MAX_ORO[league] })}
+          {(reward.packs > 0 || reward.credits > 0) && (
+            <>
+              {' · '}
+              {reward.packs > 0 && <>🎁 {reward.packs} </>}
+              {reward.credits > 0 && <>🪙 {reward.credits}</>}
+            </>
+          )}
+        </p>
+        <button className="btn big li-go" onClick={onDone}>
+          {t('continue')}
+        </button>
+      </div>
+    </div>
   );
 }
 
