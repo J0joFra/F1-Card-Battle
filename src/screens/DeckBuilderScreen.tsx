@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { Card, Rarity, StatKey } from '../types';
-import { ArrowDownWideNarrow, ArrowLeft, Check, Dices, LayoutGrid, Minus, Play, Plus, Table2, Trash2, X, Sparkles } from 'lucide-react';
+import { ArrowDownWideNarrow, ArrowLeft, Check, Dices, Gauge, LayoutGrid, List, Minus, Play, Plus, Search, Trash2, X, Sparkles } from 'lucide-react';
 import { STATS, formatStat, rarityLabel, statLabel, statShort } from '../game/cards';
 import { useI18n } from '../lib/i18n';
 import { HelpButton } from '../components/TutorialSection';
@@ -8,7 +8,7 @@ import { CardView } from '../components/CardView';
 import { FlipCard } from '../components/FlipCard';
 import { useProgressive } from '../hooks/useProgressive';
 import { DECK_SLOTS, activeSlot, autoFillDeck, ownedCards, savedDeck, type Progress } from '../game/collection';
-import { DECK_SIZE } from '../game/engine';
+import { DECK_SIZE, statStrength } from '../game/engine';
 import { CLASSIC, addBlock, deckProblems, decksProblems, fillDeck, fitsMode, rarityCaps, MIN_DIFFERENT, type MatchMode, type SlotBlock } from '../game/deckRules';
 import type { TKey } from '../lib/i18n';
 
@@ -36,12 +36,16 @@ const RARITY_RANK: Record<Rarity, number> = {
   classica: -1,
 };
 const VIEW_KEY = 'f1-card-battle:deck-view';
+const SHOW_FIRST = 24;
 const BLOCK_LABEL: Record<SlotBlock, TKey> = {
   full: 'deck_full',
   rarity: 'deck_rarityFull',
   allDecks: 'deck_blockAll',
   similar: 'deck_blockSimilar',
 };
+
+// forza del mazzo: overall medio delle sue card
+const avgOvr = (d: Card[]) => (d.length ? Math.round(d.reduce((n, c) => n + c.ovr, 0) / d.length) : null);
 
 function savedView(): View {
   try {
@@ -115,6 +119,9 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
     setSlot(i);
   }
   const [sort, setSort] = useState<SortKey>('rarita');
+  const [query, setQuery] = useState('');
+  const [rarityF, setRarityF] = useState<Rarity | 'tutte'>('tutte');
+  const [onlyAddable, setOnlyAddable] = useState(false);
   const [view, setViewRaw] = useState<View>(savedView);
   const setView = (v: View) => {
     setViewRaw(v);
@@ -133,15 +140,39 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
 
   // ordina per rarità (dalla più rara) o per una metrica (dal valore migliore)
   const rows = useMemo(() => {
-    const cards = [...usable];
+    const q = query.trim().toLowerCase();
+    const cards = usable.filter(
+      (c) =>
+        (!q || `${c.driver.name} ${c.team.name}`.toLowerCase().includes(q)) &&
+        (rarityF === 'tutte' || c.rarity === rarityF) &&
+        (!onlyAddable || deck.some((x) => x.id === c.id) || !addBlock(deck, c, mode, others)),
+    );
     const byName = (a: Card, b: Card) => a.driver.lastName.localeCompare(b.driver.lastName) || a.firstYear - b.firstYear;
     if (sort === 'rarita')
       return cards.sort((a, b) => RARITY_RANK[b.rarity] - RARITY_RANK[a.rarity] || b.ovr - a.ovr || byName(a, b));
     if (sort === 'ovr') return cards.sort((a, b) => b.ovr - a.ovr || byName(a, b));
     const def = STATS.find((s) => s.key === sort)!;
     return cards.sort((a, b) => (def.lowerWins ? a.stats[sort] - b.stats[sort] : b.stats[sort] - a.stats[sort]) || byName(a, b));
-  }, [usable, sort]);
-  const { limit, sentinel } = useProgressive(rows.length, 40, `${sort}|${view}`);
+  }, [usable, sort, query, rarityF, onlyAddable, onlyAddable ? deck : null]); // eslint-disable-line react-hooks/exhaustive-deps
+  const listKey = `${sort}|${view}|${query}|${rarityF}|${onlyAddable}`;
+  const { limit: loaded, sentinel } = useProgressive(rows.length, 48, listKey);
+  // all'inizio si vedono solo le prime card dell'ordinamento scelto: con tante card non si scorre all'infinito
+  const [showAll, setShowAll] = useState(false);
+  useEffect(() => setShowAll(false), [listKey]);
+  const limit = showAll ? loaded : Math.min(SHOW_FIRST, rows.length);
+  const deckRef = useRef<HTMLDivElement>(null);
+  const moreButton =
+    !showAll && rows.length > SHOW_FIRST ? (
+      <button className="btn ghost block show-all" onClick={() => setShowAll(true)}>
+        {t('deck_showAll', { a: SHOW_FIRST, n: rows.length })}
+      </button>
+    ) : null;
+  // rarità presenti tra le card utilizzabili, con quante ne hai
+  const rarityCounts = useMemo(() => {
+    const n = new Map<Rarity, number>();
+    for (const c of usable) n.set(c.rarity, (n.get(c.rarity) ?? 0) + 1);
+    return [...n].sort((a, b) => RARITY_RANK[b[0]] - RARITY_RANK[a[0]]);
+  }, [usable]);
 
   const toggle = (c: Card) =>
     setDeck((d) => (d.some((x) => x.id === c.id) ? d.filter((x) => x.id !== c.id) : !addBlock(d, c, mode, others) ? [...d, c] : d));
@@ -177,8 +208,15 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
                 className={i === slot ? 'on' : ''}
                 onClick={() => openSlot(i)}
               >
-                {i + 1}
-                {ok && <Check size={12} />}
+                <span className="dt-num">
+                  {i + 1}
+                  {ok && <Check size={12} />}
+                </span>
+                {avgOvr(d) !== null && (
+                  <small className="dt-ovr">
+                    <Gauge size={11} /> {avgOvr(d)}
+                  </small>
+                )}
               </button>
             );
           })}
@@ -186,20 +224,29 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
       )}
       {banner && <p className="daily-banner">{banner}</p>}
 
-      <div className="deck-bar">
+      <div className="deck-bar" ref={deckRef}>
         <div className="deck-count">
           <b className={deck.length === DECK_SIZE ? 'ok' : ''}>
             {deck.length}/{DECK_SIZE}
           </b>
-          {mode.kind !== 'rarity' &&
-            rarityCaps(deck).map(([r, n]) => {
+          {avgOvr(deck) !== null && (
+            <span className="deck-ovr" title={t('deck_strength')}>
+              <Gauge size={14} /> {t('deck_strength')} <b>{avgOvr(deck)}</b>
+            </span>
+          )}
+          {mode.kind !== 'rarity' && (
+            <div className="deck-limits">
+              <small className="limits-label">{t('deck_limitsLabel')}</small>
+              {rarityCaps(deck).map(([r, n]) => {
               const used = deck.filter((c) => c.rarity === r).length;
               return (
                 <span key={r} className={`limit ${used > n ? 'over' : ''}`} title={t('deck_maxRarity', { n, r: rarityLabel(r) })}>
                   <span className={`dot rarity-${r}`} /> {used}/{n}
                 </span>
               );
-            })}
+              })}
+            </div>
+          )}
         </div>
         <div className="deck-cards">
           {Array.from({ length: DECK_SIZE }, (_, i) => {
@@ -249,102 +296,116 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
         </div>
       </div>
 
-      <div className="pick-head">
-        <b>{t('deck_collection', { n: rows.length })}</b>
-        <label className="sort-label" title={t('deck_sortBy')}>
-          <ArrowDownWideNarrow size={18} aria-hidden />
-          <select
-            aria-label={t('deck_sortBy')}
-            className="sort-select"
-            value={sort}
-            onChange={(e) => setSort(e.target.value as SortKey)}
-          >
-            <option value="rarita">{t('deck_sortRarity')}</option>
-            <option value="ovr">OVR</option>
-            {STATS.map((s) => (
-              <option key={s.key} value={s.key}>
-                {statLabel(s.key)}
-                {s.lowerWins ? ' ↓' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="view-toggle" role="group">
-          <button
-            className={view === 'cards' ? 'on' : ''}
-            onClick={() => setView('cards')}
-            aria-label={t('deck_viewCards')}
-            title={t('deck_viewCards')}
-          >
-            <LayoutGrid size={18} />
+      {/* strumenti della lista, sempre a portata mentre scorri: mazzo, ricerca, ordinamento e filtri */}
+      <div className="pick-tools">
+        <div className="pt-row">
+          <button className={`pt-deck ${deck.length === DECK_SIZE ? 'ok' : ''}`} onClick={() => deckRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
+            <b>
+              {deck.length}/{DECK_SIZE}
+            </b>
+            {avgOvr(deck) !== null && (
+              <small>
+                <Gauge size={11} /> {avgOvr(deck)}
+              </small>
+            )}
           </button>
-          <button
-            className={view === 'table' ? 'on' : ''}
-            onClick={() => setView('table')}
-            aria-label={t('deck_viewTable')}
-            title={t('deck_viewTable')}
-          >
-            <Table2 size={18} />
+          <label className="search pick-search">
+            <Search size={16} />
+            <input type="search" placeholder={t('col_search')} value={query} onChange={(e) => setQuery(e.target.value)} />
+          </label>
+          <div className="view-toggle" role="group">
+            <button className={view === 'cards' ? 'on' : ''} onClick={() => setView('cards')} aria-label={t('deck_viewCards')} title={t('deck_viewCards')}>
+              <LayoutGrid size={18} />
+            </button>
+            <button className={view === 'table' ? 'on' : ''} onClick={() => setView('table')} aria-label={t('deck_viewTable')} title={t('deck_viewTable')}>
+              <List size={18} />
+            </button>
+          </div>
+        </div>
+        {/* ordina con un tocco: in cima le migliori per quella statistica */}
+        <div className="chips pick-sort" role="radiogroup" aria-label={t('deck_sortBy')}>
+          <ArrowDownWideNarrow size={16} className="pt-icon" aria-hidden />
+          {(['rarita', 'ovr', ...STATS.map((x) => x.key)] as SortKey[]).map((k) => (
+            <button key={k} role="radio" aria-checked={sort === k} className={`chip ${sort === k ? 'on' : ''}`} onClick={() => setSort(k)} title={k === 'rarita' || k === 'ovr' ? undefined : statLabel(k)}>
+              {k === 'rarita' ? t('deck_sortRarity') : k === 'ovr' ? 'OVR' : statShort(k)}
+            </button>
+          ))}
+        </div>
+        <div className="chips pick-filters">
+          <button className={`chip ${rarityF === 'tutte' ? 'on' : ''}`} onClick={() => setRarityF('tutte')}>
+            {t('f_anyRarity')}
+          </button>
+          {rarityCounts.map(([r, n]) => (
+            <button key={r} className={`chip ${rarityF === r ? 'on' : ''}`} onClick={() => setRarityF(rarityF === r ? 'tutte' : r)}>
+              <span className={`dot rarity-${r}`} /> {rarityLabel(r)} <small>{n}</small>
+            </button>
+          ))}
+          <span className="sep" />
+          <button className={`chip ${onlyAddable ? 'on' : ''}`} onClick={() => setOnlyAddable(!onlyAddable)} aria-pressed={onlyAddable}>
+            <Plus size={12} /> {t('deck_onlyAddable')}
           </button>
         </div>
       </div>
       {view === 'table' ? (
-        <div className="stat-table-wrap">
-          <table className="stat-table">
-            <thead>
-              <tr>
-                <th className="col-name">{t('deck_name')}</th>
-                <th className={sort === 'ovr' ? 'on' : ''} onClick={() => setSort('ovr')}>
-                  OVR
-                </th>
-                {STATS.map((s) => (
-                  <th key={s.key} className={sort === s.key ? 'on' : ''} onClick={() => setSort(s.key)} title={statLabel(s.key)}>
-                    {statShort(s.key)}
-                    {s.lowerWins ? '↓' : ''}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.slice(0, limit).map((c) => {
-                const selected = deck.some((x) => x.id === c.id);
-                const block = selected ? null : blockOf(c);
-                const blocked = !!block;
-                return (
-                  <tr
-                    key={c.id}
-                    title={block ? t(BLOCK_LABEL[block]) : undefined}
-                    className={`${selected ? 'in-deck' : ''} ${blocked ? 'blocked' : ''}`}
-                    onClick={() => !blocked && toggle(c)}
-                    aria-selected={selected}
-                  >
-                    <td className="col-name">
-                      <div className="cell">
-                        <span className={`pick-mark ${selected ? 'on' : ''}`}>
-                          {selected ? <Check size={12} /> : blocked ? '–' : <Plus size={12} />}
+        <>
+          {/* lista: le 7 statistiche di ogni card, colorate dal debole (rosso) al forte (verde);
+              ▲ = migliorerebbe il valore migliore del mazzo in quella statistica */}
+          <ul className="stat-list">
+            {rows.slice(0, limit).map((c) => {
+              const selected = deck.some((x) => x.id === c.id);
+              const block = selected ? null : blockOf(c);
+              const blocked = !!block;
+              return (
+                <li
+                  key={c.id}
+                  className={`stat-row ${selected ? 'in-deck' : ''} ${blocked ? 'blocked' : ''}`}
+                  onClick={() => !blocked && toggle(c)}
+                  aria-selected={selected}
+                >
+                  <div className="sr-head">
+                    <span className={`pick-mark ${selected ? 'on' : ''}`}>
+                      {selected ? <Check size={12} /> : blocked ? '–' : <Plus size={12} />}
+                    </span>
+                    <span className={`dot rarity-${c.rarity}`} />
+                    <span className="nm">
+                      <b>{c.driver.name}</b>
+                      <small>
+                        {c.kind === 'career' ? `★ ${c.period}` : `${c.team.name} · ${c.period}`}
+                        {block && block !== 'full' ? ` · ${t(BLOCK_LABEL[block])}` : ''}
+                      </small>
+                    </span>
+                    <span className={`sr-ovr ${sort === 'ovr' ? 'on' : ''}`}>{c.ovr}</span>
+                  </div>
+                  <div className="sr-stats">
+                    {STATS.map((st) => {
+                      const v = c.stats[st.key];
+                      const best = bestInDeck(st.key);
+                      const up = !selected && best !== null && (st.lowerWins ? v < best : v > best);
+                      return (
+                        <span
+                          key={st.key}
+                          className={`sr-stat ${sort === st.key ? 'on' : ''}`}
+                          style={{ '--s': statStrength(st.key, v) } as CSSProperties}
+                          title={statLabel(st.key)}
+                        >
+                          <small>{statShort(st.key)}</small>
+                          <b>
+                            {formatStat(st, v)}
+                            {up && <i className="sr-up">▲</i>}
+                          </b>
                         </span>
-                        <span className={`dot rarity-${c.rarity}`} />
-                        <span className="nm">
-                          <b>{c.driver.lastName}</b>
-                          <small>{c.kind === 'career' ? `★ ${c.period}` : `${c.team.name} · ${c.period}`}</small>
-                        </span>
-                      </div>
-                    </td>
-                    <td className="ovr">{c.ovr}</td>
-                    {STATS.map((s) => (
-                      <td key={s.key} className={sort === s.key ? 'on' : ''}>
-                        {formatStat(s, c.stats[s.key])}
-                      </td>
-                    ))}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {limit < rows.length && <div ref={sentinel} className="grid-sentinel" />}
-        </div>
+                      );
+                    })}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {showAll && limit < rows.length && <div ref={sentinel} className="grid-sentinel" />}
+          {moreButton}
+        </>
       ) : (
-        <div className="pick-grid">
+        <div className="pick-grid compact">
           {rows.slice(0, limit).map((c) => {
             const selected = deck.some((x) => x.id === c.id);
             const block = selected ? null : blockOf(c);
@@ -353,7 +414,13 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
               <div key={c.id} className={`${selected ? 'in-deck' : ''} ${blocked ? 'blocked' : ''}`}>
                 <FlipCard
                   card={c}
-                  badge={selected ? <span className="pick-badge">{t('deck_inDeck')}</span> : undefined}
+                  badge={
+                    selected ? (
+                      <span className="pick-badge">{t('deck_inDeck')}</span>
+                    ) : block && block !== 'full' ? (
+                      <span className="pick-badge blocked-badge">{t(BLOCK_LABEL[block])}</span>
+                    ) : undefined
+                  }
                   action={
                     <button
                       className={`btn ${selected ? 'ghost' : 'primary'}`}
@@ -373,9 +440,10 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
               </div>
             );
           })}
-          {limit < rows.length && <div ref={sentinel} className="grid-sentinel" />}
+          {showAll && limit < rows.length && <div ref={sentinel} className="grid-sentinel" />}
         </div>
       )}
+      {view !== 'table' && moreButton}
     </div>
   );
 }
