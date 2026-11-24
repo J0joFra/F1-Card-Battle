@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { Card, Rarity, StatKey } from '../types';
 import { ArrowLeft, Check, Dices, Gauge, LayoutGrid, List, Minus, Play, Plus, Search, Trash2, X, Sparkles } from 'lucide-react';
 import { STATS, formatStat, rarityLabel, statLabel, statShort } from '../game/cards';
@@ -43,13 +43,16 @@ const BLOCK_LABEL: Record<SlotBlock, TKey> = {
   similar: 'deck_blockSimilar',
 };
 
-// Fascia di una statistica rispetto a tutte le card giocabili (quartili della sua distribuzione):
-// top 10% eccellente, top 25% forte, metà centrale nella media, ultimo 25% debole.
-type Band = 'top' | 'good' | 'mid' | 'low';
-const bandOf = (key: StatKey, value: number): Band => {
+// Fascia di una statistica rispetto a tutte le card giocabili: 10 fasce da 10% (decili della sua distribuzione),
+// 0 = il 10% peggiore (rosso), 9 = il 10% migliore (verde), a metà il giallo.
+const decileOf = (key: StatKey, value: number) => {
   const p = percentile(key, value); // 1 = il valore migliore tra tutte le card (già girato per le metriche ↓)
-  return p >= 0.9 ? 'top' : p >= 0.75 ? 'good' : p >= 0.25 ? 'mid' : 'low';
+  return Math.min(9, Math.max(0, Math.floor(p * 10)));
 };
+// 10 colori dal rosso al verde passando per il giallo (testo scuro sulle fasce chiare)
+const DECILE_BG = ['#c62828', '#e04a2b', '#ee6f2b', '#f5982a', '#f7c21e', '#e3cf26', '#b8cd2e', '#7fbf38', '#45a83f', '#1f8a3d'];
+const DECILE_DARK = [false, false, false, true, true, true, true, false, false, false];
+const decileStyle = (d: number) => ({ '--bg': DECILE_BG[d], '--fg': DECILE_DARK[d] ? '#1d1d1d' : '#fff' }) as CSSProperties;
 
 // forza del mazzo: overall medio delle sue card
 const avgOvr = (d: Card[]) => (d.length ? Math.round(d.reduce((n, c) => n + c.ovr, 0) / d.length) : null);
@@ -340,12 +343,15 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
         <>
           {/* lista: le 7 statistiche di ogni card, colorate dal debole (rosso) al forte (verde);
               ▲ = migliorerebbe il valore migliore del mazzo in quella statistica */}
-          <p className="band-legend">
-            <span className="band-top">{t('band_top')}</span>
-            <span className="band-good">{t('band_good')}</span>
-            <span className="band-mid">{t('band_mid')}</span>
-            <span className="band-low">{t('band_low')}</span>
-          </p>
+          <div className="band-legend">
+            <small>{t('band_low10')}</small>
+            <span className="band-strip" aria-hidden>
+              {Array.from({ length: 10 }, (_, d) => (
+                <i key={d} style={decileStyle(d)} />
+              ))}
+            </span>
+            <small>{t('band_top10')}</small>
+          </div>
           <ul className="stat-list">
             {rows.slice(0, limit).map((c) => {
               const selected = deck.some((x) => x.id === c.id);
@@ -380,7 +386,8 @@ export function DeckBuilderScreen({ progress, onSave, mode = CLASSIC, onPlay, on
                       return (
                         <span
                           key={st.key}
-                          className={`sr-stat band-${bandOf(st.key, v)}`}
+                          className="sr-stat"
+                          style={decileStyle(decileOf(st.key, v))}
                           title={statLabel(st.key)}
                         >
                           <small>{statShort(st.key)}</small>
