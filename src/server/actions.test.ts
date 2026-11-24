@@ -1029,15 +1029,17 @@ describe('campionati: punti e promozioni', () => {
     expect(leagueOf(300)).toBe(3);
     expect(leagueOf(99999)).toBe(7);
   });
-  it('vittoria, pareggio, sconfitta; non si scende sotto l\'inizio del campionato', () => {
+  it('vittoria, pareggio, sconfitta; si può retrocedere ma non sotto zero coppe', () => {
     const w = applyRanked(base(), 'player');
     expect(w.result).toMatchObject({ delta: 10, points: 10, league: 0 });
     expect(RANKED_POINTS).toEqual({ player: 10, draw: 2, cpu: -7 });
-    // anche le categorie del Karting proteggono: da OK (100) non si torna in OK-Junior
-    expect(applyRanked({ ...base(), ranked: { points: 103, best: 1 } }, 'cpu').result.points).toBe(100);
+    // si può retrocedere: da Karting OK (100) si torna in OK-Junior
+    expect(applyRanked({ ...base(), ranked: { points: 103, best: 1 } }, 'cpu').result).toMatchObject({ points: 96, league: 0 });
+    // ma le coppe non vanno sotto zero
+    expect(applyRanked({ ...base(), ranked: { points: 3, best: 0 } }, 'cpu').result).toMatchObject({ points: 0, delta: -3 });
     expect(applyRanked(base(), 'cpu').result.points).toBe(0);
     const p = { ...base(), ranked: { points: 305, best: 3 } };
-    expect(applyRanked(p, 'cpu').result).toMatchObject({ points: 300, delta: -5 });
+    expect(applyRanked(p, 'cpu').result).toMatchObject({ points: 298, delta: -7, league: 2 });
     expect(applyRanked({ ...p, ranked: { points: 350, best: 3 } }, 'cpu').result.points).toBe(343);
   });
   it('più si sale di campionato, più Oro si possono mettere nel mazzo (in F1 nessun limite)', () => {
@@ -1220,7 +1222,7 @@ describe('server: gara classificata', () => {
     const rb = await handle({ action: 'pvp_state', match: id }, t.bruno, t.c);
     expect(ra.pvp!.status).toBe('finished');
     const oa = ra.pvp!.seriesOutcome!;
-    const after = (pts: number, o: keyof typeof RANKED_POINTS) => Math.max(LEAGUES[leagueOf(pts)].min, pts + RANKED_POINTS[o]);
+    const after = (pts: number, o: keyof typeof RANKED_POINTS) => Math.max(0, pts + RANKED_POINTS[o]);
     expect(ra.rewards!.ranked!.points).toBe(after(100, oa));
     expect(rb.rewards!.ranked!.points).toBe(after(150, rb.pvp!.seriesOutcome!));
     expect(t.db.profiles.get('anna')!.progress.ranked!.points).toBe(ra.rewards!.ranked!.points);
