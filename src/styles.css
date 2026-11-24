@@ -1639,3 +1639,29 @@ button.ranked-head { background: none; border: 0; padding: 0; color: inherit; te
 @media (min-width: 560px) { .pick-grid.compact { grid-template-columns: repeat(4, minmax(0, 1fr)); } .pick-grid.compact .flip { zoom: 0.8; } }
 .pick-badge.blocked-badge { background: #555c6b; }
 .deck-limits { display: flex; align-items: center; gap: 6px; flex-basis: 100%; flex-wrap: wrap; }
+
+/* mazzi: filtri della lista e vista statistiche (una card per riga, 7 riquadri colorati) */
+.pick-filters { margin-top: -4px; }
+.pick-filters .chip { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; flex: none; }
+.pick-filters .chip small { opacity: 0.65; font-weight: 700; }
+.stat-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.stat-row { display: grid; gap: 6px; padding: 8px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); cursor: pointer; }
+.stat-row.in-deck { border-color: var(--win); box-shadow: 0 0 0 1px var(--win) inset; background: color-mix(in srgb, var(--win) 8%, var(--surface)); }
+.stat-row.blocked { cursor: default; opacity: 0.55; }
+.sr-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sr-head .nm { display: grid; flex: 1; min-width: 0; line-height: 1.15; }
+.sr-head .nm b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-head .nm small { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-ovr { flex: none; min-width: 34px; text-align: center; font-weight: 900; font-size: 15px; padding: 3px 6px; border-radius: 8px; background: var(--surface-2); }
+.sr-ovr.on { background: var(--accent); color: #fff; }
+.sr-stats { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.sr-stat {
+  --s: 0.5;
+  display: grid; justify-items: center; gap: 0; padding: 4px 1px 3px; border-radius: 7px; min-width: 0;
+  background: color-mix(in srgb, hsl(calc(var(--s) * 120) 70% 45%) 22%, var(--surface-2));
+  border: 1px solid transparent;
+}
+.sr-stat small { font-size: 8px; font-weight: 800; color: var(--muted); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; letter-spacing: -0.2px; }
+.sr-stat b { font-size: 11.5px; font-weight: 900; white-space: nowrap; display: inline-flex; align-items: center; gap: 1px; }
+.sr-stat.on { border-color: var(--accent); }
+.sr-up { font-style: normal; font-size: 8px; color: var(--win); }
