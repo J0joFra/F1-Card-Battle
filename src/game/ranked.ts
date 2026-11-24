@@ -5,7 +5,7 @@ import type { Card } from '../types';
 /*
  * Gara classificata (stile Clash Royale): sfide online contro altri giocatori con punti simili.
  * I punti campionato decidono il campionato: dal Karting alla Formula 1.
- * Una volta promosso non si scende sotto l'inizio del campionato raggiunto.
+ * Si può retrocedere di campionato, ma le coppe non scendono mai sotto zero.
  */
 
 // il Karting è diviso nelle sue categorie: OK-Junior, OK, KZ
@@ -21,7 +21,11 @@ export const LEAGUES = [
 ] as const;
 export type LeagueId = (typeof LEAGUES)[number]['id'];
 
-export const RANKED_POINTS = { player: 30, draw: 5, cpu: -20 } as const;
+export const RANKED_POINTS = { player: 10, draw: 2, cpu: -7 } as const;
+
+// Oro ammesse nel mazzo in ogni campionato (Platino e Leggendaria restano limitate come sempre):
+// più si sale, più i mazzi sono fatti di Oro; in Formula 1 nessun limite (7 su 7).
+export const LEAGUE_MAX_ORO = [2, 2, 2, 3, 4, 5, 6, 7];
 
 // premio della prima promozione in ogni campionato: pacchetti base da aprire e crediti
 export const PROMOTION_REWARD: { packs: number; credits: number }[] = [
@@ -73,8 +77,8 @@ export interface RankedResult {
 // Fine di una gara classificata: punti, eventuale promozione e premio (dal punto di vista del giocatore).
 export function applyRanked(p: Progress, outcome: Exclude<MatchOutcome, null>): { progress: Progress; result: RankedResult } {
   const r = rankedOf(p);
-  const floor = LEAGUES[leagueOf(r.points)].min;
-  const points = Math.max(floor, r.points + RANKED_POINTS[outcome]);
+  // si può retrocedere di campionato, ma le coppe non scendono mai sotto zero
+  const points = Math.max(0, r.points + RANKED_POINTS[outcome]);
   const league = leagueOf(points);
   const result: RankedResult = { delta: points - r.points, points, league };
   let next: Progress = { ...p, ranked: { points, best: Math.max(r.best, league) } };

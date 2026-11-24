@@ -27,6 +27,7 @@ import {
   activeSlot,
   ownedCards,
   seriesDecks,
+  maxOroOf,
   withDecks,
   openPack,
   bumpStats,
@@ -348,7 +349,7 @@ export default function App() {
       go("builder");
       return;
     }
-    if (deckProblems(deck).length) {
+    if (deckProblems(deck, CLASSIC, maxOroOf(progress)).length) {
       setToast(t("toast_deckInvalid", { n: slot + 1 }));
       go("builder");
       return;
@@ -593,7 +594,7 @@ export default function App() {
   async function ensureDecks(): Promise<boolean> {
     if (seriesDecks(progress)) return true;
     const decks = autoFillDecks(progress);
-    if (decks.some((d) => d.length < DECK_SIZE || deckProblems(d).length) || decksProblems(decks).length) {
+    if (decks.some((d) => d.length < DECK_SIZE || deckProblems(d, CLASSIC, maxOroOf(progress)).length) || decksProblems(decks).length) {
       setToast(t("fr_decksNeeded", { n: DECK_SLOTS }));
       go("builder");
       return false;
@@ -647,7 +648,7 @@ export default function App() {
   async function startRanked() {
     if (starting || queue) return;
     const deck = savedDeck(progress);
-    if (deck.length < DECK_SIZE || deckProblems(deck).length) {
+    if (deck.length < DECK_SIZE || deckProblems(deck, CLASSIC, maxOroOf(progress)).length) {
       setToast(t("rk_deckNeeded"));
       go("builder");
       return;

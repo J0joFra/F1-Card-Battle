@@ -3,6 +3,7 @@ import { ALL_CARDS, CARD_BY_ID, careerCardOf, cardsOfRarity, teamCardsOfDriver, 
 import { DECK_SIZE, JOLLY_KINDS, shuffle, type JollyKind, type Rng } from './engine';
 import { deckProblems, decksProblems, fillDeck, fillDecks } from './deckRules';
 import { emptyDaily, type DailyState, type MissionsState } from './daily';
+import { LEAGUE_MAX_ORO, leagueOf } from './ranked';
 
 export const WINS_PER_PACK = 10;
 // sfida contro un amico: crediti extra per vittoria e pareggio (oltre alla vittoria che conta per il pacchetto)
@@ -147,10 +148,14 @@ export function withDecks(p: Progress, decks: string[][], active: number): Progr
   return { ...p, decks: clean, activeDeck: slot, deck: clean[slot] };
 }
 
+// Oro ammesse nei mazzi del giocatore: dipende dal suo campionato (più si sale, più Oro)
+export const maxOroOf = (p: Pick<Progress, 'ranked'>) => LEAGUE_MAX_ORO[leagueOf(p.ranked?.points ?? 0)];
+
 // I 3 mazzi della sfida tra amici, solo se sono tutti completi e validi.
 export function seriesDecks(p: Progress): Card[][] | null {
   const decks = deckSlots(p).map((ids) => toCards(p, ids));
-  return decks.every((d) => d.length === DECK_SIZE && !deckProblems(d).length) && !decksProblems(decks).length ? decks : null;
+  const maxOro = maxOroOf(p);
+  return decks.every((d) => d.length === DECK_SIZE && !deckProblems(d, undefined, maxOro).length) && !decksProblems(decks).length ? decks : null;
 }
 
 // I mazzi salvati, come card (solo quelle ancora possedute).
@@ -160,11 +165,11 @@ export const savedDecks = (p: Progress): Card[][] => deckSlots(p).map((ids) => t
 export const otherDecks = (p: Progress, slot: number): Card[][] => savedDecks(p).filter((_, i) => i !== slot);
 
 // Completa i 3 mazzi salvati con card della collezione (per la sfida tra amici).
-export const autoFillDecks = (p: Progress, rng: Rng = Math.random): Card[][] => fillDecks(ownedCards(p), savedDecks(p), rng);
+export const autoFillDecks = (p: Progress, rng: Rng = Math.random): Card[][] => fillDecks(ownedCards(p), savedDecks(p), rng, maxOroOf(p));
 
 // Completa il mazzo con card casuali della collezione, rispettando i limiti di rarità.
 export function autoFillDeck(p: Progress, deck: Card[], rng: Rng = Math.random, others: Card[][] = []): Card[] {
-  return fillDeck(ownedCards(p), deck, undefined, rng, false, others);
+  return fillDeck(ownedCards(p), deck, undefined, rng, false, others, false, maxOroOf(p));
 }
 
 function rollRarity(rng: Rng): Rarity {

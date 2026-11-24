@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_CARDS, CARD_BY_ID, STATS } from '../game/cards';
 import { PACK_TYPES, storePrice, teamOfDay } from '../game/shop';
-import { starterProgress, withDecks, type Progress } from '../game/collection';
+import { maxOroOf, starterProgress, withDecks, type Progress } from '../game/collection';
 import { autoFillDeck, autoFillDecks, savedDecks } from '../game/collection';
 import { dailyChallenge, dailyLoanDeck, seededRng, themeMode, themePool } from '../game/daily';
 import { deckProblems, decksProblems } from '../game/deckRules';
@@ -9,7 +9,7 @@ import { hashRecoveryCode, usernameOf } from '../game/profile';
 import { FIRST_WIN_CREDITS, MATCH_CREDITS, PACK_PRICE } from '../game/collection';
 import { CLASSIC, fillDeck } from '../game/deckRules';
 import { PVP_REVEAL_MS, PVP_TURN_MS, handle, type AccountRow, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type QueueRow, type Store, type SupportRequestRow } from './actions';
-import { firstLeader, LEAGUES, MAX_REFERRALS, PROMOTION_REWARD, RANKED_POINTS, REFERRAL_PACKS, applyRanked, leagueOf } from '../game/ranked';
+import { LEAGUE_MAX_ORO, firstLeader, LEAGUES, MAX_REFERRALS, PROMOTION_REWARD, RANKED_POINTS, REFERRAL_PACKS, applyRanked, leagueOf } from '../game/ranked';
 
 const AVATAR = { skin: 2, hair: 3, hairColor: 1, eyes: 0, eyeColor: 1, brows: 0, mouth: 0, beard: 4, glasses: 0, suit: 0 };
 const NEW_PROFILE = { nickname: 'Joaquim', avatar: { ...AVATAR }, favorite: 'lewis-hamilton' };
@@ -1029,15 +1029,27 @@ describe('campionati: punti e promozioni', () => {
     expect(leagueOf(300)).toBe(3);
     expect(leagueOf(99999)).toBe(7);
   });
-  it('vittoria, pareggio, sconfitta; non si scende sotto l\'inizio del campionato', () => {
+  it('vittoria, pareggio, sconfitta; si può retrocedere ma non sotto zero coppe', () => {
     const w = applyRanked(base(), 'player');
-    expect(w.result).toMatchObject({ delta: RANKED_POINTS.player, points: 30, league: 0 });
-    // anche le categorie del Karting proteggono: da OK (100) non si torna in OK-Junior
-    expect(applyRanked({ ...base(), ranked: { points: 110, best: 1 } }, 'cpu').result.points).toBe(100);
+    expect(w.result).toMatchObject({ delta: 10, points: 10, league: 0 });
+    expect(RANKED_POINTS).toEqual({ player: 10, draw: 2, cpu: -7 });
+    // si può retrocedere: da Karting OK (100) si torna in OK-Junior
+    expect(applyRanked({ ...base(), ranked: { points: 103, best: 1 } }, 'cpu').result).toMatchObject({ points: 96, league: 0 });
+    // ma le coppe non vanno sotto zero
+    expect(applyRanked({ ...base(), ranked: { points: 3, best: 0 } }, 'cpu').result).toMatchObject({ points: 0, delta: -3 });
     expect(applyRanked(base(), 'cpu').result.points).toBe(0);
-    const p = { ...base(), ranked: { points: 310, best: 3 } };
-    expect(applyRanked(p, 'cpu').result).toMatchObject({ points: 300, delta: -10 });
-    expect(applyRanked({ ...p, ranked: { points: 350, best: 3 } }, 'cpu').result.points).toBe(330);
+    const p = { ...base(), ranked: { points: 305, best: 3 } };
+    expect(applyRanked(p, 'cpu').result).toMatchObject({ points: 298, delta: -7, league: 2 });
+    expect(applyRanked({ ...p, ranked: { points: 350, best: 3 } }, 'cpu').result.points).toBe(343);
+  });
+  it('più si sale di campionato, più Oro si possono mettere nel mazzo (in F1 nessun limite)', () => {
+    expect(LEAGUE_MAX_ORO).toHaveLength(LEAGUES.length);
+    expect(maxOroOf({})).toBe(2);
+    expect(maxOroOf({ ranked: { points: 300, best: 3 } })).toBe(3);
+    expect(maxOroOf({ ranked: { points: 5000, best: 7 } })).toBe(7);
+    const gold = ALL_CARDS.filter((c) => c.rarity === 'oro' && c.kind === 'team').slice(0, 7);
+    expect(deckProblems(gold, CLASSIC, 2).length).toBeGreaterThan(0);
+    expect(deckProblems(gold, CLASSIC, 7)).toEqual([]);
   });
   it('la promozione dà il premio una volta sola', () => {
     const p = { ...base(), packs: 0, credits: 0, ranked: { points: 290, best: 2 } };
@@ -1210,7 +1222,7 @@ describe('server: gara classificata', () => {
     const rb = await handle({ action: 'pvp_state', match: id }, t.bruno, t.c);
     expect(ra.pvp!.status).toBe('finished');
     const oa = ra.pvp!.seriesOutcome!;
-    const after = (pts: number, o: keyof typeof RANKED_POINTS) => Math.max(LEAGUES[leagueOf(pts)].min, pts + RANKED_POINTS[o]);
+    const after = (pts: number, o: keyof typeof RANKED_POINTS) => Math.max(0, pts + RANKED_POINTS[o]);
     expect(ra.rewards!.ranked!.points).toBe(after(100, oa));
     expect(rb.rewards!.ranked!.points).toBe(after(150, rb.pvp!.seriesOutcome!));
     expect(t.db.profiles.get('anna')!.progress.ranked!.points).toBe(ra.rewards!.ranked!.points);

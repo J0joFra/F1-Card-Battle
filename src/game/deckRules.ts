@@ -77,17 +77,18 @@ export function parseMode(raw: unknown): MatchMode | null {
 const countOf = (deck: Card[], r: Rarity) => deck.filter((c) => c.rarity === r).length;
 
 // Quante card di ogni rarità limitata si possono ancora avere, visto il mazzo attuale.
-export function rarityCaps(deck: Card[]): [Rarity, number][] {
+// maxOro: quante Oro sono ammesse (dipende dal campionato del giocatore, vedi LEAGUE_MAX_ORO in ranked.ts)
+export function rarityCaps(deck: Card[], maxOro = MAX_ORO): [Rarity, number][] {
   const leg = countOf(deck, 'leggendaria');
   const plat = countOf(deck, 'platino');
   return [
     ['leggendaria', Math.max(0, Math.min(MAX_LEGGENDARIA, MAX_TOP - plat))],
     ['platino', Math.max(0, MAX_TOP - leg)],
-    ['oro', MAX_ORO],
+    ['oro', maxOro],
   ];
 }
 
-function rarityProblems(deck: Card[]): string[] {
+function rarityProblems(deck: Card[], maxOro = MAX_ORO): string[] {
   const problems: string[] = [];
   const leg = countOf(deck, 'leggendaria');
   const plat = countOf(deck, 'platino');
@@ -95,15 +96,15 @@ function rarityProblems(deck: Card[]): string[] {
   if (leg > MAX_LEGGENDARIA)
     problems.push(translate('deck_tooMany', { n: MAX_LEGGENDARIA, r: rarityLabel('leggendaria'), m: leg }));
   if (leg + plat > MAX_TOP) problems.push(translate('deck_tooManyTop', { n: MAX_TOP, m: leg + plat }));
-  if (oro > MAX_ORO) problems.push(translate('deck_tooMany', { n: MAX_ORO, r: rarityLabel('oro'), m: oro }));
+  if (oro > maxOro) problems.push(translate('deck_tooMany', { n: maxOro, r: rarityLabel('oro'), m: oro }));
   return problems;
 }
 
-export function deckProblems(deck: Card[], mode: MatchMode = CLASSIC): string[] {
+export function deckProblems(deck: Card[], mode: MatchMode = CLASSIC, maxOro = MAX_ORO): string[] {
   const problems: string[] = [];
   if (deck.length !== DECK_SIZE) problems.push(translate('deck_need', { n: DECK_SIZE, m: deck.length }));
   if (deck.some((c) => !fitsMode(mode, c))) problems.push(translate('deck_offMode'));
-  if (limited(mode)) problems.push(...rarityProblems(deck));
+  if (limited(mode)) problems.push(...rarityProblems(deck, maxOro));
   return problems;
 }
 
@@ -118,10 +119,10 @@ const shared = (a: Card[], b: Card[]) => a.filter((c) => has(b, c)).length;
 export type SlotBlock = 'full' | 'rarity' | 'allDecks' | 'similar';
 
 // Perché la card non si può aggiungere al mazzo (null = si può). `others` sono gli altri mazzi salvati.
-export function addBlock(deck: Card[], card: Card, mode: MatchMode = CLASSIC, others: Card[][] = []): SlotBlock | null {
+export function addBlock(deck: Card[], card: Card, mode: MatchMode = CLASSIC, others: Card[][] = [], maxOro = MAX_ORO): SlotBlock | null {
   if (deck.length >= DECK_SIZE) return 'full';
   if (has(deck, card) || !fitsMode(mode, card)) return 'rarity';
-  if (limited(mode) && rarityProblems([...deck, card]).length) return 'rarity';
+  if (limited(mode) && rarityProblems([...deck, card], maxOro).length) return 'rarity';
   const withCard = others.filter((d) => has(d, card));
   if (others.length >= 2 && withCard.length === others.length) return 'allDecks';
   if (withCard.some((d) => shared(deck, d) >= MAX_SHARED)) return 'similar';
@@ -129,8 +130,8 @@ export function addBlock(deck: Card[], card: Card, mode: MatchMode = CLASSIC, ot
 }
 
 // Si può aggiungere questa card senza sforare i limiti?
-export const canAdd = (deck: Card[], card: Card, mode: MatchMode = CLASSIC, others: Card[][] = []) =>
-  addBlock(deck, card, mode, others) === null;
+export const canAdd = (deck: Card[], card: Card, mode: MatchMode = CLASSIC, others: Card[][] = [], maxOro = MAX_ORO) =>
+  addBlock(deck, card, mode, others, maxOro) === null;
 
 // Cosa non va tra i mazzi (solo le coppie che riguardano `slot`, se indicato): troppe card in comune
 // o card presenti in tutti i mazzi.
@@ -172,13 +173,14 @@ export function fillDeck(
   best = false,
   others: Card[][] = [],
   reuseFirst = false,
+  maxOro = MAX_ORO,
 ): Card[] {
   const order = best ? shuffle(cards, rng).sort((a, b) => b.ovr - a.ovr) : shuffle(cards, rng);
   const run = (list: Card[]) => {
     const result = deck.filter((c) => fitsMode(mode, c));
     for (const c of list) {
       if (result.length >= DECK_SIZE) break;
-      if (canAdd(result, c, mode, others)) result.push(c);
+      if (canAdd(result, c, mode, others, maxOro)) result.push(c);
     }
     return result;
   };
@@ -191,12 +193,12 @@ export function fillDeck(
 
 // Completa tutti i mazzi insieme. Con poche card (es. il mazzo iniziale) conviene riusare subito il massimo
 // consentito dagli altri mazzi, così restano card nuove per l'ultimo.
-export function fillDecks(cards: Card[], decks: Card[][], rng: Rng = Math.random): Card[][] {
+export function fillDecks(cards: Card[], decks: Card[][], rng: Rng = Math.random, maxOro = MAX_ORO): Card[][] {
   const attempt = (reuseFirst: boolean) => {
     const out = decks.map((d) => [...d]);
     for (let i = 0; i < out.length; i++)
       if (out[i].length < DECK_SIZE)
-        out[i] = fillDeck(cards, out[i], CLASSIC, rng, false, out.filter((_, j) => j !== i), reuseFirst);
+        out[i] = fillDeck(cards, out[i], CLASSIC, rng, false, out.filter((_, j) => j !== i), reuseFirst, maxOro);
     return out;
   };
   const complete = (ds: Card[][]) => ds.every((d) => d.length === DECK_SIZE);
