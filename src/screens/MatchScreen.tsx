@@ -328,7 +328,6 @@ export function MatchScreen({
     player: view.score.player - (!settled && last?.winner === 'player' ? 1 : 0),
     cpu: view.score.cpu - (!settled && last?.winner === 'cpu' ? 1 : 0),
   };
-  const chooserLabel = (side: 'player' | 'cpu') => (side === 'player' ? t('m_choseYou') : t('m_choseCpu'));
   const quit = async () => {
     if (!(await askConfirm(t('m_quitConfirm'), { danger: true, confirmLabel: t('m_quit') }))) return;
     driver.quit();
@@ -466,7 +465,7 @@ export function MatchScreen({
         <>
           {settled ? (
             <div className={`banner banner-${last.winner} pop`}>
-              {statLabel(last.stat)} ({chooserLabel(last.chooser)}):{' '}
+              {statLabel(last.stat)}:{' '}
               {last.winner === 'player' ? t('m_pointYou') : last.winner === 'cpu' ? t('m_pointCpu') : t('m_tie')}
               {last.jolly && (
                 <span className={`rj-used rj-${last.jolly}`}>
