@@ -1,4 +1,4 @@
-import { Check, Eye, EyeOff, Gamepad2, Mail, Medal, RefreshCw, UserCog, KeyRound, LogOut, Monitor, Moon, Music, PartyPopper, Pencil, RotateCcw, ShieldCheck, Smartphone, Sun, Trash2, Volume2, X } from 'lucide-react';
+import { Check, ChevronRight, Eye, EyeOff, Sparkles, Gamepad2, Mail, Medal, RefreshCw, UserCog, KeyRound, LogOut, Monitor, Moon, Music, PartyPopper, Pencil, RotateCcw, ShieldCheck, Smartphone, Sun, Trash2, Volume2, X } from 'lucide-react';
 import { hasMusic, setFeedback, useFeedbackSettings, type FeedbackSettings } from '../lib/feedback';
 import { useI18n, type TKey } from '../lib/i18n';
 import type { ThemePref } from '../lib/theme';
@@ -80,10 +80,9 @@ export function SettingsSheet({
         </header>
 
         <section className="set-group">
-          <h3>{t('set_account')}</h3>
           {account.profile ? (
             <>
-              <div className="profile-row">
+              <div className="profile-row set-hero">
                 <PlayerAvatar avatar={account.profile.avatar} size={52} />
                 <div className="account-info">
                   <b>{account.profile.nickname}</b>
@@ -127,23 +126,41 @@ export function SettingsSheet({
               </button>
             </>
           ) : (
-            <button className="btn primary block" onClick={onProfile}>
-              {t('pr_createTitle')}
-            </button>
+            <div className="set-hero guest">
+              <span className="set-hero-ic" aria-hidden>
+                <Sparkles size={26} />
+              </span>
+              <div className="account-info">
+                <b>{t('pr_createTitle')}</b>
+                <small>{t('rk_needProfile')}</small>
+              </div>
+              <button className="btn primary block" onClick={onProfile}>
+                {t('pr_createTitle')}
+              </button>
+            </div>
           )}
         </section>
 
         <section className="set-group">
           <h3>{t('set_theme')}</h3>
-          <div className="segmented">
+          <div className="theme-tiles" role="radiogroup">
             {THEMES.map(({ id, icon: Icon, label }) => (
-              <button key={id} className={theme === id ? 'on' : ''} onClick={() => onTheme(id)}>
-                <Icon size={16} /> {t(label)}
+              <button key={id} role="radio" aria-checked={theme === id} className={`theme-tile tt-${id} ${theme === id ? 'on' : ''}`} onClick={() => onTheme(id)}>
+                <span className="tt-prev" aria-hidden>
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                <span className="tt-label">
+                  <Icon size={14} /> {t(label)}
+                </span>
               </button>
             ))}
           </div>
-          <label className="toggle-row">
-            <PartyPopper size={18} />
+          <label className="toggle-row set-row">
+            <span className="set-ic ic-party">
+              <PartyPopper size={17} />
+            </span>
             <span>
               {t('set_seasons')}
               <small className="muted block-hint">{t('set_seasons_hint')}</small>
@@ -154,13 +171,17 @@ export function SettingsSheet({
 
         <section className="set-group">
           <h3>{t('set_feedback')}</h3>
+          <div className="set-list">
           {toggles.map(({ key, icon: Icon, label }) => (
-            <label key={key} className="toggle-row">
-              <Icon size={18} />
+            <label key={key} className="toggle-row set-row">
+              <span className={`set-ic ic-${key}`}>
+                <Icon size={17} />
+              </span>
               <span>{t(label)}</span>
               <input type="checkbox" role="switch" checked={fb[key]} onChange={(e) => setFeedback({ [key]: e.target.checked })} />
             </label>
           ))}
+          </div>
         </section>
 
         <section className="set-group">
@@ -169,9 +190,23 @@ export function SettingsSheet({
         </section>
 
         <section className="set-group">
-          <button className="btn ghost block" onClick={onIntro}>
-            {t('set_intro')}
-          </button>
+          <h3>{t('set_other')}</h3>
+          <div className="set-list">
+            <button className="set-row set-link" onClick={onIntro}>
+              <span className="set-ic ic-intro">
+                <Sparkles size={17} />
+              </span>
+              <span>{t('set_intro')}</span>
+              <ChevronRight size={18} className="set-chev" />
+            </button>
+            <a className="set-row set-link" href={PRIVACY_URL} target="_blank" rel="noopener noreferrer">
+              <span className="set-ic ic-privacy">
+                <ShieldCheck size={17} />
+              </span>
+              <span>{t('set_privacy')}</span>
+              <ChevronRight size={18} className="set-chev" />
+            </a>
+          </div>
           {/* con l'accesso fatto la collezione è sul server: si ricomincia solo da ospite */}
           {!account.online && (
             <button className="btn text danger block" onClick={onReset}>
@@ -183,9 +218,6 @@ export function SettingsSheet({
               <Trash2 size={14} /> {t('del_button')}
             </button>
           )}
-          <a className="btn text block muted" href={PRIVACY_URL} target="_blank" rel="noopener noreferrer">
-            <ShieldCheck size={14} /> {t('set_privacy')}
-          </a>
         </section>
 
         <footer className="credits">
