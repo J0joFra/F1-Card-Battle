@@ -1,4 +1,5 @@
 import type { TradeState } from './trade';
+import type { LoginState } from './loginReward';
 import type { Card, Rarity } from '../types';
 import { ALL_CARDS, CARD_BY_ID, careerCardOf, cardsOfRarity, teamCardsOfDriver, isCollectOnly } from './cards';
 import { DECK_SIZE, JOLLY_KINDS, shuffle, type JollyKind, type Rng } from './engine';
@@ -77,6 +78,7 @@ export interface Progress {
   ranked?: { points: number; best: number }; // gara classificata: punti campionato e campionato più alto raggiunto
   referrals?: number; // amici portati con il codice invito (premiati)
   trade?: TradeState; // scambi tra amici: carte cedute e scambi di oggi
+  login?: LoginState; // premio giornaliero: ultimo giorno ritirato e giorno della serie
   updatedAt: number; // ultima modifica (ms), per capire quale copia è più recente tra dispositivo e cloud
 }
 

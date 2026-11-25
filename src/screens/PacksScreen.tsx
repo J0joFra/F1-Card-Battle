@@ -15,6 +15,7 @@ import { askConfirm } from '../components/ConfirmDialog';
 export type OpenedPack = Omit<UnlockResult, 'progress'>;
 import { CardBack, CardView } from '../components/CardView';
 import { haptic, sfx } from '../lib/feedback';
+import { LOGIN_REWARDS, loginStatus, type LoginReward } from '../game/loginReward';
 
 const TEAR_MS = 750; // durata dell'animazione del pacchetto che si apre
 
@@ -28,6 +29,7 @@ interface Props {
   onBuyCard: (card: Card) => void; // card del giorno
   onUseJolly: (card: Card) => void;
   onBuyJolly: (kind: JollyKind) => void; // jolly di gara (DRS, Safety Car)
+  onClaimLogin: () => void; // premio giornaliero
 }
 
 type BuyNowKind = Exclude<PackKind, 'classic'>;
@@ -40,7 +42,7 @@ function untilMidnight() {
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
 }
 
-export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onUseJolly, onBuyJolly }: Props) {
+export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onUseJolly, onBuyJolly, onClaimLogin }: Props) {
   const { t } = useI18n();
   const [opened, setOpened] = useState<OpenedPack | null>(null);
   const [revealed, setRevealed] = useState<boolean[]>([]);
@@ -178,6 +180,8 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
           params={{ n: PACK_SIZE, j: Math.round(JOLLY_CHANCE * 100) }}
         />
       </header>
+
+      <LoginRewardPanel progress={progress} today={today} onClaim={onClaimLogin} />
 
       {/* i tuoi pacchetti (vinti o comprati): il pacchetto sotto i riflettori, a fianco il conteggio e "Apri" */}
       <div className={`pack-hero shop-hero ${progress.packs > 0 ? 'has' : ''}`}>
@@ -377,5 +381,53 @@ function JollyPicker({ progress, onPick }: { progress: Progress; onPick: (card: 
         </>
       )}
     </div>
+  );
+}
+
+// Premio giornaliero: sette caselle, quella di oggi da ritirare; se salti un giorno si riparte dal giorno 1.
+function rewardLabel(r: LoginReward) {
+  const parts: string[] = [];
+  if (r.jolly) parts.push(`🃏 ${r.jolly}`);
+  if (r.packs) parts.push(`🎁 ${r.packs}`);
+  if (r.boost) parts.push(r.boost === 'drs' ? 'DRS' : 'SC');
+  if (r.credits) parts.push(`${coin()} ${r.credits}`);
+  return parts;
+}
+
+function LoginRewardPanel({ progress, today, onClaim }: { progress: Progress; today: string; onClaim: () => void }) {
+  const { t } = useI18n();
+  const { day, claimed } = loginStatus(progress, today);
+  return (
+    <section className={`panel login-reward ${claimed ? 'claimed' : 'ready'}`}>
+      <div className="lr-head">
+        <b>🎁 {t('lr_title')}</b>
+        <small className="muted">{t('lr_dayOf', { n: day, max: LOGIN_REWARDS.length })}</small>
+      </div>
+      <ol className="lr-days">
+        {LOGIN_REWARDS.map((r, i) => {
+          const n = i + 1;
+          const state = n < day || (n === day && claimed) ? 'done' : n === day ? 'today' : 'next';
+          return (
+            <li key={n} className={`lr-day ${state} ${n === LOGIN_REWARDS.length ? 'big' : ''}`}>
+              <small>{t('lr_day', { n })}</small>
+              <span className="lr-gift">
+                {rewardLabel(r).map((x) => (
+                  <b key={x}>{x}</b>
+                ))}
+              </span>
+              {state === 'done' && <span className="lr-check">✓</span>}
+            </li>
+          );
+        })}
+      </ol>
+      {claimed ? (
+        <p className="lr-note">{t('lr_tomorrow', { n: (day % LOGIN_REWARDS.length) + 1 })}</p>
+      ) : (
+        <button className="btn primary block lr-claim" onClick={onClaim}>
+          {t('lr_claim')} · {rewardLabel(LOGIN_REWARDS[day - 1]).join(' + ')}
+        </button>
+      )}
+      <small className="muted lr-hint">{t('lr_hint')}</small>
+    </section>
   );
 }

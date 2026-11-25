@@ -62,6 +62,7 @@ const MESSAGES: Record<string, TKey> = {
   trade_too_soon: 'err_trade_too_soon',
   trade_pending_max: 'err_trade_pending_max',
   no_trade: 'err_no_trade',
+  login_claimed: 'err_login_claimed',
 };
 
 export const errorMessage = (e: unknown) =>

@@ -35,6 +35,7 @@ export type GameRequest =
   | { action: 'use_jolly'; card: string }
   | { action: 'buy_boost'; kind: JollyKind } // jolly di gara (DRS, Safety Car) al mercato
   | { action: 'claim_mission'; index: number; date: string }
+  | { action: 'login_reward'; date: string } // premio giornaliero del negozio
   | { action: 'match_start'; deck: string[]; daily: boolean; date: string; slot?: number; mode?: MatchMode; loan?: boolean; hand?: boolean; level?: CpuLevel }
   | { action: 'match_play'; match: string; stat?: StatKey; card?: number; jolly?: JollyKind } // card/jolly: modalità Strategica
   | { action: 'match_pass'; match: string } // tempo scaduto: sceglie la CPU

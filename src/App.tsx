@@ -89,6 +89,7 @@ import type {
   PvpInfo,
   QueueInfo,
 } from "./server/actions";
+import { claimLogin, loginStatus } from "./game/loginReward";
 import { LeagueIntro, RankedOutcome, RankedQueue, SocialTabs, leagueName } from "./components/Ranked";
 import { QUEUE_POLL_MS, REFERRAL_PACKS, leagueOf } from "./game/ranked";
 import { themeLabel } from "./components/Daily";
@@ -993,6 +994,18 @@ export default function App() {
     return res;
   }
 
+  // premio giornaliero (negozio)
+  async function claimLoginReward() {
+    const local = claimLogin(progress, today);
+    if (!local) return;
+    if (account.online) {
+      if (!(await server({ action: "login_reward", date: today }))) return;
+    } else setProgress(local.progress);
+    sfx("rare");
+    haptic("success");
+    setToast(t("lr_got", { n: local.day }));
+  }
+
   // jolly di gara al mercato
   async function buyRaceJolly(kind: JollyKind) {
     if (account.online) {
@@ -1325,6 +1338,7 @@ export default function App() {
               onBuyPack={buyOnePack}
               onBuyCard={buyStoreCard}
               onBuyJolly={buyRaceJolly}
+              onClaimLogin={claimLoginReward}
             />
           )}
         </Suspense>
@@ -1366,8 +1380,8 @@ export default function App() {
           >
             <span className="tab-icon">
               <Gift size={22} />
-              {progress.packs > 0 && (
-                <span className="badge">{progress.packs}</span>
+              {progress.packs + (loginStatus(progress, today).claimed ? 0 : 1) > 0 && (
+                <span className="badge">{progress.packs + (loginStatus(progress, today).claimed ? 0 : 1)}</span>
               )}
             </span>
             <span>{t("nav_packs")}</span>

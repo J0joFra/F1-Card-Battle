@@ -2211,3 +2211,26 @@ button.ranked-head { background: none; border: 0; padding: 0; color: inherit; te
 .fr-friends .friend-list .icon-btn { width: 34px; height: 34px; flex: none; }
 .fr-friends .friend-list .btn.small.friend-btn { padding: 7px 10px; font-size: 13px; gap: 4px; flex: none; }
 .fr-friends .friend-list .who { min-width: 64px; }
+
+/* premio giornaliero (negozio) */
+.login-reward { display: grid; gap: 10px; position: relative; overflow: hidden;
+  background: radial-gradient(120% 100% at 100% 0%, color-mix(in srgb, var(--gold) 22%, var(--surface)), var(--surface) 60%);
+  border-color: color-mix(in srgb, var(--gold) 45%, var(--line)); animation: hero-in 0.4s ease-out both; }
+.login-reward.claimed { background: var(--surface); border-color: var(--line); }
+.lr-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.lr-head b { font-size: 16px; font-weight: 900; }
+.lr-days { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.lr-day { position: relative; display: grid; justify-items: center; align-content: start; gap: 4px; padding: 6px 2px 7px; min-height: 66px;
+  border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); text-align: center; }
+.lr-day small { font-size: 10px; font-weight: 900; color: var(--muted); }
+.lr-gift { display: grid; gap: 1px; }
+.lr-gift b { font-size: 11px; font-weight: 900; line-height: 1.15; white-space: nowrap; }
+.lr-day.big { background: linear-gradient(160deg, color-mix(in srgb, var(--gold) 30%, var(--surface-2)), var(--surface-2)); border-color: color-mix(in srgb, var(--gold) 55%, var(--line)); }
+.lr-day.today { border: 2px solid var(--gold); box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 25%, transparent), 0 6px 14px color-mix(in srgb, var(--gold) 30%, transparent); transform: translateY(-2px); animation: lr-pulse 1.6s ease-in-out infinite; }
+.lr-day.done { opacity: 0.55; }
+.lr-check { position: absolute; inset: 0; display: grid; place-items: center; font-size: 22px; font-weight: 900; color: var(--win); background: color-mix(in srgb, var(--surface) 45%, transparent); border-radius: inherit; }
+.btn.primary.lr-claim { background: linear-gradient(180deg, #ffd54a, #e0a400); color: #2a1d00; border-color: #c48f00; text-shadow: none; }
+.lr-note { margin: 0; font-weight: 800; font-size: 13.5px; color: var(--win); }
+.lr-hint { font-size: 11.5px; }
+@keyframes lr-pulse { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--gold) 12%, transparent), 0 6px 14px color-mix(in srgb, var(--gold) 30%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .lr-day.today { animation: none; } }
