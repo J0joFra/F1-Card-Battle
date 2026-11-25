@@ -39,6 +39,7 @@ import {
 
 export * from './types';
 import { handleTrade } from './trade';
+import { claimLogin } from '../game/loginReward';
 export { GameError, type Ctx } from './common';
 export { PVP_TURN_MS, PVP_REVEAL_MS, NEXT_GAME_MS, PVP_CODE_TTL_MS, ONLINE_MS, normalizeCode, seriesState } from './pvp';
 
@@ -415,6 +416,14 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
         return { progress: next };
       });
     }
+
+    case 'login_reward':
+      checkDate(req.date, ctx.today);
+      return withProfile(store, ctx, (p) => {
+        const res = claimLogin(p, req.date);
+        if (!res) throw new GameError('login_claimed');
+        return { progress: res.progress };
+      });
 
     case 'claim_mission':
       checkDate(req.date, ctx.today);

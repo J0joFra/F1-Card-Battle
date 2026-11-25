@@ -1400,3 +1400,36 @@ describe('server: scambi tra amici', () => {
     await expect(call(a, { action: 'trade_propose', friend: 'b', give: bronze[4].id, want: Y.id, date: D })).rejects.toThrow('trade_pending_max');
   });
 });
+
+describe('server: premio giornaliero', () => {
+  const day = (d: number) => `2026-10-${String(d).padStart(2, '0')}`;
+  const at = (d: number): Ctx => ({ today: day(d), rng: seededRng('t') });
+  it('sette giorni di fila, poi si ricomincia; una volta al giorno', async () => {
+    const db = memoryStore(starterProgress());
+    const start = db.profile!.progress;
+    for (let d = 1; d <= 7; d++) await handle({ action: 'login_reward', date: day(d) }, db.store, at(d));
+    const p = db.profile!.progress;
+    expect(p.credits - start.credits).toBe(20 + 40 + 60 + 100);
+    expect(p.packs - start.packs).toBe(2);
+    expect(p.jolly - start.jolly).toBe(1);
+    expect(p.boosts?.drs).toBe(1);
+    expect(p.login).toEqual({ last: day(7), day: 7 });
+    await expect(handle({ action: 'login_reward', date: day(7) }, db.store, at(7))).rejects.toThrow('login_claimed');
+    await handle({ action: 'login_reward', date: day(8) }, db.store, at(8));
+    expect(db.profile!.progress.login).toEqual({ last: day(8), day: 1 });
+  });
+  it('saltando un giorno si riparte dal giorno 1', async () => {
+    const db = memoryStore(starterProgress());
+    await handle({ action: 'login_reward', date: day(1) }, db.store, at(1));
+    await handle({ action: 'login_reward', date: day(2) }, db.store, at(2));
+    await handle({ action: 'login_reward', date: day(4) }, db.store, at(4));
+    expect(db.profile!.progress.login).toEqual({ last: day(4), day: 1 });
+  });
+  it('DRS già al massimo: crediti al posto del jolly', async () => {
+    const db = memoryStore({ ...starterProgress(), boosts: { drs: 3 }, login: { last: day(2), day: 3 } });
+    const before = db.profile!.progress.credits;
+    await handle({ action: 'login_reward', date: day(3) }, db.store, at(3));
+    expect(db.profile!.progress.boosts?.drs).toBe(3);
+    expect(db.profile!.progress.credits - before).toBe(30);
+  });
+});
