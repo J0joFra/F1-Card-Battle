@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">F1 Card Battle</string>
-    <string name="title_activity_main">F1 Card Battle</string>
+    <string name="app_name">Driver Clash</string>
+    <string name="title_activity_main">Driver Clash</string>
     <string name="package_name">com.driverclash.app</string>
     <string name="custom_url_scheme">com.driverclash.app</string>
     <!-- Play Games Services: ID del progetto (Play Console → Play Games Services → Configurazione) -->
