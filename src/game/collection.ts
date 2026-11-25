@@ -1,3 +1,4 @@
+import type { TradeState } from './trade';
 import type { Card, Rarity } from '../types';
 import { ALL_CARDS, CARD_BY_ID, careerCardOf, cardsOfRarity, teamCardsOfDriver, isCollectOnly } from './cards';
 import { DECK_SIZE, JOLLY_KINDS, shuffle, type JollyKind, type Rng } from './engine';
@@ -75,6 +76,7 @@ export interface Progress {
   stats?: Partial<Stats>; // contatori per gli obiettivi di Play Giochi
   ranked?: { points: number; best: number }; // gara classificata: punti campionato e campionato più alto raggiunto
   referrals?: number; // amici portati con il codice invito (premiati)
+  trade?: TradeState; // scambi tra amici: carte cedute e scambi di oggi
   updatedAt: number; // ultima modifica (ms), per capire quale copia è più recente tra dispositivo e cloud
 }
 

@@ -1312,6 +1312,8 @@ export default function App() {
               onCancel={cancelLobby}
               onProfile={() => setProfileEditor({ mode: "create" })}
               tabs={socialTabs}
+              today={today}
+              call={server}
             />
           )}
           {screen === "packs" && (

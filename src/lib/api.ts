@@ -54,6 +54,14 @@ const MESSAGES: Record<string, TKey> = {
   bad_username: 'err_bad_username',
   support_empty: 'err_support_empty',
   support_pending: 'err_support_pending',
+  trade_rarity: 'err_trade_rarity',
+  trade_not_yours: 'err_trade_not_yours',
+  trade_not_theirs: 'err_trade_not_theirs',
+  trade_already_owned: 'err_trade_already_owned',
+  trade_daily_limit: 'err_trade_daily_limit',
+  trade_too_soon: 'err_trade_too_soon',
+  trade_pending_max: 'err_trade_pending_max',
+  no_trade: 'err_no_trade',
 };
 
 export const errorMessage = (e: unknown) =>

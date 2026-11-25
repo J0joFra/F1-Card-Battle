@@ -38,6 +38,7 @@ import {
 } from '../game/profile';
 
 export * from './types';
+import { handleTrade } from './trade';
 export { GameError, type Ctx } from './common';
 export { PVP_TURN_MS, PVP_REVEAL_MS, NEXT_GAME_MS, PVP_CODE_TTL_MS, ONLINE_MS, normalizeCode, seriesState } from './pvp';
 
@@ -157,6 +158,8 @@ async function login(store: Store, username: string | null, code: string): Promi
 export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<GameResponse> {
   const pvp = await handlePvp(req, store, ctx);
   if (pvp) return pvp;
+  const trade = await handleTrade(req, store, ctx);
+  if (trade) return trade;
   switch (req.action) {
     case 'sync': {
       const row = await store.getProfile();
