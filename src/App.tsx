@@ -1160,7 +1160,7 @@ export default function App() {
         <header className="hud">
           <button className="brand" onClick={() => setScreen("home")}>
             <img className="brand-logo" src="./logo-card.png" alt="Driver Clash" />
-            <span className="brand-name">Card Battle</span>
+            <span className="brand-name">Driver Clash</span>
             {season.season && (
               <span className="season-badge" title={t(`season_${season.season}`)}>
                 {SEASON_MARK[season.season]}

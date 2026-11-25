@@ -116,8 +116,8 @@ export function CardBack({ size = 'md', onClick, label }: { size?: 'sm' | 'md'; 
   return (
     <div className={`card card-${size} card-back ${onClick ? 'clickable' : ''}`} onClick={onClick}>
       <div className="card-back-logo">
-        F1
-        <small>Card Battle</small>
+        DC
+        <small>Driver Clash</small>
       </div>
       {label && <div className="card-back-label">{label}</div>}
     </div>
