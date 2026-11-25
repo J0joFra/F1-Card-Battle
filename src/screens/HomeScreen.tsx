@@ -1,5 +1,5 @@
-import { Gift, Users, Zap } from 'lucide-react';
-import { useMemo } from 'react';
+import { ChevronRight, Dumbbell, Gift, Trophy, Users, X, Zap } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { useI18n } from '../lib/i18n';
 import {
   DECK_SLOTS,
@@ -9,15 +9,23 @@ import {
   collectionSize,
   ownedCards,
   savedDeck,
+  maxOroOf,
   type Progress,
 } from '../game/collection';
 import { fitsMode, type MatchMode } from '../game/deckRules';
 import { ModePicker, modeLabel, modeReady } from '../components/ModePicker';
 import { DECK_SIZE } from '../game/engine';
 import type { Account } from '../hooks/useAccount';
+import type { Rules } from '../App';
+import { CPU_LEVELS, type CpuLevel } from '../game/engine';
+import { LEVEL_CREDITS } from '../game/match';
+import { coin } from '../lib/season';
 import { CardView } from '../components/CardView';
 import { HelpButton } from '../components/TutorialSection';
-import { DailyCard, MissionsPanel } from '../components/Daily';
+import { DailyRow, MissionsPanel } from '../components/Daily';
+import { LeagueBadge, leagueName } from '../components/Ranked';
+import { PlayerAvatar } from '../components/PlayerAvatar';
+import { LEAGUES, leagueProgress, rankedOf } from '../game/ranked';
 import { themeMode, type DailyChallenge, type MissionsState } from '../game/daily';
 
 interface Props {
@@ -27,10 +35,17 @@ interface Props {
   missions: MissionsState;
   mode: MatchMode; // modalità scelta per la partita veloce
   onMode: (m: MatchMode) => void;
+  rules: Rules; // Strategica (mano di 3 carte + jolly) o Tradizionale
+  onRules: (r: Rules) => void;
+  level: CpuLevel; // livello della CPU nella partita veloce
+  onLevel: (l: CpuLevel) => void;
   onPlay: () => void; // partita veloce contro la CPU
   onDeck: (slot: number) => void; // cambia il mazzo in uso (partita classica)
   onDaily: () => void;
   onFriend: () => void;
+  onRanked: () => void; // gara classificata online
+  onLeagues: () => void; // sezione Campionati
+  rankedBusy: boolean;
   onClaim: (i: number) => void;
   onPacks: () => void;
   onProfile: () => void; // crea il profilo (salvataggio online e sfide tra amici)
@@ -43,10 +58,17 @@ export function HomeScreen({
   missions,
   mode,
   onMode,
+  rules,
+  onRules,
+  level,
+  onLevel,
   onPlay,
   onDeck,
   onDaily,
   onFriend,
+  onRanked,
+  onLeagues,
+  rankedBusy,
   onClaim,
   onPacks,
   onProfile,
@@ -66,15 +88,48 @@ export function HomeScreen({
   const ready = useMemo(() => modeReady(mode, mine), [mode, mine]);
   const daily = useMemo(() => modeReady(themeMode(challenge.theme), mine), [challenge, mine]);
 
+  const [training, setTraining] = useState(false);
+  const { points } = rankedOf(progress);
+  const { league, ratio } = leagueProgress(points);
+  const profile = account.online ? account.profile : null;
+  const trainingSub = [mode.kind !== 'classic' && modeLabel(mode, t), t(rules === 'hand' ? 'rules_hand' : 'rules_classic'), t(`lvl_${level}`)]
+    .filter(Boolean)
+    .join(' · ');
+
   return (
     <div className="screen home">
-      <section className="garage">
+      {/* il tuo profilo: nickname, campionato e coppe (tocca per la sezione Ranked) */}
+      {profile ? (
+        <button className="player-bar" onClick={onLeagues}>
+          <PlayerAvatar avatar={profile.avatar} size={44} />
+          <span className="pb-name">
+            <b>{profile.nickname}</b>
+            <small>{leagueName(league, t)}</small>
+          </span>
+          <span className="pb-cups">
+            <Trophy size={16} /> {points}
+          </span>
+          <LeagueBadge league={league} size={40} />
+        </button>
+      ) : (
+        <button className="player-bar guest" onClick={onProfile}>
+          <span className="pb-name">
+            <b>{t('pr_createTitle')}</b>
+            <small>{t('rk_needProfile')}</small>
+          </span>
+          <ChevronRight size={20} />
+        </button>
+      )}
+
+      {/* garage: le tue card migliori sull'asfalto, con i colori del tuo campionato */}
+      <section className={`garage hero lg-${LEAGUES[league].id}`}>
         <div className="garage-help">
           <HelpButton
             items={['tut_home_1', 'tut_home_2', 'tut_home_3', 'tut_home_4', 'tut_home_5']}
             params={{ n: DECK_SIZE, w: WINS_PER_PACK }}
           />
         </div>
+        <span className="hero-lines" aria-hidden />
         <div className="fan" aria-hidden>
           {showcase.map((c, i) => (
             <div key={c.id} className={`fan-card fan-${i}`}>
@@ -82,71 +137,124 @@ export function HomeScreen({
             </div>
           ))}
         </div>
-        {canPlay ? (
-          <>
-            <ModePicker mode={mode} owned={mine} decks={decks} slot={slot} onMode={onMode} onDeck={onDeck} />
-            <div className="play-buttons">
-              <button className="btn primary big play-quick" onClick={onPlay} disabled={!ready.ok}>
-                <Zap size={20} fill="currentColor" />
-                <span>
-                  {t('home_quick')}
-                  <small>{modeLabel(mode, t)}</small>
-                </span>
-              </button>
-              <button className="btn big play-friend" onClick={onFriend}>
-                <Users size={20} />
-                <span>{t('home_friend')}</span>
-              </button>
-            </div>
-            {!ready.ok && <p className="muted small-text">{t('mode_need', { n: DECK_SIZE, m: ready.have })}</p>}
-          </>
-        ) : (
-          <p className="muted">{t('home_needCards', { n: DECK_SIZE })}</p>
-        )}
-      </section>
-
-      <DailyCard challenge={challenge} state={progress.daily} canPlay={daily.ok} have={daily.have} onPlay={onDaily} />
-      <MissionsPanel missions={missions} onClaim={onClaim} />
-
-      <section className="panel pack-progress">
-        <div className="row">
+        <p className="hero-stats">
           <span>
-            <Gift size={16} /> {t('home_nextPack')}
+            <b>{progress.wins}</b> {t('home_wins')}
           </span>
-          <span className="muted">{t('home_winsOf', { a: progress.winsTowardPack, b: WINS_PER_PACK })}</span>
-        </div>
-        <div className="bar">
-          <div style={{ width: `${(progress.winsTowardPack / WINS_PER_PACK) * 100}%` }} />
-        </div>
-        {progress.packs > 0 && (
-          <button className="btn accent block" onClick={onPacks}>
-            🎁 {progress.packs === 1 ? t('home_packReady') : t('home_packsReady', { n: progress.packs })}
+          <span>
+            <b>{progress.losses}</b> {t('home_losses')}
+          </span>
+          <span>
+            <b>{owned}</b>/{TOTAL_CARDS} {t('home_collection')}
+          </span>
+        </p>
+        {canPlay ? (
+          /* la gara classificata è il modo principale di giocare */
+          <button className="btn primary big block race-btn" onClick={account.online ? onRanked : onProfile} disabled={rankedBusy}>
+            <Trophy size={22} />
+            <span>
+              {t('rk_play')}
+              <small>
+                {leagueName(league, t)} · 🏆 {points}
+              </small>
+            </span>
+            <span className="race-bar" aria-hidden>
+              <span style={{ width: `${Math.round(ratio * 100)}%` }} />
+            </span>
           </button>
+        ) : (
+          <p className="hero-need">{t('home_needCards', { n: DECK_SIZE })}</p>
         )}
+        <span className="kerb" aria-hidden />
       </section>
 
-      <section className="stats-row">
-        <div className="tile">
-          <small>{t('home_wins')}</small>
-          <b>{progress.wins}</b>
+      {canPlay && (
+        <div className="play-tiles">
+          <button className="play-tile" onClick={() => setTraining(true)}>
+            <Dumbbell size={22} />
+            <b>{t('home_training')}</b>
+            <small>{trainingSub}</small>
+          </button>
+          <button className="play-tile" onClick={onFriend}>
+            <Users size={22} />
+            <b>{t('home_friend')}</b>
+            <small>{t('fr_bo3')}</small>
+          </button>
         </div>
-        <div className="tile">
-          <small>{t('home_losses')}</small>
-          <b>{progress.losses}</b>
-        </div>
-        <div className="tile">
-          <small>{t('home_collection')}</small>
-          <b>
-            {owned}
-            <span className="muted">/{TOTAL_CARDS}</span>
-          </b>
+      )}
+
+      {/* oggi: sfida del giorno, missioni e pacchetti in un unico riquadro compatto */}
+      <section className="panel today">
+        <DailyRow challenge={challenge} state={progress.daily} canPlay={daily.ok} onPlay={onDaily} />
+        <MissionsPanel missions={missions} onClaim={onClaim} compact />
+        <div className="today-row pack-row">
+          <span className="today-icon">
+            <Gift size={18} />
+          </span>
+          <div className="today-main">
+            <small>{t('home_nextPack')}</small>
+            <div className="bar small">
+              <div style={{ width: `${(progress.winsTowardPack / WINS_PER_PACK) * 100}%` }} />
+            </div>
+          </div>
+          {progress.packs > 0 ? (
+            <button className="btn small accent today-go" onClick={onPacks}>
+              🎁 {progress.packs} · {t('home_open')}
+            </button>
+          ) : (
+            <span className="today-side">{t('home_winsOf', { a: progress.winsTowardPack, b: WINS_PER_PACK })}</span>
+          )}
         </div>
       </section>
 
-      {!account.online && (
-        <button className="btn primary block cloud-btn" onClick={onProfile}>
-          {t('pr_createTitle')}
-        </button>
+      {/* Allenamento contro la CPU: modalità, mazzo, regole e livello in una finestra dal basso */}
+      {training && (
+        <div className="overlay sheet-backdrop" onClick={() => setTraining(false)}>
+          <div className="sheet training-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="sheet-grip" />
+            <header className="sheet-head">
+              <h2>{t('home_training')}</h2>
+              <button className="icon-btn" onClick={() => setTraining(false)} aria-label={t('close')}>
+                <X size={20} />
+              </button>
+            </header>
+            <ModePicker mode={mode} owned={mine} decks={decks} slot={slot} onMode={onMode} onDeck={onDeck} maxOro={maxOroOf(progress)} />
+            <div className="rules-pick" role="radiogroup" aria-label={t('rules_label')}>
+              {(['hand', 'classic'] as Rules[]).map((r) => (
+                <button key={r} role="radio" aria-checked={rules === r} className={rules === r ? 'on' : ''} onClick={() => onRules(r)}>
+                  <b>{t(r === 'hand' ? 'rules_hand' : 'rules_classic')}</b>
+                  <small>{t(r === 'hand' ? 'rules_hand_sub' : 'rules_classic_sub')}</small>
+                </button>
+              ))}
+            </div>
+            <div className="level-pick" role="radiogroup" aria-label={t('lvl_label')}>
+              <span className="level-label">{t('lvl_label')}</span>
+              {CPU_LEVELS.map((l) => (
+                <button key={l} role="radio" aria-checked={level === l} className={`lvl-${l} ${level === l ? 'on' : ''}`} onClick={() => onLevel(l)}>
+                  <b>{t(`lvl_${l}`)}</b>
+                  <small>
+                    {coin()} +{LEVEL_CREDITS[l].player}
+                  </small>
+                </button>
+              ))}
+            </div>
+            <button
+              className="btn primary big block play-quick"
+              onClick={() => {
+                setTraining(false);
+                onPlay();
+              }}
+              disabled={!ready.ok}
+            >
+              <Zap size={20} fill="currentColor" />
+              <span>
+                {t('home_trainPlay')}
+                <small>{trainingSub}</small>
+              </span>
+            </button>
+            {!ready.ok && <p className="muted small-text">{t('mode_need', { n: DECK_SIZE, m: ready.have })}</p>}
+          </div>
+        </div>
       )}
     </div>
   );

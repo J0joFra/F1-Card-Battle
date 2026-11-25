@@ -10,7 +10,8 @@ import {
 } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as NativeApp } from "@capacitor/app";
-import { Gift, Layers, Settings, SquareStack, Swords, UserPlus } from "lucide-react";
+import { Gift, Layers, Settings, SquareStack, Swords, Trophy, UserPlus } from "lucide-react";
+import { RankedScreen } from "./screens/RankedScreen";
 import type { Card } from "./types";
 import {
   WINS_PER_PACK,
@@ -26,6 +27,7 @@ import {
   activeSlot,
   ownedCards,
   seriesDecks,
+  maxOroOf,
   withDecks,
   openPack,
   bumpStats,
@@ -33,6 +35,9 @@ import {
   saveProgress,
   spendJolly,
   starterProgress,
+  buyBoost,
+  spendBoost,
+  boostsOf,
   type Progress,
 } from "./game/collection";
 import { useI18n } from "./lib/i18n";
@@ -56,7 +61,7 @@ import {
   themeMode,
   todayKey,
 } from "./game/daily";
-import { DECK_SIZE, buildCpuDeck, newMatch } from "./game/engine";
+import { CPU_LEVEL, DECK_SIZE, HAND_SIZE, buildCpuDeck, isCpuLevel, newMatch, type CpuLevel, type JollyKind } from "./game/engine";
 import {
   applyMatchEnd,
   localDriver,
@@ -82,7 +87,11 @@ import type {
   GameResponse,
   Invite,
   PvpInfo,
+  QueueInfo,
 } from "./server/actions";
+import { claimLogin, loginStatus } from "./game/loginReward";
+import { LeagueIntro, RankedOutcome, RankedQueue, SocialTabs, leagueName } from "./components/Ranked";
+import { QUEUE_POLL_MS, REFERRAL_PACKS, leagueOf } from "./game/ranked";
 import { themeLabel } from "./components/Daily";
 import type { OpenedPack } from "./screens/PacksScreen";
 
@@ -116,7 +125,7 @@ const SettingsSheet = lazy(() =>
 );
 import { Onboarding, onboardingDone } from "./components/Onboarding";
 import { ConfirmHost, askConfirm } from "./components/ConfirmDialog";
-import { clearChallengeCode, takeChallengeCode } from "./lib/links";
+import { clearChallengeCode, takeChallengeCode, takeInviteCode } from "./lib/links";
 import { listen, pvpTopic, userTopic, type Live } from "./lib/live";
 import { buyAndOpen, buyFromStore, storeFor, storePrice } from "./game/shop";
 
@@ -127,7 +136,8 @@ type Screen =
   | "match"
   | "collection"
   | "packs"
-  | "friend";
+  | "friend"
+  | "ranked";
 
 const MODE_KEY = "f1-card-battle:mode";
 function savedMode(): MatchMode {
@@ -137,7 +147,27 @@ function savedMode(): MatchMode {
     return CLASSIC;
   }
 }
-type Tab = "home" | "collection" | "packs" | "builder";
+type Tab = "home" | "collection" | "packs" | "builder" | "ranked";
+
+// regole della partita veloce: Strategica (mano di 3 carte + jolly di gara) o Classica
+export type Rules = "hand" | "classic";
+const RULES_KEY = "f1-card-battle:rules";
+const LEVEL_KEY = "f1-card-battle:level";
+function savedLevel(): CpuLevel {
+  try {
+    const l = localStorage.getItem(LEVEL_KEY);
+    return isCpuLevel(l) ? l : "normal";
+  } catch {
+    return "normal";
+  }
+}
+function savedRules(): Rules {
+  try {
+    return localStorage.getItem(RULES_KEY) === "classic" ? "classic" : "hand";
+  } catch {
+    return "hand";
+  }
+}
 
 export default function App() {
   const { t } = useI18n();
@@ -164,6 +194,24 @@ export default function App() {
     setModeRaw(m);
     try {
       localStorage.setItem(MODE_KEY, JSON.stringify(m));
+    } catch {
+      /* niente memoria: va bene lo stesso */
+    }
+  };
+  const [rules, setRulesRaw] = useState<Rules>(savedRules);
+  const setRules = (r: Rules) => {
+    setRulesRaw(r);
+    try {
+      localStorage.setItem(RULES_KEY, r);
+    } catch {
+      /* niente memoria: va bene lo stesso */
+    }
+  };
+  const [level, setLevelRaw] = useState<CpuLevel>(savedLevel); // livello della CPU
+  const setLevel = (l: CpuLevel) => {
+    setLevelRaw(l);
+    try {
+      localStorage.setItem(LEVEL_KEY, l);
     } catch {
       /* niente memoria: va bene lo stesso */
     }
@@ -302,7 +350,7 @@ export default function App() {
       go("builder");
       return;
     }
-    if (deckProblems(deck).length) {
+    if (deckProblems(deck, CLASSIC, maxOroOf(progress)).length) {
       setToast(t("toast_deckInvalid", { n: slot + 1 }));
       go("builder");
       return;
@@ -319,6 +367,7 @@ export default function App() {
   ) {
     const ids = deck.map((c) => c.id);
     const classic = matchMode.kind === "classic";
+    const hand = rules === "hand" && !daily; // la sfida del giorno resta con le regole classiche
     setRewards(null);
     lastStart.current = daily ? null : { deck, slot, mode: matchMode };
     setDailyMode(daily);
@@ -334,6 +383,8 @@ export default function App() {
         slot,
         mode: matchMode,
         ...(loan ? { loan: true } : {}),
+        ...(hand ? { hand: true } : {}),
+        ...(!daily ? { level } : {}),
       });
       setStarting(false);
       if (!res?.match || !res.view) {
@@ -343,9 +394,14 @@ export default function App() {
       const id = res.match;
       setDriver({
         start: res.view,
-        async play(stat) {
+        async play(stat, move) {
           const r = await account.track(
-            callGame({ action: "match_play", match: id, stat })
+            callGame({
+              action: "match_play",
+              match: id,
+              stat,
+              ...(move ? { card: move.card, ...(move.jolly ? { jolly: move.jolly } : {}) } : {}),
+            })
           );
           if (r.progress) setProgressRaw(r.progress);
           if (r.rewards) setRewards(r.rewards);
@@ -374,17 +430,32 @@ export default function App() {
           : buildCpuDeck(
               deck,
               Math.random,
-              PLAYABLE_CARDS.filter((c) => fitsMode(matchMode, c))
-            )
+              PLAYABLE_CARDS.filter((c) => fitsMode(matchMode, c)),
+              CPU_LEVEL[level].candidates
+            ),
+        Math.random,
+        "player",
+        hand ? HAND_SIZE : undefined,
+        daily ? undefined : level
       );
       setDriver(
-        localDriver(state, (final) => {
-          const end = applyMatchEnd(progressRef.current, final, today, {
-            daily,
-          });
-          setProgress(end.progress);
-          setRewards(end.rewards);
-        })
+        localDriver(
+          state,
+          (final) => {
+            const end = applyMatchEnd(progressRef.current, final, today, {
+              daily,
+            });
+            setProgress(end.progress);
+            setRewards(end.rewards);
+          },
+          (kind) => {
+            const next = spendBoost(progressRef.current, kind);
+            if (!next) return false;
+            progressRef.current = next;
+            setProgress(next);
+            return true;
+          }
+        )
       );
     }
     setMatchKey((k) => k + 1);
@@ -426,25 +497,34 @@ export default function App() {
       account.track(callGame({ action: "pvp_state", match: id, game }));
     return {
       start: adopt(first),
-      async play(stat) {
-        if (stat) {
+      async play(stat, move) {
+        // Strategica (gara classificata): la mossa è segreta; il round si gioca quando sceglie anche l'avversario
+        if (stat || move) {
+          const before = last.round;
           try {
-            return adopt(
+            adopt(
               await account.track(
-                callGame({ action: "pvp_play", match: id, game, stat })
+                callGame({
+                  action: "pvp_play",
+                  match: id,
+                  game,
+                  ...(stat ? { stat } : {}),
+                  ...(move ? { card: move.card, ...(move.jolly ? { jolly: move.jolly } : {}) } : {}),
+                })
               )
             );
           } catch (e) {
             // il tempo era scaduto e il server ha già scelto per te: si riparte dallo stato vero
             if (
               e instanceof ApiError &&
-              ["not_your_turn", "bad_stat", "match_finished", "busy"].includes(
+              ["not_your_turn", "bad_stat", "bad_card", "match_finished", "busy"].includes(
                 e.code
               )
             )
-              return adopt(await state());
-            throw e;
+              adopt(await state());
+            else throw e;
           }
+          if (last.round !== before || last.outcome || !move) return last;
         }
         // turno dell'amico: si aspetta la sua mossa (o la scelta automatica allo scadere del tempo)
         let failures = 0;
@@ -515,7 +595,7 @@ export default function App() {
   async function ensureDecks(): Promise<boolean> {
     if (seriesDecks(progress)) return true;
     const decks = autoFillDecks(progress);
-    if (decks.some((d) => d.length < DECK_SIZE || deckProblems(d).length) || decksProblems(decks).length) {
+    if (decks.some((d) => d.length < DECK_SIZE || deckProblems(d, CLASSIC, maxOroOf(progress)).length) || decksProblems(decks).length) {
       setToast(t("fr_decksNeeded", { n: DECK_SLOTS }));
       go("builder");
       return false;
@@ -550,6 +630,104 @@ export default function App() {
     clearChallengeCode();
     void joinPvp(linkCode);
   }, [linkCode, account.online, account.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---- Gara classificata: coda per trovare un avversario con punti simili (con il mazzo in uso) ----
+  const [queue, setQueue] = useState<QueueInfo | null>(null);
+  // risposta del server: avversario trovato (si gioca) oppure ancora in coda
+  function onQueue(res: GameResponse | null) {
+    if (res?.pvp && res.view) {
+      setQueue(null);
+      sfx("select");
+      haptic("success");
+      startPvp(res);
+      return true;
+    }
+    if (res?.queue) setQueue(res.queue);
+    return false;
+  }
+
+  async function startRanked() {
+    if (starting || queue) return;
+    const deck = savedDeck(progress);
+    if (deck.length < DECK_SIZE || deckProblems(deck, CLASSIC, maxOroOf(progress)).length) {
+      setToast(t("rk_deckNeeded"));
+      go("builder");
+      return;
+    }
+    setStarting(true);
+    onQueue(await server({ action: "ranked_join", date: today }));
+    setStarting(false);
+  }
+
+  async function cancelQueue() {
+    setQueue(null);
+    // preso da un avversario proprio adesso: la gara è già iniziata
+    onQueue(await callGame({ action: "ranked_cancel" }).catch(() => null));
+  }
+
+  // in coda: il server avvisa quando un avversario ti ha preso; in ogni caso si controlla ogni pochi secondi
+  // (il controllo dice anche al server che sei ancora lì)
+  const queued = !!queue;
+  useEffect(() => {
+    if (!queued) return;
+    let alive = true;
+    const uid = account.accountId;
+    const live = uid ? listen(userTopic(uid)) : null;
+    void (async () => {
+      while (alive) {
+        if (live) await live.wait(QUEUE_POLL_MS);
+        else await new Promise((r) => setTimeout(r, QUEUE_POLL_MS));
+        if (!alive) return;
+        try {
+          const r = await callGame({ action: "ranked_poll" });
+          if (alive && onQueue(r)) return;
+        } catch (e) {
+          // fuori dalla coda (es. app rimasta in pausa a lungo): si rientra
+          if (alive && e instanceof ApiError && e.code === "not_queued") {
+            const r = await callGame({ action: "ranked_join", date: today }).catch(() => null);
+            if (alive && onQueue(r)) return;
+          }
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+      live?.close();
+    };
+  }, [queued]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // inviti: link …/?invito=CODICE ricordato fino alla creazione del profilo
+  useEffect(() => {
+    takeInviteCode();
+  }, []);
+  // nuovo campionato raggiunto: animazione d'ingresso (una volta, fuori dalla partita)
+  const reachedLeague = leagueOf(progress.ranked?.points ?? 0);
+  const [leagueIntro, setLeagueIntro] = useState<number | null>(null);
+  useEffect(() => {
+    if (screen === "match") return;
+    const key = "f1-card-battle:league-seen";
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw !== null && reachedLeague > Number(raw)) setLeagueIntro(reachedLeague);
+      if (raw === null || reachedLeague !== Number(raw)) localStorage.setItem(key, String(reachedLeague));
+    } catch {
+      /* niente memoria: niente animazione */
+    }
+  }, [reachedLeague, screen]);
+
+  // un amico si è iscritto con il tuo codice: avviso (una volta)
+  useEffect(() => {
+    const n = progress.referrals ?? 0;
+    const key = "f1-card-battle:referrals-seen";
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw !== null && n > Number(raw))
+        setToast(t("inv_reward", { n: (n - Number(raw)) * REFERRAL_PACKS }));
+      if (raw === null || n > Number(raw)) localStorage.setItem(key, String(n));
+    } catch {
+      /* niente memoria: niente avviso */
+    }
+  }, [progress.referrals]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function cancelLobby(declined = false) {
     if (declined)
@@ -654,7 +832,9 @@ export default function App() {
     else if (r?.missionsCompleted) setToast(t("mis_completed"));
     else if (r?.packEarned)
       setToast(t("toast_packEarned", { n: WINS_PER_PACK }));
-    setScreen(r?.packEarned || r?.dailyWon ? "packs" : "home");
+    else if (r?.ranked?.promoted !== undefined)
+      setToast(t("rk_promoted", { league: leagueName(r.ranked.promoted, t) }));
+    setScreen(r?.packEarned || r?.dailyWon || r?.ranked?.packs ? "packs" : "home");
   }
 
   // Rivincita: stessa modalità e stesso mazzo, contro un nuovo mazzo della CPU.
@@ -814,6 +994,32 @@ export default function App() {
     return res;
   }
 
+  // premio giornaliero (negozio)
+  async function claimLoginReward() {
+    const local = claimLogin(progress, today);
+    if (!local) return;
+    if (account.online) {
+      if (!(await server({ action: "login_reward", date: today }))) return;
+    } else setProgress(local.progress);
+    sfx("rare");
+    haptic("success");
+    setToast(t("lr_got", { n: local.day }));
+  }
+
+  // jolly di gara al mercato
+  async function buyRaceJolly(kind: JollyKind) {
+    if (account.online) {
+      if (!(await server({ action: "buy_boost", kind }))) return;
+    } else {
+      const next = buyBoost(progress, kind);
+      if (!next) return;
+      setProgress(next);
+    }
+    sfx("tap");
+    haptic("success");
+    setToast(t("rj_bought", { name: t(kind === "drs" ? "rj_drs" : "rj_sc"), n: boostsOf(progress, kind) + 1 }));
+  }
+
   function buyOnePack() {
     if (account.online) void server({ action: "buy_pack" });
     else {
@@ -879,8 +1085,13 @@ export default function App() {
     me: series?.results.filter((r) => r === "player").length ?? 0,
     opp: series?.results.filter((r) => r === "cpu").length ?? 0,
   };
+  const ranked = series?.bestOf === 1;
   const seriesExtra = series ? (
     <div className="series">
+      {ranked ? (
+        rewards?.ranked && <RankedOutcome result={rewards.ranked} />
+      ) : (
+      <>
       <div className="series-dots">
         {[0, 1, 2].map((i) => (
           <span
@@ -904,6 +1115,8 @@ export default function App() {
             : t("sr_draw", { a: seriesWins.me, b: seriesWins.opp })
           : t("sr_score", { a: seriesWins.me, b: seriesWins.opp })}
       </b>
+      </>
+      )}
       {series.status === "finished" &&
         !series.opponentIsFriend &&
         !friendAdded && (
@@ -915,6 +1128,14 @@ export default function App() {
     </div>
   ) : undefined;
 
+  // sezione Ranked: schede Campionato / Amici
+  const socialTabs = (
+    <SocialTabs
+      value={screen === "friend" ? "friends" : "league"}
+      onChange={(v) => go(v === "friends" ? "friend" : "ranked")}
+    />
+  );
+
   const inMatch = screen === "match";
   // musica: brano "partita" durante la partita, i due jazz alternati nel resto del gioco
   useEffect(() => setMusicMode(inMatch ? "match" : "menu"), [inMatch]);
@@ -922,8 +1143,11 @@ export default function App() {
     screen === "home" ||
     screen === "collection" ||
     screen === "packs" ||
-    screen === "builder"
+    screen === "builder" ||
+    screen === "ranked"
       ? screen
+      : screen === "friend"
+      ? "ranked"
       : screen === "pick"
       ? "home"
       : null;
@@ -931,6 +1155,7 @@ export default function App() {
   return (
     <div className={`app ${inMatch ? "in-match" : ""}`}>
       {season.season && !inMatch && <SeasonFx season={season.season} />}
+      {leagueIntro !== null && !inMatch && <LeagueIntro league={leagueIntro} onDone={() => setLeagueIntro(null)} />}
       {!inMatch && (
         <header className="hud">
           <button className="brand" onClick={() => setScreen("home")}>
@@ -985,12 +1210,19 @@ export default function App() {
               missions={missions}
               mode={mode}
               onMode={setMode}
+              rules={rules}
+              onRules={setRules}
+              level={level}
+              onLevel={setLevel}
               onPlay={() => play()}
               onDeck={(i) =>
                 saveDecks(deckSlots(progress), i)
               }
               onDaily={() => play(true)}
               onFriend={() => go("friend")}
+              onRanked={startRanked}
+              onLeagues={() => go("ranked")}
+              rankedBusy={starting || !!queue}
               onClaim={claim}
               onPacks={() => go("packs")}
               onProfile={() => setProfileEditor({ mode: "create" })}
@@ -1028,7 +1260,12 @@ export default function App() {
               key={matchKey}
               driver={driver}
               title={
-                opponent
+                opponent && ranked
+                  ? t("rk_title", {
+                      name: opponent,
+                      league: leagueName(leagueOf(series?.opponentPoints ?? 0), t),
+                    })
+                  : opponent
                   ? t("sr_title", {
                       name: opponent,
                       n: matchGame + 1,
@@ -1050,6 +1287,7 @@ export default function App() {
                   : undefined
               }
               rewards={rewards}
+              boosts={progress.boosts}
               packProgress={progress.winsTowardPack}
               hint={progress.wins + progress.losses + progress.draws < 5}
               onRematch={lastStart.current && !opponent ? rematch : undefined}
@@ -1065,6 +1303,16 @@ export default function App() {
               onUseJolly={applyJolly}
             />
           )}
+          {screen === "ranked" && (
+            <RankedScreen
+              progress={progress}
+              online={account.online}
+              busy={starting || !!queue}
+              onPlay={startRanked}
+              onProfile={() => setProfileEditor({ mode: "create" })}
+              tabs={socialTabs}
+            />
+          )}
           {screen === "friend" && (
             <FriendScreen
               account={account}
@@ -1076,6 +1324,9 @@ export default function App() {
               onStart={(res) => startPvp(res, lobby?.opponent)}
               onCancel={cancelLobby}
               onProfile={() => setProfileEditor({ mode: "create" })}
+              tabs={socialTabs}
+              today={today}
+              call={server}
             />
           )}
           {screen === "packs" && (
@@ -1086,6 +1337,8 @@ export default function App() {
               onUseJolly={applyJolly}
               onBuyPack={buyOnePack}
               onBuyCard={buyStoreCard}
+              onBuyJolly={buyRaceJolly}
+              onClaimLogin={claimLoginReward}
             />
           )}
         </Suspense>
@@ -1115,13 +1368,20 @@ export default function App() {
             <span>{t("nav_play")}</span>
           </button>
           <button
+            className={tab === "ranked" ? "on" : ""}
+            onClick={() => go("ranked")}
+          >
+            <Trophy size={22} />
+            <span>{t("nav_ranked")}</span>
+          </button>
+          <button
             className={tab === "packs" ? "on" : ""}
             onClick={() => go("packs")}
           >
             <span className="tab-icon">
               <Gift size={22} />
-              {progress.packs > 0 && (
-                <span className="badge">{progress.packs}</span>
+              {progress.packs + (loginStatus(progress, today).claimed ? 0 : 1) > 0 && (
+                <span className="badge">{progress.packs + (loginStatus(progress, today).claimed ? 0 : 1)}</span>
               )}
             </span>
             <span>{t("nav_packs")}</span>
@@ -1153,6 +1413,9 @@ export default function App() {
         </Suspense>
       )}
       {intro && <Onboarding onClose={() => setIntro(false)} />}
+      {queue && screen !== "match" && (
+        <RankedQueue queue={queue} progress={progress} onCancel={cancelQueue} />
+      )}
       {/* profilo: alla prima apertura (dopo il tutorial) o dalle impostazioni */}
       {!intro && profileEditor && (
         <ProfileEditor

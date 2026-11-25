@@ -1,7 +1,10 @@
 import { CARD_BY_ID, PLAYABLE_CARDS, STATS } from '../game/cards';
 import {
+  BOOST_PRICE,
+  buyBoost,
   buyPack,
   bumpStats,
+  spendBoost,
   mergeProgress,
   normalizeProgress,
   openPack,
@@ -14,10 +17,11 @@ import {
 } from '../game/collection';
 import { claimMission, dailyChallenge, dailyLoanDeck, dailyPlayed, missionsAfterPack, missionsFor, startDaily, themeMode } from '../game/daily';
 import { CLASSIC, decksOverlap, fitsMode, parseMode } from '../game/deckRules';
-import { buildCpuDeck, cpuChooseStat, isAvailable, matchOutcome, newMatch, passTurn, playRound, type Rng } from '../game/engine';
+import { CPU_LEVEL, HAND_SIZE, buildCpuDeck, isCpuLevel, cpuChooseStat, handOf, isAvailable, isJollyKind, matchOutcome, newMatch, passTurn, playHandRound, playRound, type MatchState, type Rng } from '../game/engine';
 import { applyMatchEnd, loadMatch, storeMatch, toView, type MatchRewards, type MatchView, type StoredMatch } from '../game/match';
 import type { StatKey } from '../types';
-import { cardOrThrow, checkDate, GameError, validDeck, withProfile, type Ctx } from './common';
+import { cardOrThrow, checkDate, GameError, myProgress, validDeck, withProfile, type Ctx } from './common';
+import { MAX_REFERRALS, REFERRAL_PACKS } from '../game/ranked';
 import { handlePvp } from './pvp';
 import { buyAndOpen, buyFromStore, storeFor, storePrice } from '../game/shop';
 import type { AccountRow, GameRequest, GameResponse, Store, SupportAnswers, SupportRequestRow, SupportRequestView } from './types';
@@ -34,6 +38,8 @@ import {
 } from '../game/profile';
 
 export * from './types';
+import { handleTrade } from './trade';
+import { claimLogin } from '../game/loginReward';
 export { GameError, type Ctx } from './common';
 export { PVP_TURN_MS, PVP_REVEAL_MS, NEXT_GAME_MS, PVP_CODE_TTL_MS, ONLINE_MS, normalizeCode, seriesState } from './pvp';
 
@@ -55,8 +61,9 @@ export function plausibleDevice(guest: Partial<Progress> | undefined): Progress 
       p.credits >= 0 && p.credits <= 1000 &&
       p.packs >= 0 && p.packs <= 20 &&
       p.jolly >= 0 && p.jolly <= 5 &&
+      Object.values(p.boosts ?? {}).every((n) => n >= 0 && n <= 3) &&
       p.wins >= 0 && p.wins <= 500;
-    return ok ? { ...p, missions: undefined, stats: undefined } : null;
+    return ok ? { ...p, missions: undefined, stats: undefined, ranked: undefined, referrals: undefined } : null;
   } catch {
     return null;
   }
@@ -108,6 +115,33 @@ async function supportView(store: Store, req: SupportRequestRow): Promise<Suppor
   return { ...req, account: { nickname: acc?.nickname ?? found.nickname, favorite: acc?.favorite ?? null, avatar: acc?.avatar ?? null, wins: progress.wins, rareCards } };
 }
 
+// ---- inviti ----
+
+const INVITE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // niente 0/O e 1/I
+export const INVITE_CODE_LENGTH = 6;
+export const normalizeInvite = (raw: unknown) =>
+  typeof raw === 'string' ? raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, INVITE_CODE_LENGTH) : '';
+
+// L'amico ha creato l'account con il codice: chi l'ha invitato riceve i pacchetti (al massimo MAX_REFERRALS amici).
+// Un codice sbagliato non blocca la creazione dell'account.
+async function rewardReferral(store: Store, ctx: Ctx, raw: string) {
+  const code = normalizeInvite(raw);
+  if (code.length !== INVITE_CODE_LENGTH) return;
+  const inviter = await store.findByInviteCode(code);
+  if (!inviter || inviter === store.me.id) return;
+  if (!(await store.setInvitedBy(inviter))) return;
+  await withProfile(
+    store,
+    ctx,
+    (p) => {
+      const n = p.referrals ?? 0;
+      if (n >= MAX_REFERRALS) return { progress: p };
+      return { progress: { ...p, packs: p.packs + REFERRAL_PACKS, referrals: n + 1 } };
+    },
+    inviter,
+  );
+}
+
 // Accesso da un altro dispositivo: username + codice di recupero. Il dispositivo viene collegato all'account
 // (le carte restano dove sono). Per gli account senza nickname (vecchio accesso con Google) basta il codice.
 async function login(store: Store, username: string | null, code: string): Promise<GameResponse> {
@@ -125,6 +159,8 @@ async function login(store: Store, username: string | null, code: string): Promi
 export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<GameResponse> {
   const pvp = await handlePvp(req, store, ctx);
   if (pvp) return pvp;
+  const trade = await handleTrade(req, store, ctx);
+  if (trade) return trade;
   switch (req.action) {
     case 'sync': {
       const row = await store.getProfile();
@@ -165,6 +201,8 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       if (!(await store.createProfile({ progress, nickname, avatar, favorite, recoveryHash }))) {
         throw new GameError((await store.nicknameTaken(nickname)) ? 'nickname_taken' : 'has_profile', 409);
       }
+      // iscritto con il codice invito di un amico: lui riceve i pacchetti (una volta sola per account nuovo)
+      if (typeof req.referral === 'string') await rewardReferral(store, ctx, req.referral);
       const row = await store.getProfile();
       if (!row) throw new GameError('busy', 409);
       const profile = profileOf(await store.getAccount());
@@ -173,6 +211,17 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
 
     case 'login':
       return login(store, req.username, req.code);
+
+    case 'invite_code': {
+      const p = await myProgress(store);
+      let code = await store.getInviteCode();
+      for (let i = 0; !code && i < 6; i++) {
+        const next = Array.from({ length: INVITE_CODE_LENGTH }, () => INVITE_CHARS[Math.floor(ctx.rng() * INVITE_CHARS.length)]).join('');
+        if (await store.setInviteCode(next)) code = next;
+      }
+      if (!code) throw new GameError('busy', 409);
+      return { inviteCode: code, referrals: p.referrals ?? 0 };
+    }
 
     case 'logout':
       await store.linkDevice(null);
@@ -358,6 +407,24 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       });
     }
 
+    case 'buy_boost': {
+      if (!isJollyKind(req.kind)) throw new GameError('bad_jolly');
+      const kind = req.kind;
+      return withProfile(store, ctx, (p) => {
+        const next = buyBoost(p, kind);
+        if (!next) throw new GameError(p.credits < BOOST_PRICE ? 'not_enough_credits' : 'boost_max');
+        return { progress: next };
+      });
+    }
+
+    case 'login_reward':
+      checkDate(req.date, ctx.today);
+      return withProfile(store, ctx, (p) => {
+        const res = claimLogin(p, req.date);
+        if (!res) throw new GameError('login_claimed');
+        return { progress: res.progress };
+      });
+
     case 'claim_mission':
       checkDate(req.date, ctx.today);
       return withProfile(store, ctx, (p) => {
@@ -377,14 +444,18 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       const daily = req.daily ? dailyChallenge(req.date) : null;
       const mode = daily ? (sent ? themeMode(daily.theme) : CLASSIC) : sent ? parseMode(req.mode) : CLASSIC;
       if (!mode) throw new GameError('bad_mode');
+      if (req.level !== undefined && !isCpuLevel(req.level)) throw new GameError('bad_level');
+      // livello della CPU: solo nelle partite veloci (la sfida del giorno ha un mazzo CPU fisso)
+      const level = daily ? undefined : req.level;
       const res = await withProfile(store, ctx, (p) => {
         const ids = Array.isArray(req.deck) ? req.deck : [];
         // sfida del giorno senza abbastanza card del tema: mazzo in prestito, deciso dal server
         const deck = daily && req.loan ? dailyLoanDeck(daily) : validDeck(ids, p, mode);
         if (daily && dailyPlayed(p.daily, req.date)) throw new GameError('daily_played');
         const pool = PLAYABLE_CARDS.filter((c) => fitsMode(mode, c));
-        const cpu = daily ? daily.cpuDeck : buildCpuDeck(deck, ctx.rng, pool);
-        const state = newMatch(deck, cpu, ctx.rng);
+        const cpu = daily ? daily.cpuDeck : buildCpuDeck(deck, ctx.rng, pool, CPU_LEVEL[level ?? 'normal'].candidates);
+        // modalità Strategica (mano di carte): solo nelle partite veloci, non nella sfida del giorno
+        const state = newMatch(deck, cpu, ctx.rng, 'player', req.hand && !daily ? HAND_SIZE : undefined, level);
         view = toView(state);
         stored = storeMatch(state); // la partita si crea dopo aver salvato il profilo
         // il mazzo si ricorda solo nella partita classica (gli altri sono mazzi a tema, da una volta)
@@ -408,12 +479,37 @@ export async function handle(req: GameRequest, store: Store, ctx: Ctx): Promise<
       if (rec.finished) throw new GameError('match_finished');
       const state = loadMatch(rec.state);
       if (matchOutcome(state)) throw new GameError('match_finished');
-      let stat: StatKey;
-      if (state.chooser === 'player') {
-        if (!req.stat || !STATS.some((s) => s.key === req.stat) || !isAvailable(state, req.stat)) throw new GameError('bad_stat');
-        stat = req.stat;
-      } else stat = cpuChooseStat(state); // la CPU sceglie sul server: il telefono non vede le sue carte
-      const next = playRound(state, stat);
+      const validStat = (k: unknown): k is StatKey => typeof k === 'string' && STATS.some((s) => s.key === k) && isAvailable(state, k as StatKey);
+      let next: MatchState;
+      if (state.hand) {
+        // modalità Strategica: carta scelta dalla mano (+ metrica se tocca a te) e, se vuoi, un jolly di gara
+        const card = req.card ?? 0;
+        if (!Number.isInteger(card) || card < 0 || card >= handOf(state, 'player').length) throw new GameError('bad_card');
+        if (state.chooser === 'player' && !validStat(req.stat)) throw new GameError('bad_stat');
+        const jolly = req.jolly;
+        if (jolly !== undefined && (!isJollyKind(jolly) || state.jollyUsed)) throw new GameError('bad_jolly');
+        next = playHandRound(state, { stat: req.stat, card, jolly }, ctx.rng);
+        // il jolly si toglie dall'inventario prima di salvare il round
+        if (jolly) {
+          const spent = await withProfile(store, ctx, (p) => {
+            const after = spendBoost(p, jolly);
+            if (!after) throw new GameError('no_jolly');
+            return { progress: after };
+          });
+          if (!matchOutcome(next)) {
+            const ok = await store.updateMatch(req.match, { ...rec, state: storeMatch(next), finished: false }, state.round);
+            if (!ok) throw new GameError('busy', 409);
+            return { view: toView(next), progress: spent.progress };
+          }
+        }
+      } else {
+        let stat: StatKey;
+        if (state.chooser === 'player') {
+          if (!validStat(req.stat)) throw new GameError('bad_stat');
+          stat = req.stat;
+        } else stat = cpuChooseStat(state); // la CPU sceglie sul server: il telefono non vede le sue carte
+        next = playRound(state, stat);
+      }
       const finished = !!matchOutcome(next);
       const ok = await store.updateMatch(req.match, { ...rec, state: storeMatch(next), finished }, state.round);
       if (!ok) throw new GameError('busy', 409);

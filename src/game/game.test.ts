@@ -2,8 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { Card } from '../types';
 import { ALL_CARDS, CARD_BY_ID, PLAYABLE_CARDS, RARITY_THRESHOLDS, STATS, careerCardOf, cardsOfRarity, teamCardsOfDriver } from './cards';
 import {
+  CPU_LEVEL,
   DECK_SIZE,
+  HAND_SIZE,
   ROUNDS,
+  handOf,
+  pickCard,
+  playHandRound,
   availableStats,
   buildCpuDeck,
   cpuChooseStat,
@@ -15,6 +20,7 @@ import {
   playRound,
   statStrength,
 } from './engine';
+import { seededRng } from './daily';
 import { CLASSIC, MAX_SHARED, addBlock, canAdd, deckProblems, decksProblems } from './deckRules';
 import { HELMET_DESIGNS, helmetStyle } from '../components/DriverArt';
 import {
@@ -400,5 +406,63 @@ describe('3 mazzi diversi', () => {
     expect(addBlock([a[0], a[1]], a[2], CLASSIC, [a, []])).toBe('similar');
     expect(addBlock([a[0], a[1]], cards[8], CLASSIC, [a, []])).toBeNull();
     expect(decksProblems([a, a, []])).toHaveLength(1);
+  });
+});
+
+describe('modalità Strategica: mano di carte e jolly di gara', () => {
+  const deckA = PLAYABLE_CARDS.slice(0, 7);
+  const deckB = PLAYABLE_CARDS.slice(7, 14);
+  it('la mano sono le prossime 3 carte; scegliere una carta la porta in gioco', () => {
+    const s = newMatch(deckA, deckB, seededRng('h'), 'player', HAND_SIZE);
+    expect(handOf(s, 'player')).toEqual(s.player.slice(0, 3));
+    const picked = pickCard(s, 'player', 2);
+    expect(currentCards(picked).player).toBe(s.player[2]);
+    expect(() => pickCard(s, 'player', 3)).toThrow();
+  });
+  it('la carta della CPU non dipende da quella del giocatore', () => {
+    const s = newMatch(deckA, deckB, seededRng('h'), 'cpu', HAND_SIZE);
+    const a = playHandRound(s, { card: 0 }, seededRng('x'));
+    const b = playHandRound(s, { card: 2 }, seededRng('x'));
+    expect(a.history[0].cpuCard).toBe(b.history[0].cpuCard);
+    expect(a.history[0].stat).toBe(b.history[0].stat);
+  });
+  it('DRS +10% e Safety Car, una sola volta a partita', () => {
+    // due carte con la stessa metrica vicina: il DRS ribalta il round
+    const stat = 'gare';
+    const sorted = [...PLAYABLE_CARDS].sort((x, y) => x.stats[stat] - y.stats[stat]);
+    const i = sorted.findIndex((c, k) => k > 0 && c.stats[stat] > sorted[k - 1].stats[stat] && c.stats[stat] < sorted[k - 1].stats[stat] * 1.1);
+    const [low, high] = [sorted[i - 1], sorted[i]];
+    const base = newMatch([low, ...deckA.slice(1)], [high, ...deckB.slice(1)], seededRng('d'));
+    const s = { ...base, player: [low, ...base.player.filter((c) => c !== low)], cpu: [high, ...base.cpu.filter((c) => c !== high)] };
+    expect(playRound(s, stat).history[0].winner).toBe('cpu');
+    const drs = playRound(s, stat, 'drs');
+    expect(drs.history[0].winner).toBe('player');
+    expect(drs.jollyUsed).toBe(true);
+    const sc = playRound(s, stat, 'sc');
+    expect(sc.history[0]).toMatchObject({ winner: 'tie', neutralized: true });
+    expect(sc.score).toEqual({ player: 0, cpu: 0 });
+    expect(() => playRound(sc, 'top10', 'drs')).toThrow();
+  });
+});
+
+describe('livello della CPU', () => {
+  it('Campione costruisce un mazzo più forte di Facile', () => {
+    const deck = cardsOfRarity('bronzo').slice(0, 7);
+    let easy = 0;
+    let hard = 0;
+    for (let i = 0; i < 20; i++) {
+      const sum = (d: Card[]) => d.reduce((s, c) => s + c.ovr, 0);
+      easy += sum(buildCpuDeck(deck, seededRng(`e${i}`), PLAYABLE_CARDS, CPU_LEVEL.easy.candidates));
+      hard += sum(buildCpuDeck(deck, seededRng(`h${i}`), PLAYABLE_CARDS, CPU_LEVEL.hard.candidates));
+    }
+    expect(hard).toBeGreaterThan(easy);
+  });
+  it('il livello resta nella partita e la CPU Facile a volte sbaglia metrica', () => {
+    const s = newMatch(PLAYABLE_CARDS.slice(0, 7), PLAYABLE_CARDS.slice(7, 14), seededRng('l'), 'cpu', undefined, 'easy');
+    expect(s.level).toBe('easy');
+    expect(newMatch(PLAYABLE_CARDS.slice(0, 7), PLAYABLE_CARDS.slice(7, 14), seededRng('l'), 'cpu', undefined, 'normal').level).toBeUndefined();
+    const best = cpuChooseStat(s, seededRng('x'), 0);
+    const picks = Array.from({ length: 40 }, (_, i) => cpuChooseStat(s, seededRng(`m${i}`)));
+    expect(picks.some((k) => k !== best)).toBe(true);
   });
 });

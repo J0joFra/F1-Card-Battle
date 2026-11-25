@@ -43,6 +43,7 @@ export interface ProfileInput {
   nickname: string;
   avatar: Avatar;
   favorite: string | null;
+  referral?: string; // codice invito dell'amico che ti ha portato (facoltativo)
 }
 
 export interface Account {

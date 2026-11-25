@@ -1,5 +1,5 @@
 import { CARD_BY_ID } from '../game/cards';
-import { normalizeProgress, type Progress } from '../game/collection';
+import { maxOroOf, normalizeProgress, type Progress } from '../game/collection';
 import { deckProblems, type MatchMode } from '../game/deckRules';
 import type { Rng } from '../game/engine';
 import type { Card } from '../types';
@@ -60,7 +60,7 @@ export async function withProfile<T extends GameResponse>(
 export function validDeck(ids: unknown, p: Progress, mode?: MatchMode): Card[] {
   if (!Array.isArray(ids) || new Set(ids).size !== ids.length) throw new GameError('bad_deck');
   const deck = ids.map(cardOrThrow);
-  if (deck.some((c) => !p.owned[c.id]) || deckProblems(deck, mode).length) throw new GameError('bad_deck');
+  if (deck.some((c) => !p.owned[c.id]) || deckProblems(deck, mode, maxOroOf(p)).length) throw new GameError('bad_deck');
   return deck;
 }
 

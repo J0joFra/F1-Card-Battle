@@ -5,7 +5,7 @@ import { Flag, RotateCcw } from 'lucide-react';
 import { CARD_BY_ID, STATS, STAT_BY_KEY, formatStat, statLabel, statShort } from '../game/cards';
 import { useI18n, type TKey } from '../lib/i18n';
 import { errorMessage } from '../lib/api';
-import { ROUNDS, TURN_SECONDS, type Side } from '../game/engine';
+import { JOLLY_KINDS, ROUNDS, TURN_SECONDS, bestStat, type JollyKind, type Side } from '../game/engine';
 import type { MatchDriver, MatchRewards, MatchView } from '../game/match';
 import { FIRST_WIN_CREDITS, WINS_PER_PACK } from '../game/collection';
 import { DAILY_REWARD_CREDITS } from '../game/daily';
@@ -19,6 +19,8 @@ const REVEAL_MS = 650;
 const PVP_REVEAL_MS = 3000; // come in server/pvp.ts
 const CPU_THINK_MS = 900;
 const CPU_ANNOUNCE_MS = 1300;
+// modalità Strategica: secondi per scegliere la carta, poi resta quella selezionata
+const CARD_SECONDS = 10;
 // coriandoli della vittoria, con i colori della festa
 const SEASON_CONFETTI = {
   none: ['#e10600', '#ffffff', '#e8b931', '#2fbf71'],
@@ -36,6 +38,7 @@ interface Props {
   endExtra?: ReactNode; // a fine partita (es. punteggio della serie al meglio di 3)
   endButton?: string; // testo del pulsante a fine partita (es. "Partita 2")
   rewards?: MatchRewards | null; // premi della partita appena finita
+  boosts?: Partial<Record<JollyKind, number>>; // jolly di gara che hai (modalità Strategica)
   packProgress?: number; // vittorie verso il prossimo pacchetto (dopo questa partita)
   hint?: boolean; // prime partite: spiega barre e frecce delle metriche
   onRematch?: () => void; // rivincita (solo contro la CPU)
@@ -49,6 +52,10 @@ interface Round {
   playerCard: Card;
   cpuCard: Card;
   winner: Side | 'tie';
+  jolly?: JollyKind;
+  neutralized?: boolean;
+  cpuJolly?: JollyKind; // gare online: jolly dell'avversario
+  cpuNeutralized?: boolean;
 }
 
 const cardOf = (id: string) => CARD_BY_ID.get(id)!;
@@ -61,6 +68,7 @@ export function MatchScreen({
   endExtra,
   endButton,
   rewards,
+  boosts,
   packProgress,
   hint,
   onRematch,
@@ -79,6 +87,7 @@ export function MatchScreen({
     m_quitConfirm: 'pv_quitConfirm',
     m_timeUp: 'pv_timeUp',
     m_oppTimeUp: 'pv_oppTimeUp',
+    m_handFollow: 'pv_handFollow',
   };
   const t = (key: TKey, params: Record<string, string | number> = {}) => {
     if (!opponent) return tr(key, params);
@@ -110,7 +119,21 @@ export function MatchScreen({
   const finished = outcome && !showResult;
   const choosing = !outcome && !showResult;
   const free = STATS.map((s) => s.key).filter((k) => !view.usedStats.includes(k));
-  const current = view.current ? cardOf(view.current) : null;
+  // modalità Strategica: scegli una carta della mano (e, se vuoi, un jolly di gara per questo round)
+  const hand = view.hand?.length ? view.hand : null;
+  const [sel, setSel] = useState(0);
+  const [armed, setArmed] = useState<JollyKind | null>(null);
+  const [cardLocked, setCardLocked] = useState(false);
+  const [cardLeft, setCardLeft] = useState(CARD_SECONDS);
+  useEffect(() => {
+    setSel(0);
+    setArmed(null);
+    setCardLocked(false);
+  }, [view.round]);
+  const selected = hand ? Math.min(sel, hand.length - 1) : 0;
+  const current = hand ? cardOf(hand[selected]) : view.current ? cardOf(view.current) : null;
+  const move = () => (hand ? { card: selected, ...(armed ? { jolly: armed } : {}) } : undefined);
+  const jollyChoices = hand && !view.jollyUsed ? JOLLY_KINDS.filter((k) => (boosts?.[k] ?? 0) > 0) : [];
 
   function show(next: MatchView) {
     // nessun round nuovo (es. l'avversario ha abbandonato): si aggiorna e basta
@@ -136,11 +159,24 @@ export function MatchScreen({
   }
 
   // Turno della CPU: "pensa" (intanto l'arbitro gioca il round), annuncia la metrica, poi la mostra.
+  // Nella modalità Strategica prima scegli la tua carta (vedi `follow`), poi la CPU annuncia.
   useEffect(() => {
-    if (!choosing || view.chooser !== 'cpu' || busy || error) return;
+    if (!choosing || view.chooser !== 'cpu' || busy || error || hand) return;
+    cpuTurn();
+  }, [choosing, view, busy, error]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function follow() {
+    if (busy || view.chooser !== 'cpu' || !hand) return;
+    sfx('select');
+    haptic('light');
+    setError(null);
+    cpuTurn(move());
+  }
+
+  function cpuTurn(m?: ReturnType<typeof move>) {
     setBusy(true);
     const started = Date.now();
-    driver.play().then((next) => {
+    driver.play(undefined, m).then((next) => {
       if (!alive.current) return;
       // contro un amico la mossa è già avvenuta: si mostra subito, senza far "pensare" l'avversario
       if (next.history.length <= view.history.length || synced) {
@@ -156,7 +192,7 @@ export function MatchScreen({
         haptic('light');
       }, Math.max(0, CPU_THINK_MS - (Date.now() - started)));
     }, fail);
-  }, [choosing, view, busy, error]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   useEffect(() => {
     if (!cpuPick || !pending.current) return;
@@ -168,6 +204,29 @@ export function MatchScreen({
     }, CPU_ANNOUNCE_MS);
     return () => clearTimeout(tm);
   }, [cpuPick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Modalità Strategica: 10 secondi per scegliere la carta; poi resta quella selezionata.
+  // Se tocca alla CPU scegliere la metrica, la carta si gioca da sola; con una carta sola in mano non c'è niente da scegliere.
+  const locked = !!hand && (cardLocked || hand.length === 1);
+  const cardPhase = !!hand && choosing && !busy && !cpuPick && !locked && !error;
+  useEffect(() => {
+    if (!cardPhase) return;
+    const start = Date.now();
+    setCardLeft(CARD_SECONDS);
+    const id = setInterval(() => {
+      const l = CARD_SECONDS - Math.floor((Date.now() - start) / 1000);
+      setCardLeft(Math.max(0, l));
+      if (l <= 0) {
+        clearInterval(id);
+        setCardLocked(true);
+        haptic('light');
+      }
+    }, 250);
+    return () => clearInterval(id);
+  }, [cardPhase, view.round]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (locked && choosing && view.chooser === 'cpu' && !busy && !cpuPick && !error) follow();
+  }, [locked, choosing, view.chooser, busy, cpuPick, error]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 30 secondi per scegliere: allo scadere la scelta passa all'avversario
   const myTurn = choosing && view.chooser === 'player' && !busy && !!current;
@@ -198,6 +257,11 @@ export function MatchScreen({
   passRef.current = passTurn;
   function passTurn() {
     if (busy || view.chooser !== 'player') return;
+    // gara online Strategica: allo scadere si gioca la carta selezionata con la sua metrica migliore
+    if (hand && synced && current) {
+      pick(bestStat(current, free));
+      return;
+    }
     haptic('error');
     setError(null);
     setBusy(true);
@@ -214,7 +278,7 @@ export function MatchScreen({
     haptic('light');
     setError(null);
     setBusy(true);
-    driver.play(stat).then((next) => {
+    driver.play(stat, move()).then((next) => {
       if (!alive.current) return;
       setBusy(false);
       show(next);
@@ -264,7 +328,6 @@ export function MatchScreen({
     player: view.score.player - (!settled && last?.winner === 'player' ? 1 : 0),
     cpu: view.score.cpu - (!settled && last?.winner === 'cpu' ? 1 : 0),
   };
-  const chooserLabel = (side: 'player' | 'cpu') => (side === 'player' ? t('m_choseYou') : t('m_choseCpu'));
   const quit = async () => {
     if (!(await askConfirm(t('m_quitConfirm'), { danger: true, confirmLabel: t('m_quit') }))) return;
     driver.quit();
@@ -272,9 +335,9 @@ export function MatchScreen({
   };
 
   return (
-    <div className="screen match">
+    <div className={`screen match ${hand && choosing ? 'has-hand' : ''}`}>
       {title && <div className="match-title">{title}</div>}
-      <div className="scoreboard">
+      <div className={`scoreboard ${shown.player > shown.cpu ? 'lead-player' : shown.cpu > shown.player ? 'lead-cpu' : ''}`}>
         <div className="side you">
           <small>{t('m_you')}</small>
           <b key={`p${shown.player}`} className={shown.player ? 'bump' : ''}>
@@ -314,20 +377,38 @@ export function MatchScreen({
 
       {finished ? (
         <div className="match-over">
-          <h2 className={`over-${outcome}`}>{outcome === 'player' ? t('m_win') : outcome === 'cpu' ? t('m_lose') : t('m_draw')}</h2>
+          <div className={`over-hero over-hero-${outcome}`}>
+            <span className="over-icon" aria-hidden>
+              {outcome === 'player' ? '🏆' : outcome === 'cpu' ? '🏁' : '🤝'}
+            </span>
+            <h2 className={`over-${outcome}`}>{outcome === 'player' ? t('m_win') : outcome === 'cpu' ? t('m_lose') : t('m_draw')}</h2>
+            <div className="over-score">
+              <span>
+                <small>{t('m_you')}</small>
+                <b className="you">{view.score.player}</b>
+              </span>
+              <i>–</i>
+              <span>
+                <small>{t('m_cpu')}</small>
+                <b className="cpu">{view.score.cpu}</b>
+              </span>
+            </div>
+          </div>
           {view.opponentLeft && <p className="muted">{t('pv_left')}</p>}
           <ol className="recap">
             {history.map((h, i) => {
               const def = STAT_BY_KEY[h.stat];
               return (
-                <li key={i} className={`rd-${h.winner}`}>
-                  <span>
-                    {statLabel(h.stat)}
-                    <small className="muted"> · {h.chooser === 'player' ? t('m_byYou') : t('m_byCpu')}</small>
-                  </span>
-                  <span>
-                    {h.playerCard.driver.abbreviation} {formatStat(def, h.playerCard.stats[h.stat])} –{' '}
-                    {formatStat(def, h.cpuCard.stats[h.stat])} {h.cpuCard.driver.abbreviation}
+                <li key={i} className={`rd-${h.winner}`} style={{ animationDelay: `${0.25 + i * 0.07}s` }}>
+                  <span className="rc-n">{i + 1}</span>
+                  <span className="rc-stat">{statLabel(h.stat)}</span>
+                  <span className="rc-vals">
+                    <b className={h.winner === 'player' ? 'w' : ''}>
+                      <small>{h.playerCard.driver.abbreviation}</small> {formatStat(def, h.playerCard.stats[h.stat])}
+                    </b>
+                    <b className={h.winner === 'cpu' ? 'w' : ''}>
+                      {formatStat(def, h.cpuCard.stats[h.stat])} <small>{h.cpuCard.driver.abbreviation}</small>
+                    </b>
                   </span>
                 </li>
               );
@@ -381,8 +462,18 @@ export function MatchScreen({
         <>
           {settled ? (
             <div className={`banner banner-${last.winner} pop`}>
-              {statLabel(last.stat)} ({chooserLabel(last.chooser)}):{' '}
+              {statLabel(last.stat)}:{' '}
               {last.winner === 'player' ? t('m_pointYou') : last.winner === 'cpu' ? t('m_pointCpu') : t('m_tie')}
+              {last.jolly && (
+                <span className={`rj-used rj-${last.jolly}`}>
+                  {last.jolly === 'drs' ? tr('rj_drsUsed') : last.neutralized ? tr('rj_scUsed') : tr('rj_scSpare')}
+                </span>
+              )}
+              {last.cpuJolly && (
+                <span className={`rj-used rj-${last.cpuJolly} opp`}>
+                  {t(last.cpuJolly === 'drs' ? 'pv_oppDrs' : last.cpuNeutralized ? 'pv_oppSc' : 'pv_oppScSpare')}
+                </span>
+              )}
             </div>
           ) : (
             <div className="banner">{statLabel(last.stat)}…</div>
@@ -395,6 +486,14 @@ export function MatchScreen({
                 result={settled ? (last.winner === 'player' ? 'win' : last.winner === 'cpu' ? 'lose' : 'tie') : undefined}
               />
             </div>
+            <span className="vs-badge" aria-hidden>
+              VS
+            </span>
+            {settled && last.winner !== 'tie' && (
+              <span className={`plus-one plus-${last.winner}`} aria-hidden>
+                +1
+              </span>
+            )}
             <div className="duel-opp flip-reveal" key={`cpu-${view.round}`}>
               <CardView
                 card={last.cpuCard}
@@ -402,16 +501,6 @@ export function MatchScreen({
                 result={settled ? (last.winner === 'cpu' ? 'win' : last.winner === 'player' ? 'lose' : 'tie') : undefined}
               />
             </div>
-          </div>
-          {/* la carta dell'avversario copre in parte la tua: il confronto si legge qui */}
-          <div className={`compare ${settled ? `compare-${last.winner}` : ''}`}>
-            <span className="you">
-              {last.playerCard.driver.abbreviation} <b>{formatStat(STAT_BY_KEY[last.stat], last.playerCard.stats[last.stat])}</b>
-            </span>
-            <small>{statShort(last.stat)}</small>
-            <span className="opp">
-              <b>{formatStat(STAT_BY_KEY[last.stat], last.cpuCard.stats[last.stat])}</b> {last.cpuCard.driver.abbreviation}
-            </span>
           </div>
         </>
       ) : (
@@ -423,7 +512,13 @@ export function MatchScreen({
             </div>
           )}
           <div className={`banner ${view.chooser === 'cpu' ? 'banner-cpu-turn' : ''}`}>
-            {view.chooser === 'player'
+            {hand && synced && busy
+              ? t('pv_waitMove')
+              : hand && view.chooser === 'cpu' && !cpuPick && !busy
+              ? t('m_handFollow')
+              : hand && view.chooser === 'player' && !view.passed && free.length > 1
+              ? t('m_handLead')
+              : view.chooser === 'player'
               ? view.passed
                 ? t('m_oppTimeUp')
                 : free.length === 1
@@ -461,6 +556,51 @@ export function MatchScreen({
               <CardBack label={t('m_cpuCard', { a: view.round + 1, b: ROUNDS })} />
             </div>
           </div>
+          {hand && (
+            <div className="hand-bar">
+              <div className="hand-row" role="listbox" aria-label={tr('m_hand')}>
+                {hand.map((id, i) => (
+                  <button
+                    key={id}
+                    role="option"
+                    aria-selected={i === selected}
+                    className={`hand-card ${i === selected ? 'on' : ''}`}
+                    disabled={busy || !!cpuPick || locked}
+                    onClick={() => {
+                      sfx('tap');
+                      setSel(i);
+                    }}
+                  >
+                    <CardView card={cardOf(id)} size="sm" />
+                  </button>
+                ))}
+              </div>
+              {hand.length > 1 && !busy && !cpuPick && (
+                <div className={`card-timer ${cardLocked ? 'locked' : cardLeft <= 3 ? 'hurry' : ''}`}>
+                  {cardLocked ? tr('m_cardLocked') : tr('m_cardTimer', { n: cardLeft })}
+                </div>
+              )}
+              {jollyChoices.length > 0 && (
+                <div className="rj-arm">
+                  {jollyChoices.map((k) => (
+                    <button
+                      key={k}
+                      className={`rj-chip rj-${k} ${armed === k ? 'on' : ''}`}
+                      disabled={busy || !!cpuPick}
+                      aria-pressed={armed === k}
+                      onClick={() => {
+                        sfx('tap');
+                        setArmed(armed === k ? null : k);
+                      }}
+                    >
+                      <b>{k === 'drs' ? 'DRS' : 'SC'}</b> ×{boosts?.[k]}
+                    </button>
+                  ))}
+                  <small>{armed ? tr(armed === 'drs' ? 'rj_drs_desc' : 'rj_sc_desc') : tr('rj_armHint')}</small>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
 
@@ -470,6 +610,11 @@ export function MatchScreen({
           <button className="btn ghost quit-btn" onClick={quit}>
             <Flag size={16} /> {t('m_quit')}
           </button>
+          {hand && choosing && view.chooser === 'cpu' && !busy && !cpuPick && (
+            <button className="btn primary next-btn" onClick={follow}>
+              {tr('m_playCard')}
+            </button>
+          )}
           {showResult && last && !synced && (
             <button
               className="btn primary next-btn"

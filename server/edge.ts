@@ -2,7 +2,7 @@
 // Questo file viene impacchettato con la logica di gioco in supabase/functions/game/index.js
 // da `npm run build:server` (vedi scripts/build-edge.mjs).
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { GameError, handle, type GameRequest, type MatchRecord, type PvpRecord, type Store, type SupportAnswers } from '../src/server/actions';
+import { GameError, handle, type GameRequest, type MatchRecord, type PvpRecord, type QueueRow, type Store, type SupportAnswers, type TradeRecord } from '../src/server/actions';
 import type { Progress } from '../src/game/collection';
 import { usernameOf, type Avatar } from '../src/game/profile';
 
@@ -80,6 +80,17 @@ async function accountOf(device: string): Promise<string> {
   }
   return id;
 }
+
+type TradeRow = { id: string; from_user: string; to_user: string; give: string; want: string; status: TradeRecord['status']; created_at: string };
+const tradeOf = (r: TradeRow): TradeRecord => ({
+  id: r.id,
+  from: r.from_user,
+  to: r.to_user,
+  give: r.give,
+  want: r.want,
+  status: r.status,
+  createdAt: Date.parse(r.created_at),
+});
 
 function storeFor(userId: string, device: string, displayName: string | null): Store {
   return {
@@ -330,15 +341,138 @@ function storeFor(userId: string, device: string, displayName: string | null): S
         .or(`and(user_id.eq.${userId},friend_id.eq.${other}),and(user_id.eq.${other},friend_id.eq.${userId})`);
       if (error) throw error;
     },
+    async queueJoin(row, now) {
+      const { data, error } = await admin
+        .from('ranked_queue')
+        .upsert({ user_id: userId, points: row.points, name: row.name, deck: row.deck, date: row.date, seen_at: new Date(now).toISOString() })
+        .select('joined_at')
+        .single();
+      if (error) throw error;
+      return { joinedAt: Date.parse(data.joined_at as string) };
+    },
+    async queueTouch(now) {
+      const { data, error } = await admin
+        .from('ranked_queue')
+        .update({ seen_at: new Date(now).toISOString() })
+        .eq('user_id', userId)
+        .select('points, name, deck, date, joined_at')
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      return { points: data.points as number, name: (data.name as string | null) ?? null, deck: data.deck as string[], date: data.date as string, joinedAt: Date.parse(data.joined_at as string) };
+    },
+    async queueLeave() {
+      const { error } = await admin.from('ranked_queue').delete().eq('user_id', userId);
+      if (error) throw error;
+    },
+    async queueClaim(points, lo, hi, freshSince) {
+      const { data, error } = await admin.rpc('ranked_claim', { me: userId, lo, hi, fresh: new Date(freshSince).toISOString(), target: points });
+      if (error) throw error;
+      const r = ((data ?? []) as { user_id: string; points: number; name: string | null; deck: string[]; date: string }[])[0];
+      return r ? ({ user: r.user_id, points: r.points, name: r.name, deck: r.deck, date: r.date } satisfies QueueRow) : null;
+    },
+    async queueCount(freshSince) {
+      const { count, error } = await admin
+        .from('ranked_queue')
+        .select('user_id', { count: 'exact', head: true })
+        .gte('seen_at', new Date(freshSince).toISOString());
+      if (error) throw error;
+      return count ?? 0;
+    },
+    async activeRanked() {
+      // solo gare iniziate da poco: una gara abbandonata da entrambi non blocca la coda per sempre
+      const { data, error } = await admin
+        .from('pvp_matches')
+        .select('id, data')
+        .eq('ranked', true)
+        .eq('status', 'playing')
+        .or(`host.eq.${userId},guest.eq.${userId}`)
+        .gte('created_at', new Date(Date.now() - 15 * 60_000).toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? { id: data.id as string, rec: data.data as PvpRecord } : null;
+    },
+    async getInviteCode() {
+      const { data, error } = await admin.from('profiles').select('invite_code').eq('id', userId).maybeSingle();
+      if (error) throw error;
+      return (data?.invite_code as string | null | undefined) ?? null;
+    },
+    async setInviteCode(code) {
+      const { data, error } = await admin.from('profiles').update({ invite_code: code }).eq('id', userId).is('invite_code', null).select('id');
+      if (error?.code === '23505') return false; // codice già di un altro account
+      if (error) throw error;
+      return (data?.length ?? 0) > 0;
+    },
+    async findByInviteCode(code) {
+      const { data, error } = await admin.from('profiles').select('id').eq('invite_code', code).is('moved_to', null).maybeSingle();
+      if (error) throw error;
+      return (data?.id as string | undefined) ?? null;
+    },
+    async setInvitedBy(inviter) {
+      const { data, error } = await admin.from('profiles').update({ invited_by: inviter }).eq('id', userId).is('invited_by', null).select('id');
+      if (error) throw error;
+      return (data?.length ?? 0) > 0;
+    },
+    async friendSince(other) {
+      const { data, error } = await admin.from('friends').select('created_at').eq('user_id', userId).eq('friend_id', other).maybeSingle();
+      if (error) throw error;
+      return data ? Date.parse(data.created_at as string) : null;
+    },
+    async createTrade(row) {
+      const { data, error } = await admin.from('trades').insert({ from_user: row.from, to_user: row.to, give: row.give, want: row.want }).select('id').single();
+      if (error) throw error;
+      return data.id as string;
+    },
+    async pendingTrades() {
+      const { data, error } = await admin
+        .from('trades')
+        .select('id, from_user, to_user, give, want, status, created_at')
+        .eq('status', 'pending')
+        .or(`from_user.eq.${userId},to_user.eq.${userId}`);
+      if (error) throw error;
+      return ((data ?? []) as TradeRow[]).map(tradeOf);
+    },
+    async getTrade(id) {
+      const { data, error } = await admin.from('trades').select('id, from_user, to_user, give, want, status, created_at').eq('id', id).maybeSingle();
+      if (error?.code === '22P02') return null; // id non valido
+      if (error) throw error;
+      return data ? tradeOf(data as TradeRow) : null;
+    },
+    async closeTrade(id, status) {
+      const { data, error } = await admin
+        .from('trades')
+        .update({ status, resolved_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('status', 'pending')
+        .select('id');
+      if (error) throw error;
+      return (data?.length ?? 0) > 0;
+    },
+    async completeTrade(id, a, b) {
+      const { data, error } = await admin.rpc('trade_complete', {
+        p_trade: id,
+        a: a.uid,
+        a_progress: a.progress,
+        a_version: a.version,
+        b: b.uid,
+        b_progress: b.progress,
+        b_version: b.version,
+      });
+      if (error) throw error;
+      return data === true;
+    },
     async createPvp(rec) {
       const { data, error } = await admin
         .from('pvp_matches')
-        .insert({ code: rec.code, status: rec.status, host: rec.host, invitee: rec.invitee, data: rec })
+        .insert({ code: rec.code, status: rec.status, host: rec.host, guest: rec.guest, invitee: rec.invitee, ranked: !!rec.ranked, data: rec })
         .select('id')
         .single();
       if (error?.code === '23505') return null; // codice già in uso
       if (error) throw error;
       if (rec.invitee) await signal([userTopic(rec.invitee)]); // l'amico invitato vede subito l'invito
+      if (rec.ranked) await signal([userTopic(rec.host)]); // gara classificata: l'avversario in coda parte subito
       return data.id as string;
     },
     async updatePvp(id, rec, rev) {

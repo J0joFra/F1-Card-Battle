@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Check, Copy, Dices, LifeBuoy, Search, X } from 'lucide-react';
+import { clearInviteCode, takeInviteCode } from '../lib/links';
 import { useI18n } from '../lib/i18n';
 import { callGame, errorMessage } from '../lib/api';
 import { flagEmoji } from '../game/cards';
@@ -47,6 +48,9 @@ const driverName = (id: string | null) => DRIVERS.find((d) => d.id === id)?.name
 export function ProfileEditor({ mode, initial, onCreate, onLogin, onSave, onLater, onClose }: Props) {
   const { t } = useI18n();
   const [nickname, setNickname] = useState(initial?.nickname ?? '');
+  // codice invito di un amico: arriva dal link d'invito, oppure si scrive a mano
+  const [referral, setReferral] = useState(() => (mode === 'create' ? takeInviteCode() : ''));
+  const cleanReferral = referral.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
   const [avatar, setAvatar] = useState<Avatar>(() => initial?.avatar ?? randomAvatar());
   const [favorite, setFavorite] = useState<string | null>(initial?.favorite ?? null);
   const [query, setQuery] = useState('');
@@ -81,7 +85,13 @@ export function ProfileEditor({ mode, initial, onCreate, onLogin, onSave, onLate
     }
   }
   const input = (): ProfileInput => ({ nickname: cleanNickname(nickname)!, avatar, favorite });
-  const submit = () => run(async () => (mode === 'create' ? onCreate!(input()) : onSave!(input())));
+  const submit = () =>
+    run(async () => {
+      if (mode !== 'create') return onSave!(input());
+      const code = await onCreate!({ ...input(), ...(cleanReferral.length === 6 ? { referral: cleanReferral } : {}) });
+      clearInviteCode();
+      return code;
+    });
 
   if (support) return <SupportForm username={username} onBack={() => setSupport(false)} />;
 
@@ -234,6 +244,22 @@ export function ProfileEditor({ mode, initial, onCreate, onLogin, onSave, onLate
                 </>
               )}
             </section>
+
+            {mode === 'create' && (
+              <label className="pr-field">
+                <span>{t('inv_field')}</span>
+                <input
+                  className="pr-input code-input"
+                  value={cleanReferral}
+                  onChange={(e) => setReferral(e.target.value)}
+                  placeholder="ABC123"
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  maxLength={8}
+                />
+                <small className="muted">{t('inv_fieldHelp')}</small>
+              </label>
+            )}
 
             {error && <p className="pr-error">{error}</p>}
             <button className="btn primary big block" disabled={busy || !nickOk} onClick={submit}>

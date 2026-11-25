@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_CARDS, CARD_BY_ID, STATS } from '../game/cards';
 import { PACK_TYPES, storePrice, teamOfDay } from '../game/shop';
-import { starterProgress, withDecks, type Progress } from '../game/collection';
+import { maxOroOf, starterProgress, withDecks, type Progress } from '../game/collection';
 import { autoFillDeck, autoFillDecks, savedDecks } from '../game/collection';
 import { dailyChallenge, dailyLoanDeck, seededRng, themeMode, themePool } from '../game/daily';
 import { deckProblems, decksProblems } from '../game/deckRules';
 import { hashRecoveryCode, usernameOf } from '../game/profile';
 import { FIRST_WIN_CREDITS, MATCH_CREDITS, PACK_PRICE } from '../game/collection';
 import { CLASSIC, fillDeck } from '../game/deckRules';
-import { PVP_REVEAL_MS, PVP_TURN_MS, handle, type AccountRow, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type Store, type SupportRequestRow } from './actions';
+import { PVP_REVEAL_MS, PVP_TURN_MS, handle, type AccountRow, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type QueueRow, type Store, type TradeRecord, type SupportRequestRow } from './actions';
+import { LEAGUE_MAX_ORO, firstLeader, LEAGUES, MAX_REFERRALS, PROMOTION_REWARD, RANKED_POINTS, REFERRAL_PACKS, applyRanked, leagueOf } from '../game/ranked';
 
 const AVATAR = { skin: 2, hair: 3, hairColor: 1, eyes: 0, eyeColor: 1, brows: 0, mouth: 0, beard: 4, glasses: 0, suit: 0 };
 const NEW_PROFILE = { nickname: 'Joaquim', avatar: { ...AVATAR }, favorite: 'lewis-hamilton' };
@@ -21,11 +22,18 @@ function memoryDb() {
   const seen = new Map<string, number>();
   const names = new Map<string, string | null>();
   const friendships = new Set<string>(); // "a|b"
+  const friendTimes = new Map<string, number>(); // "a|b" → da quando sono amici (ms)
+  const trades = new Map<string, TradeRecord>();
+  let tradeSeq = 0;
   // dati del profilo (nickname, avatar…), codici di recupero e profili del vecchio accesso con Google
   const accounts = new Map<string, AccountRow & { recoveryHash: string | null; legacy: number | null }>();
   const links = new Map<string, string>(); // dispositivo → account (accesso con username e codice)
   const playGames = new Map<string, string>(); // giocatore Play Giochi → account
   const support = new Map<string, SupportRequestRow & { device: string }>(); // richieste di aiuto per il codice
+  // gara classificata: coda; inviti: codice e chi ha invitato chi
+  const queue = new Map<string, Omit<QueueRow, 'user'> & { joinedAt: number; seenAt: number }>();
+  const inviteCodes = new Map<string, string>(); // account → codice
+  const invitedBy = new Map<string, string>();
   let conflictsToSimulate = 0;
   // l'account di un dispositivo: quello a cui ha fatto l'accesso, oppure il suo (seguendo gli spostamenti)
   const accountOf = (device: string) => {
@@ -140,6 +148,37 @@ function memoryDb() {
     async addFriend(other) {
       friendships.add(`${id}|${other}`);
       friendships.add(`${other}|${id}`);
+      for (const k of [`${id}|${other}`, `${other}|${id}`]) if (!friendTimes.has(k)) friendTimes.set(k, Date.now());
+    },
+    async friendSince(other) {
+      return friendships.has(`${id}|${other}`) ? (friendTimes.get(`${id}|${other}`) ?? 0) : null;
+    },
+    async createTrade(row) {
+      const tid = `t${++tradeSeq}`;
+      trades.set(tid, { ...row, id: tid, status: 'pending', createdAt: Date.now() });
+      return tid;
+    },
+    async pendingTrades() {
+      return [...trades.values()].filter((t) => t.status === 'pending' && (t.from === id || t.to === id)).map((t) => structuredClone(t));
+    },
+    async getTrade(tid) {
+      const t = trades.get(tid);
+      return t ? structuredClone(t) : null;
+    },
+    async closeTrade(tid, status) {
+      const t = trades.get(tid);
+      if (!t || t.status !== 'pending') return false;
+      t.status = status;
+      return true;
+    },
+    async completeTrade(tid, a, b) {
+      const t = trades.get(tid);
+      if (!t || t.status !== 'pending') return false;
+      if (profiles.get(a.uid)?.version !== a.version || profiles.get(b.uid)?.version !== b.version) return false;
+      profiles.set(a.uid, { progress: structuredClone(a.progress), version: a.version + 1 });
+      profiles.set(b.uid, { progress: structuredClone(b.progress), version: b.version + 1 });
+      t.status = 'accepted';
+      return true;
     },
     async removeFriend(other) {
       friendships.delete(`${id}|${other}`);
@@ -194,6 +233,55 @@ function memoryDb() {
       pvps.set(pid, { rec: structuredClone(rec), rev: 0 });
       return pid;
     },
+    async queueJoin(row, now) {
+      const joinedAt = queue.get(id)?.joinedAt ?? now;
+      queue.set(id, { ...structuredClone(row), joinedAt, seenAt: now });
+      return { joinedAt };
+    },
+    async queueTouch(now) {
+      const q = queue.get(id);
+      if (!q) return null;
+      q.seenAt = now;
+      const { seenAt: _s, ...row } = q;
+      return structuredClone(row);
+    },
+    async queueLeave() {
+      queue.delete(id);
+    },
+    async queueClaim(points, lo, hi, freshSince) {
+      if (!queue.has(id)) return null;
+      const hit = [...queue]
+        .filter(([u, q]) => u !== id && q.points >= lo && q.points <= hi && q.seenAt >= freshSince)
+        .sort(([, a], [, b]) => Math.abs(a.points - points) - Math.abs(b.points - points) || a.joinedAt - b.joinedAt)[0];
+      if (!hit) return null;
+      queue.delete(hit[0]);
+      queue.delete(id);
+      const { joinedAt: _j, seenAt: _s, ...row } = hit[1];
+      return { user: hit[0], ...structuredClone(row) };
+    },
+    async queueCount(freshSince) {
+      return [...queue.values()].filter((q) => q.seenAt >= freshSince).length;
+    },
+    async activeRanked() {
+      const hit = [...pvps].reverse().find(([, m]) => m.rec.ranked && m.rec.status === 'playing' && (m.rec.host === id || m.rec.guest === id));
+      return hit ? structuredClone({ id: hit[0], rec: hit[1].rec }) : null;
+    },
+    async getInviteCode() {
+      return inviteCodes.get(id) ?? null;
+    },
+    async setInviteCode(code) {
+      if ([...inviteCodes.values()].includes(code) || inviteCodes.has(id)) return false;
+      inviteCodes.set(id, code);
+      return true;
+    },
+    async findByInviteCode(code) {
+      return [...inviteCodes].find(([, c]) => c === code)?.[0] ?? null;
+    },
+    async setInvitedBy(inviter) {
+      if (invitedBy.has(id)) return false;
+      invitedBy.set(id, inviter);
+      return true;
+    },
     async updatePvp(pid, rec, rev) {
       const m = pvps.get(pid);
       if (!m || m.rev !== rev) return false;
@@ -207,7 +295,10 @@ function memoryDb() {
     profiles,
     accounts,
     friendships,
+    friendTimes,
+    trades,
     pvps,
+    queue,
     simulateConflicts(n: number) {
       conflictsToSimulate = n;
     },
@@ -605,11 +696,13 @@ describe('server: sfida tra amici (al meglio di 3)', () => {
     for (;;) {
       const va = (await handle({ action: 'pvp_state', match: t.id, game }, t.anna, t.c)).view!;
       if (va.outcome) return va;
-      const who = va.chooser === 'player' ? 'anna' : 'bruno';
-      const vw = who === 'anna' ? va : (await handle({ action: 'pvp_state', match: t.id, game }, t.bruno, t.c)).view!;
-      const stat = STATS.find((s) => !vw.usedStats.includes(s.key))!.key;
-      await expect(handle({ action: 'pvp_play', match: t.id, game, stat }, players[who === 'anna' ? 'bruno' : 'anna'], t.c)).rejects.toThrow('not_your_turn');
-      await handle({ action: 'pvp_play', match: t.id, game, stat }, players[who], t.c);
+      // Strategica: tutti e due scelgono la prima carta in segreto, chi guida anche la prima metrica libera
+      for (const who of ['anna', 'bruno'] as const) {
+        const v = (await handle({ action: 'pvp_state', match: t.id, game }, players[who], t.c)).view!;
+        const stat = v.chooser === 'player' ? STATS.find((s) => !v.usedStats.includes(s.key))!.key : undefined;
+        await handle({ action: 'pvp_play', match: t.id, game, card: 0, ...(stat ? { stat } : {}) }, players[who], t.c);
+        if (who === 'anna') await expect(handle({ action: 'pvp_play', match: t.id, game, card: 0 }, t.anna, t.c)).rejects.toThrow('not_your_turn');
+      }
     }
   }
 
@@ -661,46 +754,32 @@ describe('server: sfida tra amici (al meglio di 3)', () => {
     expect(pa.wins + pa.losses + pa.draws).toBe(1); // la serie conta come una partita
   });
 
-  it('tempo scaduto: la scelta passa all\'avversario; se scade anche il suo, il server gioca la metrica migliore', async () => {
+  it('Strategica anche tra amici: mano di 3 carte; allo scadere del tempo il server gioca per chi non ha scelto', async () => {
     const t = await startPvp();
     const before = (await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c)).view!;
+    expect(before.hand).toHaveLength(3);
     t.tick(PVP_TURN_MS - 1000);
-    expect((await handle({ action: 'pvp_state', match: t.id }, t.bruno, t.c)).view!.round).toBe(before.round);
+    expect((await handle({ action: 'pvp_state', match: t.id }, t.bruno, t.c)).view!.round).toBe(0);
     t.tick(2000);
-    const passed = (await handle({ action: 'pvp_state', match: t.id }, t.bruno, t.c)).view!;
-    expect(passed.round).toBe(before.round);
-    expect(passed.passed).toBe(true);
-    // Bruno vede la partita "dal suo lato": prima sceglieva Anna (cpu per lui), ora sceglie lui, o viceversa
-    const annaView = (await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c)).view!;
-    expect(annaView.chooser).not.toBe(before.chooser);
-    t.tick(PVP_TURN_MS + 1000);
-    const after = await handle({ action: 'pvp_state', match: t.id }, t.bruno, t.c);
-    expect(after.view!.round).toBe(before.round + 1);
-    expect(after.view!.passed).toBeUndefined();
+    const after = (await handle({ action: 'pvp_state', match: t.id }, t.bruno, t.c)).view!;
+    expect(after.round).toBe(1);
+    expect(after.history).toHaveLength(1);
   });
 
-  it('chi lascia scadere il tempo passa la scelta all\'amico (una volta per round)', async () => {
+  it('nella Strategica il tempo lo gestisce il server: «passa» non si usa', async () => {
     const t = await startPvp();
-    const first = (await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c)).view!;
-    const [chooser, waiter] = first.chooser === 'player' ? [t.anna, t.bruno] : [t.bruno, t.anna];
-    await expect(handle({ action: 'pvp_pass', match: t.id, game: 0 }, waiter, t.c)).rejects.toThrow('not_your_turn');
-    const res = await handle({ action: 'pvp_pass', match: t.id, game: 0 }, chooser, t.c);
-    expect(res.view!.chooser).toBe('cpu');
-    expect(res.view!.passed).toBe(true);
-    const other = (await handle({ action: 'pvp_state', match: t.id }, waiter, t.c)).view!;
-    expect(other.chooser).toBe('player');
-    await expect(handle({ action: 'pvp_pass', match: t.id, game: 0 }, waiter, t.c)).rejects.toThrow('not_your_turn');
+    for (const s of [t.anna, t.bruno]) await expect(handle({ action: 'pvp_pass', match: t.id, game: 0 }, s, t.c)).rejects.toThrow('not_your_turn');
   });
 
   it('dopo una mossa i due telefoni sanno da quanto è stata fatta, e il turno dopo parte a fine rivelazione', async () => {
     const t = await startPvp();
     const first = (await handle({ action: 'pvp_state', match: t.id }, t.anna, t.c)).view!;
-    const mover = first.chooser === 'player' ? t.anna : t.bruno;
-    const stat = STATS.find((x) => !first.usedStats.includes(x.key))!.key;
-    const moved = await handle({ action: 'pvp_play', match: t.id, game: 0, stat }, mover, t.c);
+    const [leader, follower] = first.chooser === 'player' ? [t.anna, t.bruno] : [t.bruno, t.anna];
+    await handle({ action: 'pvp_play', match: t.id, game: 0, card: 0 }, follower, t.c);
+    const moved = await handle({ action: 'pvp_play', match: t.id, game: 0, card: 0, stat: STATS[0].key }, leader, t.c);
     expect(moved.pvp!.sinceMove).toBe(0);
     t.tick(1200);
-    const other = await handle({ action: 'pvp_state', match: t.id }, mover === t.anna ? t.bruno : t.anna, t.c);
+    const other = await handle({ action: 'pvp_state', match: t.id }, follower, t.c);
     expect(other.pvp!.sinceMove).toBe(1200);
     // il tempo del turno successivo comprende la rivelazione: non scade prima
     t.tick(PVP_REVEAL_MS + PVP_TURN_MS - 2000);
@@ -893,5 +972,464 @@ describe('server: rientro con Play Giochi', () => {
     expect((await call(db.as('phone-3'), { action: 'play_games', code: 'pg:p1' })).playGames).toBe('other');
     // codice non valido
     await expect(call(db.as('phone-4'), { action: 'play_games', code: 'falso' })).rejects.toThrow('bad_play_games');
+  });
+});
+
+describe('server: modalità Strategica (mano di 3 carte) e jolly di gara', () => {
+  it('jolly di gara al mercato: 50 crediti, al massimo 3 per tipo', async () => {
+    const db = memoryStore({ ...starterProgress(seededRng('a')), credits: 1000 });
+    for (let i = 0; i < 3; i++) await call(db.store, { action: 'buy_boost', kind: 'drs' });
+    expect(db.profile!.progress.boosts).toEqual({ drs: 3 });
+    expect(db.profile!.progress.credits).toBe(850);
+    await expect(call(db.store, { action: 'buy_boost', kind: 'drs' })).rejects.toThrow('boost_max');
+    await expect(call(db.store, { action: 'buy_boost', kind: 'turbo' as never })).rejects.toThrow('bad_jolly');
+    const poor = memoryStore({ ...starterProgress(seededRng('a')), credits: 40 });
+    await expect(call(poor.store, { action: 'buy_boost', kind: 'sc' })).rejects.toThrow('not_enough_credits');
+  });
+
+  it('partita intera con la mano: 3 carte, si sceglie quale giocare, il jolly si usa una volta e si toglie dall’inventario', async () => {
+    const p = { ...starterProgress(seededRng('a')), boosts: { drs: 1, sc: 2 } };
+    const db = memoryStore(p);
+    const start = await call(db.store, { action: 'match_start', deck: deckIds(p), daily: false, date: '2026-10-16', hand: true });
+    let view = start.view!;
+    expect(view.hand).toHaveLength(3);
+    expect(view.current).toBe(view.hand![0]);
+    // la carta scelta (la terza della mano) è quella giocata nel round
+    const chosen = view.hand![2];
+    const stat = view.chooser === 'player' ? STATS[0].key : undefined;
+    let res = await call(db.store, { action: 'match_play', match: start.match!, stat, card: 2, jolly: 'sc' });
+    view = res.view!;
+    expect(view.history[0].player).toBe(chosen);
+    expect(view.history[0].jolly).toBe('sc');
+    expect(view.jollyUsed).toBe(true);
+    expect(db.profile!.progress.boosts).toEqual({ drs: 1, sc: 1 });
+    expect(view.history[0].winner).not.toBe('cpu'); // con la Safety Car il round non si perde
+    // secondo jolly nella stessa partita: rifiutato; carta fuori dalla mano: rifiutata
+    const s2 = view.chooser === 'player' ? STATS.find((s) => !view.usedStats.includes(s.key))!.key : undefined;
+    await expect(call(db.store, { action: 'match_play', match: start.match!, stat: s2, card: 0, jolly: 'drs' })).rejects.toThrow('bad_jolly');
+    await expect(call(db.store, { action: 'match_play', match: start.match!, stat: s2, card: 3 })).rejects.toThrow('bad_card');
+    while (!view.outcome) {
+      const s = view.chooser === 'player' ? STATS.find((x) => !view.usedStats.includes(x.key))!.key : undefined;
+      expect(view.hand!.length).toBe(Math.min(3, STATS.length - view.round));
+      res = await call(db.store, { action: 'match_play', match: start.match!, stat: s, card: view.hand!.length - 1 });
+      view = res.view!;
+    }
+    expect(view.history).toHaveLength(STATS.length);
+    expect(res.rewards).toBeDefined();
+    // ogni carta del mazzo giocata una volta sola
+    expect(new Set(view.history.map((h) => h.player)).size).toBe(STATS.length);
+  });
+
+  it('senza jolly in inventario: rifiutato; nella partita tradizionale niente mano', async () => {
+    const p = starterProgress(seededRng('a'));
+    const db = memoryStore(p);
+    const start = await call(db.store, { action: 'match_start', deck: deckIds(p), daily: false, date: '2026-10-16', hand: true });
+    const stat = start.view!.chooser === 'player' ? STATS[0].key : undefined;
+    await expect(call(db.store, { action: 'match_play', match: start.match!, stat, card: 0, jolly: 'drs' })).rejects.toThrow('no_jolly');
+    const classic = await call(db.store, { action: 'match_start', deck: deckIds(p), daily: false, date: '2026-10-16' });
+    expect(classic.view!.hand).toBeUndefined();
+  });
+});
+
+describe('server: livello della CPU', () => {
+  it('livello salvato nella partita, premi secondo il livello; livello sconosciuto rifiutato', async () => {
+    const p = starterProgress(seededRng('a'));
+    const db = memoryStore(p);
+    await expect(call(db.store, { action: 'match_start', deck: deckIds(p), daily: false, date: '2026-10-16', level: 'impossible' as never })).rejects.toThrow('bad_level');
+    for (const level of ['easy', 'hard'] as const) {
+      const before = db.profile!.progress.credits;
+      const firstWinBefore = db.profile!.progress.firstWin;
+      const start = await call(db.store, { action: 'match_start', deck: deckIds(p), daily: false, date: '2026-10-16', level, hand: true });
+      let view = start.view!;
+      let res;
+      while (!view.outcome) {
+        const s = view.chooser === 'player' ? STATS.find((x) => !view.usedStats.includes(x.key))!.key : undefined;
+        res = await call(db.store, { action: 'match_play', match: start.match!, stat: s, card: 0 });
+        view = res.view!;
+      }
+      const first = view.outcome === 'player' && firstWinBefore !== '2026-10-16' ? FIRST_WIN_CREDITS : 0;
+      const expected = { easy: { player: 4, draw: 3, cpu: 2 }, hard: { player: 16, draw: 8, cpu: 4 } }[level][view.outcome];
+      expect(res!.rewards!.credits).toBe(expected + first);
+      expect(db.profile!.progress.credits - before).toBe(expected + first);
+    }
+  });
+});
+
+describe('campionati: punti e promozioni', () => {
+  const base = () => starterProgress(seededRng('r'));
+  it('dal Karting alla Formula 1', () => {
+    expect(LEAGUES.map((l) => l.id)).toEqual(['okj', 'ok', 'kz', 'f4', 'fr', 'f3', 'f2', 'f1']);
+    expect(leagueOf(0)).toBe(0);
+    expect(leagueOf(100)).toBe(1);
+    expect(leagueOf(299)).toBe(2);
+    expect(leagueOf(300)).toBe(3);
+    expect(leagueOf(99999)).toBe(7);
+  });
+  it('vittoria, pareggio, sconfitta; si può retrocedere ma non sotto zero coppe', () => {
+    const w = applyRanked(base(), 'player');
+    expect(w.result).toMatchObject({ delta: 10, points: 10, league: 0 });
+    expect(RANKED_POINTS).toEqual({ player: 10, draw: 2, cpu: -7 });
+    // si può retrocedere: da Karting OK (100) si torna in OK-Junior
+    expect(applyRanked({ ...base(), ranked: { points: 103, best: 1 } }, 'cpu').result).toMatchObject({ points: 96, league: 0 });
+    // ma le coppe non vanno sotto zero
+    expect(applyRanked({ ...base(), ranked: { points: 3, best: 0 } }, 'cpu').result).toMatchObject({ points: 0, delta: -3 });
+    expect(applyRanked(base(), 'cpu').result.points).toBe(0);
+    const p = { ...base(), ranked: { points: 305, best: 3 } };
+    expect(applyRanked(p, 'cpu').result).toMatchObject({ points: 298, delta: -7, league: 2 });
+    expect(applyRanked({ ...p, ranked: { points: 350, best: 3 } }, 'cpu').result.points).toBe(343);
+  });
+  it('più si sale di campionato, più Oro si possono mettere nel mazzo (in F1 nessun limite)', () => {
+    expect(LEAGUE_MAX_ORO).toHaveLength(LEAGUES.length);
+    expect(maxOroOf({})).toBe(2);
+    expect(maxOroOf({ ranked: { points: 300, best: 3 } })).toBe(3);
+    expect(maxOroOf({ ranked: { points: 5000, best: 7 } })).toBe(7);
+    const gold = ALL_CARDS.filter((c) => c.rarity === 'oro' && c.kind === 'team').slice(0, 7);
+    expect(deckProblems(gold, CLASSIC, 2).length).toBeGreaterThan(0);
+    expect(deckProblems(gold, CLASSIC, 7)).toEqual([]);
+  });
+  it('la promozione dà il premio una volta sola', () => {
+    const p = { ...base(), packs: 0, credits: 0, ranked: { points: 290, best: 2 } };
+    const up = applyRanked(p, 'player');
+    expect(up.result).toMatchObject({ promoted: 3, packs: PROMOTION_REWARD[3].packs, credits: PROMOTION_REWARD[3].credits });
+    expect(up.progress.packs).toBe(PROMOTION_REWARD[3].packs);
+    const again = applyRanked({ ...up.progress, ranked: { points: 290, best: 3 } }, 'player');
+    expect(again.result.promoted).toBeUndefined();
+  });
+});
+
+describe('campionati: chi inizia', () => {
+  const card = (ovr: number) => ({ ovr }) as unknown as import('../types').Card;
+  const deck = (...o: number[]) => o.map(card);
+  const never = () => { throw new Error('niente sorteggio'); };
+  it('guida chi ha la carta più debole; a parità la seconda più debole, poi meno coppe, poi a sorte', () => {
+    expect(firstLeader(deck(80, 60, 90), deck(70, 75, 99), 0, 0, never)).toBe('player');
+    expect(firstLeader(deck(60, 90), deck(95, 59), 0, 0, never)).toBe('cpu');
+    expect(firstLeader(deck(60, 70, 90), deck(60, 72, 50 + 30), 0, 0, never)).toBe('player');
+    expect(firstLeader(deck(60, 70), deck(70, 60), 300, 100, never)).toBe('cpu');
+    expect(firstLeader(deck(60, 70), deck(70, 60), 100, 100, () => 0.9)).toBe('cpu');
+    expect(firstLeader(deck(60, 70), deck(70, 60), 100, 100, () => 0.1)).toBe('player');
+  });
+});
+
+describe('server: gara classificata', () => {
+  function setup() {
+    const db = memoryDb();
+    const prof = (seed: string, points: number) => {
+      const p = starterProgress(seededRng(seed));
+      return { progress: { ...withDecks(p, [deckIds(p)], 0), ranked: { points, best: leagueOf(points) } }, version: 1 };
+    };
+    db.profiles.set('anna', prof('a', 100));
+    db.profiles.set('bruno', prof('b', 150));
+    db.profiles.set('carla', prof('c', 1400));
+    let clock = 1_000_000;
+    const c: Ctx = { today: '2026-10-16', rng: seededRng('ranked'), now: () => clock };
+    return { db, anna: db.as('anna', 'Anna'), bruno: db.as('bruno', 'Bruno'), carla: db.as('carla', 'Carla'), c, tick: (ms: number) => (clock += ms) };
+  }
+  const join = (s: Store, c: Ctx) => handle({ action: 'ranked_join', date: '2026-10-16' }, s, c);
+  // Strategica: ogni round tutti e due scelgono la prima carta; chi guida anche la prima metrica libera
+  async function playRanked(a: Store, b: Store, id: string, c: Ctx) {
+    for (;;) {
+      const va = (await handle({ action: 'pvp_state', match: id }, a, c)).view!;
+      if (va.outcome) return va;
+      for (const s of [a, b]) {
+        const v = (await handle({ action: 'pvp_state', match: id }, s, c)).view!;
+        const stat = v.chooser === 'player' ? STATS.find((x) => !v.usedStats.includes(x.key))!.key : undefined;
+        await handle({ action: 'pvp_play', match: id, game: 0, card: 0, ...(stat ? { stat } : {}) }, s, c);
+      }
+    }
+  }
+
+  it('Strategica: mano di 3 carte, mosse segrete finché non scelgono entrambi; poi il round si scopre', async () => {
+    const t = setup();
+    await join(t.anna, t.c);
+    const b = await join(t.bruno, t.c);
+    const id = b.pvp!.id;
+    expect(b.view!.hand).toHaveLength(3);
+    const va = (await handle({ action: 'pvp_state', match: id }, t.anna, t.c)).view!;
+    const [leader, follower] = va.chooser === 'player' ? [t.anna, t.bruno] : [t.bruno, t.anna];
+    const lv = (await handle({ action: 'pvp_state', match: id }, leader, t.c)).view!;
+    const stat = STATS[0].key;
+    const fv = (await handle({ action: 'pvp_state', match: id }, follower, t.c)).view!;
+    // chi risponde non può scegliere la metrica: viene ignorata
+    const after = await handle({ action: 'pvp_play', match: id, game: 0, card: 2 }, follower, t.c);
+    expect(after.view).toMatchObject({ committed: true, round: 0 });
+    await expect(handle({ action: 'pvp_play', match: id, game: 0, card: 1 }, follower, t.c)).rejects.toThrow('not_your_turn');
+    // chi guida vede solo che l'altro ha scelto, non cosa
+    const seen = await handle({ action: 'pvp_state', match: id }, leader, t.c);
+    expect(seen.view!.oppCommitted).toBe(true);
+    expect(JSON.stringify(seen)).not.toContain(fv.hand![2]);
+    await expect(handle({ action: 'pvp_play', match: id, game: 0, card: 0 }, leader, t.c)).rejects.toThrow('bad_stat');
+    const done = await handle({ action: 'pvp_play', match: id, game: 0, card: 1, stat }, leader, t.c);
+    const h = done.view!.history[0];
+    expect(h).toMatchObject({ stat, player: lv.hand![1], cpu: fv.hand![2] });
+    expect(done.view!.committed).toBeUndefined();
+  });
+
+  it('Strategica: jolly di gara per entrambi, dalla propria scorta; uno a partita', async () => {
+    const t = setup();
+    for (const u of ['anna', 'bruno']) t.db.profiles.get(u)!.progress.boosts = { drs: 1, sc: 1 };
+    await join(t.anna, t.c);
+    const id = (await join(t.bruno, t.c)).pvp!.id;
+    const va = (await handle({ action: 'pvp_state', match: id }, t.anna, t.c)).view!;
+    const annaLeads = va.chooser === 'player';
+    const stat = STATS[0].key;
+    const r1 = await handle({ action: 'pvp_play', match: id, game: 0, card: 0, jolly: 'sc', ...(annaLeads ? { stat } : {}) }, t.anna, t.c);
+    expect(r1.progress!.boosts!.sc ?? 0).toBe(0);
+    const r2 = await handle({ action: 'pvp_play', match: id, game: 0, card: 0, jolly: 'drs', ...(annaLeads ? {} : { stat }) }, t.bruno, t.c);
+    const round = r2.view!.history[0];
+    // Bruno vede il suo DRS come "jolly" e la Safety Car di Anna come jolly dell'avversario
+    expect(round).toMatchObject({ jolly: 'drs', cpuJolly: 'sc' });
+    expect(round.winner).not.toBe('player'); // la Safety Car di Anna: Bruno al massimo pareggia
+    expect(r2.view!.jollyUsed).toBe(true);
+    const annaView = (await handle({ action: 'pvp_state', match: id }, t.anna, t.c)).view!;
+    expect(annaView.history[0]).toMatchObject({ jolly: 'sc', cpuJolly: 'drs' });
+    const v2 = annaView;
+    const stat2 = v2.chooser === 'player' ? STATS.find((x) => !v2.usedStats.includes(x.key))!.key : undefined;
+    await expect(handle({ action: 'pvp_play', match: id, game: 0, card: 0, jolly: 'drs', ...(stat2 ? { stat: stat2 } : {}) }, t.anna, t.c)).rejects.toThrow('bad_jolly');
+  });
+
+  it('Strategica: allo scadere del tempo chi non ha scelto gioca la prima carta (e la metrica migliore se guida)', async () => {
+    const t = setup();
+    await join(t.anna, t.c);
+    const id = (await join(t.bruno, t.c)).pvp!.id;
+    const va = (await handle({ action: 'pvp_state', match: id }, t.anna, t.c)).view!;
+    const follower = va.chooser === 'player' ? t.bruno : t.anna;
+    await handle({ action: 'pvp_play', match: id, game: 0, card: 1 }, follower, t.c);
+    t.tick(PVP_TURN_MS + 1);
+    const v = (await handle({ action: 'pvp_state', match: id }, t.anna, t.c)).view!;
+    expect(v.history).toHaveLength(1);
+    expect(v.round).toBe(1);
+  });
+
+  it('Strategica: senza jolly in scorta non si può usare', async () => {
+    const t = setup();
+    await join(t.anna, t.c);
+    const id = (await join(t.bruno, t.c)).pvp!.id;
+    const va = (await handle({ action: 'pvp_state', match: id }, t.anna, t.c)).view!;
+    await expect(
+      handle({ action: 'pvp_play', match: id, game: 0, card: 0, jolly: 'drs', ...(va.chooser === 'player' ? { stat: STATS[0].key } : {}) }, t.anna, t.c),
+    ).rejects.toThrow('no_jolly');
+  });
+
+  it('nessuno in coda: si aspetta; arriva un giocatore con punti vicini e la gara parte per entrambi', async () => {
+    const t = setup();
+    const a = await join(t.anna, t.c);
+    expect(a.queue).toEqual({ waited: 0, searching: 0 });
+    t.tick(3000);
+    expect((await handle({ action: 'ranked_poll' }, t.anna, t.c)).queue!.waited).toBe(3000);
+    const b = await join(t.bruno, t.c);
+    expect(b.pvp).toMatchObject({ status: 'playing', bestOf: 1, opponent: 'Anna', opponentPoints: 100 });
+    expect(b.view!.history).toEqual([]);
+    const a2 = await handle({ action: 'ranked_poll' }, t.anna, t.c);
+    expect(a2.pvp).toMatchObject({ id: b.pvp!.id, opponent: 'Bruno', opponentPoints: 150 });
+    expect(t.db.queue.size).toBe(0);
+    // rientrare non crea una seconda gara
+    expect((await join(t.anna, t.c)).pvp!.id).toBe(b.pvp!.id);
+  });
+
+  it('punti troppo lontani: niente accoppiamento finché la ricerca non si allarga', async () => {
+    const t = setup();
+    await join(t.carla, t.c);
+    expect((await join(t.anna, t.c)).queue).toEqual({ waited: 0, searching: 1 });
+    t.tick(60_000);
+    await handle({ action: 'ranked_poll' }, t.carla, t.c); // Carla è ancora lì
+    expect((await handle({ action: 'ranked_poll' }, t.anna, t.c)).queue).toBeDefined();
+    t.tick(70_000);
+    await handle({ action: 'ranked_poll' }, t.carla, t.c);
+    expect((await handle({ action: 'ranked_poll' }, t.anna, t.c)).pvp).toBeDefined();
+  });
+
+  it('chi ha chiuso l\'app (non controlla da un po\') non viene preso; uscire dalla coda', async () => {
+    const t = setup();
+    await join(t.anna, t.c);
+    t.tick(20_000);
+    expect((await join(t.bruno, t.c)).queue).toBeDefined();
+    await handle({ action: 'ranked_cancel' }, t.bruno, t.c);
+    await expect(handle({ action: 'ranked_poll' }, t.bruno, t.c)).rejects.toThrow('not_queued');
+  });
+
+  it('partita secca: alla fine punti campionato a entrambi; chi abbandona perde', async () => {
+    const t = setup();
+    await join(t.anna, t.c);
+    const b = await join(t.bruno, t.c);
+    const id = b.pvp!.id;
+    await playRanked(t.anna, t.bruno, id, t.c);
+    const ra = await handle({ action: 'pvp_state', match: id }, t.anna, t.c);
+    const rb = await handle({ action: 'pvp_state', match: id }, t.bruno, t.c);
+    expect(ra.pvp!.status).toBe('finished');
+    const oa = ra.pvp!.seriesOutcome!;
+    const after = (pts: number, o: keyof typeof RANKED_POINTS) => Math.max(0, pts + RANKED_POINTS[o]);
+    expect(ra.rewards!.ranked!.points).toBe(after(100, oa));
+    expect(rb.rewards!.ranked!.points).toBe(after(150, rb.pvp!.seriesOutcome!));
+    expect(t.db.profiles.get('anna')!.progress.ranked!.points).toBe(ra.rewards!.ranked!.points);
+    // nuova gara, Anna abbandona subito
+    await join(t.anna, t.c);
+    const b2 = await join(t.bruno, t.c);
+    expect(b2.pvp!.id).not.toBe(id);
+    const before = t.db.profiles.get('bruno')!.progress.ranked!.points;
+    await handle({ action: 'pvp_quit', match: b2.pvp!.id }, t.anna, t.c);
+    expect(t.db.profiles.get('bruno')!.progress.ranked!.points).toBe(before + RANKED_POINTS.player);
+  });
+
+  it('i punti campionato non arrivano mai dal telefono', async () => {
+    const guest = { ...starterProgress(seededRng('g')), ranked: { points: 5000, best: 5 } };
+    const res = await call(memoryStore().store, { action: 'profile_create', ...NEW_PROFILE, guest });
+    expect(res.progress!.ranked).toBeUndefined();
+  });
+});
+
+describe('server: invita un amico', () => {
+  it('il codice è sempre lo stesso; l\'amico che si iscrive con il codice ti porta 2 pacchetti (una volta sola)', async () => {
+    const db = memoryDb();
+    db.profiles.set('anna', { progress: { ...starterProgress(seededRng('a')), packs: 0 }, version: 1 });
+    const anna = db.as('anna');
+    const { inviteCode, referrals } = await call(anna, { action: 'invite_code' });
+    expect(inviteCode).toMatch(/^[A-Z2-9]{6}$/);
+    expect(referrals).toBe(0);
+    expect((await call(anna, { action: 'invite_code' })).inviteCode).toBe(inviteCode);
+    await call(db.as('dario'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Dario', referral: inviteCode!.toLowerCase() });
+    expect(db.profiles.get('anna')!.progress.packs).toBe(REFERRAL_PACKS);
+    expect((await call(anna, { action: 'invite_code' })).referrals).toBe(1);
+    // il proprio codice e quelli sbagliati non danno niente (e non bloccano l'iscrizione)
+    await call(db.as('ugo'), { action: 'profile_create', ...NEW_PROFILE, nickname: 'Ugo', referral: 'ZZZZZZ' });
+    expect(db.profiles.get('anna')!.progress.packs).toBe(REFERRAL_PACKS);
+  });
+
+  it('al massimo 10 amici premiati', async () => {
+    const db = memoryDb();
+    db.profiles.set('anna', { progress: { ...starterProgress(seededRng('a')), packs: 0, referrals: MAX_REFERRALS - 1 }, version: 1 });
+    const { inviteCode } = await call(db.as('anna'), { action: 'invite_code' });
+    for (const n of ['Uno', 'Due']) await call(db.as(n), { action: 'profile_create', ...NEW_PROFILE, nickname: n, referral: inviteCode });
+    expect(db.profiles.get('anna')!.progress).toMatchObject({ packs: REFERRAL_PACKS, referrals: MAX_REFERRALS });
+  });
+});
+
+describe('server: scambi tra amici', () => {
+  const D = '2026-10-16';
+  const bronze = ALL_CARDS.filter((c) => c.rarity === 'bronzo' && c.kind === 'team');
+  const silver = ALL_CARDS.find((c) => c.rarity === 'argento' && c.kind === 'team')!;
+  const [X, Y, Z, W] = bronze;
+  // due (o più) giocatori con le carte indicate, amici da `hoursAgo` ore
+  function setup(cards: Record<string, Record<string, number>>, hoursAgo = 49) {
+    const db = memoryDb();
+    for (const [uid, owned] of Object.entries(cards)) db.profiles.set(uid, { progress: { ...starterProgress(), owned: { ...owned } }, version: 1 });
+    const users = Object.keys(cards);
+    for (const u of users.slice(1)) {
+      db.friendships.add(`a|${u}`).add(`${u}|a`);
+      db.friendTimes.set(`a|${u}`, Date.now() - hoursAgo * 3_600_000).set(`${u}|a`, Date.now() - hoursAgo * 3_600_000);
+    }
+    return db;
+  }
+  const owned = (db: ReturnType<typeof memoryDb>, uid: string) => db.profiles.get(uid)!.progress.owned;
+
+  it('opzioni: i miei doppioni che lui non ha, i suoi che io non ho', async () => {
+    const db = setup({ a: { [X.id]: 3, [Z.id]: 1 }, b: { [Y.id]: 2, [Z.id]: 2 } });
+    const { tradeOptions } = await call(db.as('a'), { action: 'trade_options', friend: 'b', date: D });
+    expect(tradeOptions!.mine).toEqual([X.id]);
+    expect(tradeOptions!.theirs).toEqual([Y.id]); // Z: ce l'ho già
+    expect(tradeOptions!.today).toBe(0);
+  });
+
+  it('proposta e accettazione: una carta a testa, stessa rarità', async () => {
+    const db = setup({ a: { [X.id]: 3 }, b: { [Y.id]: 2 } });
+    const { trades } = await call(db.as('a'), { action: 'trade_propose', friend: 'b', give: X.id, want: Y.id, date: D });
+    expect(trades).toHaveLength(1);
+    const inbox = (await call(db.as('b'), { action: 'trade_list' })).trades!;
+    expect(inbox[0]).toMatchObject({ incoming: true, friend: 'a', give: Y.id, want: X.id });
+    await expect(call(db.as('a'), { action: 'trade_accept', trade: inbox[0].id, date: D })).rejects.toThrow('no_trade');
+    const res = await call(db.as('b'), { action: 'trade_accept', trade: inbox[0].id, date: D });
+    expect(res.progress!.owned).toMatchObject({ [X.id]: 1, [Y.id]: 1 });
+    expect(owned(db, 'a')).toMatchObject({ [X.id]: 2, [Y.id]: 1 });
+    expect(owned(db, 'b')).toMatchObject({ [X.id]: 1, [Y.id]: 1 });
+    expect(res.trades).toEqual([]);
+    expect(db.profiles.get('a')!.progress.trade).toMatchObject({ given: { [X.id]: 1 }, day: D, n: 1 });
+  });
+
+  it('regole: stessa rarità, solo doppioni, solo carte che non hai, amici da almeno 2 giorni', async () => {
+    const db = setup({ a: { [X.id]: 2, [W.id]: 1, [silver.id]: 2 }, b: { [Y.id]: 2, [W.id]: 2, [Z.id]: 2 } });
+    const a = db.as('a');
+    await expect(call(a, { action: 'trade_propose', friend: 'b', give: silver.id, want: Y.id, date: D })).rejects.toThrow('trade_rarity');
+    await expect(call(a, { action: 'trade_propose', friend: 'b', give: W.id, want: Y.id, date: D })).rejects.toThrow('trade_not_yours');
+    await expect(call(a, { action: 'trade_propose', friend: 'b', give: X.id, want: W.id, date: D })).rejects.toThrow('trade_already_owned');
+    await expect(call(a, { action: 'trade_propose', friend: 'c', give: X.id, want: Y.id, date: D })).rejects.toThrow('not_friend');
+    const fresh = setup({ a: { [X.id]: 2 }, b: { [Y.id]: 2 } }, 10);
+    await expect(call(fresh.as('a'), { action: 'trade_propose', friend: 'b', give: X.id, want: Y.id, date: D })).rejects.toThrow('trade_too_soon');
+  });
+
+  it('la stessa carta si cede al massimo 2 volte', async () => {
+    const db = setup({ a: { [X.id]: 6 }, b: { [Y.id]: 2 }, c: { [Z.id]: 2 }, d: { [W.id]: 2 } });
+    for (const [u, card] of [['b', Y], ['c', Z]] as const) {
+      const { trades } = await call(db.as('a'), { action: 'trade_propose', friend: u, give: X.id, want: card.id, date: D });
+      await call(db.as(u), { action: 'trade_accept', trade: trades!.find((t) => t.friend === u)!.id, date: D });
+    }
+    expect(owned(db, 'a')[X.id]).toBe(4);
+    await expect(call(db.as('a'), { action: 'trade_propose', friend: 'd', give: X.id, want: W.id, date: D })).rejects.toThrow('trade_not_yours');
+  });
+
+  it('al massimo 3 scambi al giorno', async () => {
+    const extra = bronze.slice(4, 8);
+    const db = setup({ a: Object.fromEntries(extra.map((c) => [c.id, 2])), b: { [X.id]: 2, [Y.id]: 2, [Z.id]: 2, [W.id]: 2 } });
+    for (let i = 0; i < 3; i++) {
+      const { trades } = await call(db.as('a'), { action: 'trade_propose', friend: 'b', give: extra[i].id, want: bronze[i].id, date: D });
+      await call(db.as('b'), { action: 'trade_accept', trade: trades![0].id, date: D });
+    }
+    await expect(call(db.as('a'), { action: 'trade_propose', friend: 'b', give: extra[3].id, want: W.id, date: D })).rejects.toThrow('trade_daily_limit');
+  });
+
+  it('rifiutare e ritirare; proposta non più possibile si chiude all’accettazione', async () => {
+    const db = setup({ a: { [X.id]: 2, [Z.id]: 2 }, b: { [Y.id]: 2 } });
+    let t = (await call(db.as('a'), { action: 'trade_propose', friend: 'b', give: X.id, want: Y.id, date: D })).trades![0];
+    expect((await call(db.as('b'), { action: 'trade_decline', trade: t.id })).trades).toEqual([]);
+    t = (await call(db.as('a'), { action: 'trade_propose', friend: 'b', give: X.id, want: Y.id, date: D })).trades![0];
+    expect((await call(db.as('a'), { action: 'trade_cancel', trade: t.id })).trades).toEqual([]);
+    t = (await call(db.as('a'), { action: 'trade_propose', friend: 'b', give: X.id, want: Y.id, date: D })).trades![0];
+    // nel frattempo b ha già preso X in un altro modo
+    db.profiles.get('b')!.progress.owned[X.id] = 1;
+    await expect(call(db.as('b'), { action: 'trade_accept', trade: t.id, date: D })).rejects.toThrow('trade_already_owned');
+    expect(db.trades.get(t.id)!.status).toBe('cancelled');
+    expect(owned(db, 'a')[X.id]).toBe(2);
+  });
+
+  it('al massimo 3 proposte aperte; la stessa proposta non si duplica', async () => {
+    const db = setup({ a: { [X.id]: 2, [Z.id]: 2, [W.id]: 2, [bronze[4].id]: 2 }, b: { [Y.id]: 2 } });
+    const a = db.as('a');
+    await call(a, { action: 'trade_propose', friend: 'b', give: X.id, want: Y.id, date: D });
+    expect((await call(a, { action: 'trade_propose', friend: 'b', give: X.id, want: Y.id, date: D })).trades).toHaveLength(1);
+    await call(a, { action: 'trade_propose', friend: 'b', give: Z.id, want: Y.id, date: D });
+    await call(a, { action: 'trade_propose', friend: 'b', give: W.id, want: Y.id, date: D });
+    await expect(call(a, { action: 'trade_propose', friend: 'b', give: bronze[4].id, want: Y.id, date: D })).rejects.toThrow('trade_pending_max');
+  });
+});
+
+describe('server: premio giornaliero', () => {
+  const day = (d: number) => `2026-10-${String(d).padStart(2, '0')}`;
+  const at = (d: number): Ctx => ({ today: day(d), rng: seededRng('t') });
+  it('sette giorni di fila, poi si ricomincia; una volta al giorno', async () => {
+    const db = memoryStore(starterProgress());
+    const start = db.profile!.progress;
+    for (let d = 1; d <= 7; d++) await handle({ action: 'login_reward', date: day(d) }, db.store, at(d));
+    const p = db.profile!.progress;
+    expect(p.credits - start.credits).toBe(20 + 40 + 60 + 100);
+    expect(p.packs - start.packs).toBe(2);
+    expect(p.jolly - start.jolly).toBe(1);
+    expect(p.boosts?.drs).toBe(1);
+    expect(p.login).toEqual({ last: day(7), day: 7 });
+    await expect(handle({ action: 'login_reward', date: day(7) }, db.store, at(7))).rejects.toThrow('login_claimed');
+    await handle({ action: 'login_reward', date: day(8) }, db.store, at(8));
+    expect(db.profile!.progress.login).toEqual({ last: day(8), day: 1 });
+  });
+  it('saltando un giorno si riparte dal giorno 1', async () => {
+    const db = memoryStore(starterProgress());
+    await handle({ action: 'login_reward', date: day(1) }, db.store, at(1));
+    await handle({ action: 'login_reward', date: day(2) }, db.store, at(2));
+    await handle({ action: 'login_reward', date: day(4) }, db.store, at(4));
+    expect(db.profile!.progress.login).toEqual({ last: day(4), day: 1 });
+  });
+  it('DRS già al massimo: crediti al posto del jolly', async () => {
+    const db = memoryStore({ ...starterProgress(), boosts: { drs: 3 }, login: { last: day(2), day: 3 } });
+    const before = db.profile!.progress.credits;
+    await handle({ action: 'login_reward', date: day(3) }, db.store, at(3));
+    expect(db.profile!.progress.boosts?.drs).toBe(3);
+    expect(db.profile!.progress.credits - before).toBe(30);
   });
 });

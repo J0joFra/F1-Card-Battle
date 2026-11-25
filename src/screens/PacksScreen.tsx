@@ -5,7 +5,8 @@ import { CARD_BY_ID } from '../game/cards';
 import { useI18n } from '../lib/i18n';
 import { HelpButton } from '../components/TutorialSection';
 import { WINS_PER_PACK } from '../game/collection';
-import { JOLLY_CHANCE, PACK_SIZE, jollyTargets, type Progress, type UnlockResult } from '../game/collection';
+import { BOOST_MAX, BOOST_PRICE, JOLLY_CHANCE, PACK_SIZE, boostsOf, jollyTargets, type Progress, type UnlockResult } from '../game/collection';
+import { JOLLY_KINDS, type JollyKind } from '../game/engine';
 import { PACK_TYPES, isUseful, storePrice, teamOfDay, type PackKind } from '../game/shop';
 import { teamColor } from '../game/teamColors';
 import { FlipCard } from '../components/FlipCard';
@@ -14,6 +15,7 @@ import { askConfirm } from '../components/ConfirmDialog';
 export type OpenedPack = Omit<UnlockResult, 'progress'>;
 import { CardBack, CardView } from '../components/CardView';
 import { haptic, sfx } from '../lib/feedback';
+import { LOGIN_REWARDS, loginStatus, type LoginReward } from '../game/loginReward';
 
 const TEAR_MS = 750; // durata dell'animazione del pacchetto che si apre
 
@@ -26,6 +28,8 @@ interface Props {
   onBuyPack: () => void; // compra un Classico (va tra i tuoi pacchetti)
   onBuyCard: (card: Card) => void; // card del giorno
   onUseJolly: (card: Card) => void;
+  onBuyJolly: (kind: JollyKind) => void; // jolly di gara (DRS, Safety Car)
+  onClaimLogin: () => void; // premio giornaliero
 }
 
 type BuyNowKind = Exclude<PackKind, 'classic'>;
@@ -38,7 +42,7 @@ function untilMidnight() {
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
 }
 
-export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onUseJolly }: Props) {
+export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onUseJolly, onBuyJolly, onClaimLogin }: Props) {
   const { t } = useI18n();
   const [opened, setOpened] = useState<OpenedPack | null>(null);
   const [revealed, setRevealed] = useState<boolean[]>([]);
@@ -50,7 +54,7 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
   }, []);
   const team = teamOfDay(today);
   const store = progress.store?.date === today ? progress.store : null;
-  const packName = (k: PackKind) => (k === 'team' ? team.name : t(k === 'classic' ? 'shop_classic' : 'shop_premium'));
+  const packName = (k: PackKind) => t(k === 'classic' ? 'shop_classic' : k === 'premium' ? 'shop_premium' : 'shop_team');
 
   function open() {
     if (tearing || progress.packs <= 0) return;
@@ -177,8 +181,16 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
         />
       </header>
 
-      {/* i tuoi pacchetti (vinti o comprati) */}
-      <div className="pack-hero">
+      <LoginRewardPanel progress={progress} today={today} onClaim={onClaimLogin} />
+
+      {/* i tuoi pacchetti (vinti o comprati): il pacchetto sotto i riflettori, a fianco il conteggio e "Apri" */}
+      <div className={`pack-hero shop-hero ${progress.packs > 0 ? 'has' : ''}`}>
+        <span className="sh-spot" aria-hidden />
+        <span className="sh-sparks" aria-hidden>
+          {Array.from({ length: 8 }, (_, i) => (
+            <i key={i} style={{ '--i': i } as CSSProperties} />
+          ))}
+        </span>
         <button
           className={`pack pack-${heroKind} ${progress.packs > 0 ? 'ready' : ''} ${tearing ? 'tearing' : ''}`}
           style={heroKind === 'team' ? ({ '--team': teamColor(team.id) } as CSSProperties) : undefined}
@@ -189,18 +201,31 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
           <small>{packName(heroKind)}</small>
           {progress.packs > 0 && !tearing && <span className="badge">{progress.packs}</span>}
         </button>
-        {progress.packs > 0 ? (
-          <button className="btn primary big block" onClick={open} disabled={!!tearing}>
-            {t('p_open')}
-          </button>
-        ) : (
-          <p className="muted center">🏆 {progress.winsTowardPack}/{WINS_PER_PACK}</p>
-        )}
+        <div className="sh-side">
+          <small>{t('shop_yourPacks')}</small>
+          <b className="sh-count">{progress.packs}</b>
+          {progress.packs > 0 ? (
+            <button className="btn primary big block" onClick={open} disabled={!!tearing}>
+              {t('p_open')}
+            </button>
+          ) : (
+            <>
+              <div className="bar small">
+                <div style={{ width: `${(progress.winsTowardPack / WINS_PER_PACK) * 100}%` }} />
+              </div>
+              <small className="sh-next">
+                🏆 {t('home_winsOf', { a: progress.winsTowardPack, b: WINS_PER_PACK })}
+              </small>
+            </>
+          )}
+        </div>
       </div>
       {progress.jolly > 0 && <JollyPicker progress={progress} onPick={onUseJolly} />}
 
       {/* tre tipi di pacchetto */}
-      <h3 className="shop-title">{t('shop_packs')}</h3>
+      <h3 className="shop-title">
+        <span>🎁 {t('shop_packs')}</span>
+      </h3>
       <div className="shop-packs">
         {(['classic', 'premium', 'team'] as PackKind[]).map((k) => {
           const type = PACK_TYPES[k];
@@ -214,8 +239,11 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
             >
               <span className="mini-pack">F1</span>
               <b>{packName(k)}</b>
-              <small>{t(k === 'classic' ? 'shop_classic_sub' : k === 'premium' ? 'shop_premium_sub' : 'shop_team_sub', { n: type.size })}</small>
-              <span className="price">{coin()} {type.price}</span>
+              <small>{t(k === 'classic' ? 'shop_classic_sub' : k === 'premium' ? 'shop_premium_sub' : 'shop_team_sub', { n: type.size, team: team.name })}</small>
+              <span className="price">
+                {coin()} {type.price}
+              </span>
+              <span className="sp-shine" aria-hidden />
             </button>
           );
         })}
@@ -223,7 +251,7 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
 
       {/* card del giorno */}
       <h3 className="shop-title">
-        {t('shop_daily')} <small className="muted">⏱ {clock}</small>
+        <span>🃏 {t('shop_daily')}</span> <small className="sh-clock">⏱ {clock}</small>
       </h3>
       {!store ? (
         <p className="muted center">…</p>
@@ -237,11 +265,11 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
             const price = storePrice(card);
             const buyBtn = (
               <button
-                className={`btn ${owned || bought ? 'ghost' : 'primary'} block`}
+                className={`btn small ${owned || bought ? 'ghost' : 'primary'} block`}
                 onClick={() => onBuyCard(card)}
                 disabled={owned || bought || progress.credits < price}
               >
-                {bought || owned ? `✓ ${t('shop_owned')}` : `${coin()} ${price}`}
+                {bought || owned ? '✓' : `${coin()} ${price}`}
               </button>
             );
             return (
@@ -257,6 +285,36 @@ export function PacksScreen({ progress, today, onOpen, onBuyPack, onBuyCard, onU
           })}
         </div>
       )}
+      {/* jolly di gara: sempre in vendita, al massimo BOOST_MAX per tipo */}
+      <h3 className="shop-title">
+        <span>⚡ {t('rj_title')}</span>
+      </h3>
+      <p className="muted small rj-note">{t('rj_note', { n: BOOST_MAX })}</p>
+      <div className="rj-list">
+        {JOLLY_KINDS.map((k) => {
+          const n = boostsOf(progress, k);
+          return (
+            <div key={k} className={`rj-item rj-${k}`}>
+              <span className="rj-icon" aria-hidden>
+                {k === 'drs' ? 'DRS' : 'SC'}
+              </span>
+              <div className="rj-text">
+                <b>
+                  {t(k === 'drs' ? 'rj_drs' : 'rj_sc')} <span className="muted">{n}/{BOOST_MAX}</span>
+                </b>
+                <small>{t(k === 'drs' ? 'rj_drs_desc' : 'rj_sc_desc')}</small>
+              </div>
+              <button
+                className="btn primary small"
+                onClick={() => onBuyJolly(k)}
+                disabled={n >= BOOST_MAX || progress.credits < BOOST_PRICE}
+              >
+                {n >= BOOST_MAX ? t('rj_full') : `${coin()} ${BOOST_PRICE}`}
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -323,5 +381,53 @@ function JollyPicker({ progress, onPick }: { progress: Progress; onPick: (card: 
         </>
       )}
     </div>
+  );
+}
+
+// Premio giornaliero: sette caselle, quella di oggi da ritirare; se salti un giorno si riparte dal giorno 1.
+function rewardLabel(r: LoginReward) {
+  const parts: string[] = [];
+  if (r.jolly) parts.push(`🃏 ${r.jolly}`);
+  if (r.packs) parts.push(`🎁 ${r.packs}`);
+  if (r.boost) parts.push(r.boost === 'drs' ? 'DRS' : 'SC');
+  if (r.credits) parts.push(`${coin()} ${r.credits}`);
+  return parts;
+}
+
+function LoginRewardPanel({ progress, today, onClaim }: { progress: Progress; today: string; onClaim: () => void }) {
+  const { t } = useI18n();
+  const { day, claimed } = loginStatus(progress, today);
+  return (
+    <section className={`panel login-reward ${claimed ? 'claimed' : 'ready'}`}>
+      <div className="lr-head">
+        <b>🎁 {t('lr_title')}</b>
+        <small className="muted">{t('lr_dayOf', { n: day, max: LOGIN_REWARDS.length })}</small>
+      </div>
+      <ol className="lr-days">
+        {LOGIN_REWARDS.map((r, i) => {
+          const n = i + 1;
+          const state = n < day || (n === day && claimed) ? 'done' : n === day ? 'today' : 'next';
+          return (
+            <li key={n} className={`lr-day ${state} ${n === LOGIN_REWARDS.length ? 'big' : ''}`}>
+              <small>{t('lr_day', { n })}</small>
+              <span className="lr-gift">
+                {rewardLabel(r).map((x) => (
+                  <b key={x}>{x}</b>
+                ))}
+              </span>
+              {state === 'done' && <span className="lr-check">✓</span>}
+            </li>
+          );
+        })}
+      </ol>
+      {claimed ? (
+        <p className="lr-note">{t('lr_tomorrow', { n: (day % LOGIN_REWARDS.length) + 1 })}</p>
+      ) : (
+        <button className="btn primary block lr-claim" onClick={onClaim}>
+          {t('lr_claim')} · {rewardLabel(LOGIN_REWARDS[day - 1]).join(' + ')}
+        </button>
+      )}
+      <small className="muted lr-hint">{t('lr_hint')}</small>
+    </section>
   );
 }

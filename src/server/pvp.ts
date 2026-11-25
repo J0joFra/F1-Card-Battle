@@ -1,9 +1,16 @@
 import { STATS } from '../game/cards';
-import { seriesDecks } from '../game/collection';
+import { activeSlot, boostsOf, deckSlots, seriesDecks, spendBoost } from '../game/collection';
+import { applyRanked, firstLeader, QUEUE_FRESH_MS, QUEUE_WINDOW, rankedOf } from '../game/ranked';
 import {
   availableStats,
+  autoMove,
   bestStat,
+  commitMove,
   currentCards,
+  HAND_SIZE,
+  isJollyKind,
+  jollyUsedBy,
+  resolveCommitted,
   isAvailable,
   matchOutcome,
   newMatch,
@@ -14,8 +21,8 @@ import {
   type Side,
 } from '../game/engine';
 import { applyMatchEnd, flipMatch, loadMatch, storeMatch, toView } from '../game/match';
-import { cardOrThrow, checkDate, GameError, myProgress, nowOf, withProfile, type Ctx } from './common';
-import type { GameRequest, GameResponse, Outcome, PvpInfo, PvpRecord, Store } from './types';
+import { cardOrThrow, checkDate, GameError, myProgress, nowOf, validDeck, withProfile, type Ctx } from './common';
+import type { GameRequest, GameResponse, Outcome, PvpInfo, PvpRecord, QueueRow, Store } from './types';
 
 /*
  * Sfida tra amici, al meglio di 3: la partita N si gioca con il mazzo salvato N di ognuno.
@@ -41,16 +48,18 @@ const asSide = (s: MatchState, side: Side) => (side === 'player' ? s : flipMatch
 const forSide = (o: Outcome, side: Side) => (side === 'player' ? o : flipOutcome(o));
 
 // stato della serie dal punto di vista dell'host
-export function seriesState(results: Outcome[]) {
+// (bestOf: partite della serie; la gara classificata è secca)
+export function seriesState(results: Outcome[], bestOf = SERIES_GAMES) {
   const host = results.filter((r) => r === 'player').length;
   const guest = results.filter((r) => r === 'cpu').length;
-  const over = host >= WINS_NEEDED || guest >= WINS_NEEDED || results.length >= SERIES_GAMES;
+  const need = bestOf === SERIES_GAMES ? WINS_NEEDED : Math.floor(bestOf / 2) + 1;
+  const over = host >= need || guest >= need || results.length >= bestOf;
   const outcome: Outcome = host > guest ? 'player' : guest > host ? 'cpu' : 'draw';
   return { over, outcome };
 }
 
 const finalOutcome = (rec: PvpRecord): Outcome =>
-  rec.forfeit ? other(rec.forfeit) : seriesState(rec.results).outcome;
+  rec.forfeit ? other(rec.forfeit) : seriesState(rec.results, rec.bestOf).outcome;
 
 function decksOrThrow(p: Parameters<typeof seriesDecks>[0]) {
   const decks = seriesDecks(p);
@@ -76,6 +85,8 @@ async function pvpResponse(store: Store, id: string, rec: PvpRecord, now: number
     sinceMove: rec.movedAt ? Math.max(0, now - rec.movedAt) : null,
     opponentLeft: !!rec.forfeit && rec.forfeit !== side,
     opponentIsFriend: finished && opponentId ? await store.isFriend(opponentId) : false,
+    bestOf: rec.bestOf ?? SERIES_GAMES,
+    ...(rec.ranked ? { opponentPoints: side === 'player' ? rec.ranked.guest : rec.ranked.host } : {}),
   };
   const res: GameResponse = { pvp: info };
   const g = typeof game === 'number' && game >= 0 && game < rec.games.length ? game : current;
@@ -103,6 +114,17 @@ async function passChoice(store: Store, ctx: Ctx, id: string, rec: PvpRecord, re
   return saved;
 }
 
+// Modalità Strategica: salva la mossa segreta; se ha scelto anche l'altro, il round si gioca.
+async function commitHand(store: Store, ctx: Ctx, id: string, rec: PvpRecord, rev: number, state: MatchState) {
+  const resolved = resolveCommitted(state);
+  if (resolved) return advance(store, ctx, id, rec, rev, resolved);
+  const games = [...rec.games];
+  games[games.length - 1] = storeMatch(state);
+  const saved: PvpRecord = { ...rec, games };
+  if (!(await store.updatePvp(id, saved, rev))) throw new GameError('busy', 409);
+  return saved;
+}
+
 async function advance(store: Store, ctx: Ctx, id: string, rec: PvpRecord, rev: number, next: MatchState | null, forfeit?: Side) {
   const now = nowOf(ctx);
   const games = [...rec.games];
@@ -113,7 +135,7 @@ async function advance(store: Store, ctx: Ctx, id: string, rec: PvpRecord, rev: 
     gameOver = matchOutcome(next);
     if (gameOver) results.push(gameOver);
   }
-  const finished = !!forfeit || seriesState(results).over;
+  const finished = !!forfeit || seriesState(results, rec.bestOf).over;
   // il tempo del turno successivo parte quando i due telefoni passano alla carta nuova
   let deadline: number | null = finished ? null : now + PVP_REVEAL_MS + PVP_TURN_MS;
   if (gameOver && !finished) {
@@ -121,7 +143,7 @@ async function advance(store: Store, ctx: Ctx, id: string, rec: PvpRecord, rev: 
     const g = games.length;
     const firstBefore = rec.games[g - 1]?.history[0]?.chooser ?? 'player';
     const chooser: Side = gameOver === 'draw' ? other(firstBefore) : other(gameOver);
-    const m = newMatch(rec.hostDecks[g].map(cardOrThrow), rec.guestDecks![g].map(cardOrThrow), ctx.rng, chooser);
+    const m = newMatch(rec.hostDecks[g].map(cardOrThrow), rec.guestDecks![g].map(cardOrThrow), ctx.rng, chooser, HAND_SIZE);
     games.push(storeMatch(m));
     deadline = now + PVP_REVEAL_MS + PVP_TURN_MS + NEXT_GAME_MS;
   }
@@ -147,9 +169,18 @@ async function advance(store: Store, ctx: Ctx, id: string, rec: PvpRecord, rev: 
       store,
       ctx,
       (p) => {
-        const end = applyMatchEnd(p, asSide(last, side), date, { friend: true, outcome: forSide(outcome, side) });
-        rewards[side === 'player' ? 'host' : 'guest'] = end.rewards;
-        return { progress: end.progress };
+        const mine = forSide(outcome, side);
+        const end = applyMatchEnd(p, asSide(last, side), date, { friend: true, outcome: mine });
+        let progress = end.progress;
+        let got = end.rewards;
+        // gara classificata: punti campionato (ed eventuale promozione con il suo premio)
+        if (saved.ranked) {
+          const r = applyRanked(progress, mine);
+          progress = r.progress;
+          got = { ...got, ranked: r.result };
+        }
+        rewards[side === 'player' ? 'host' : 'guest'] = got;
+        return { progress };
       },
       uid,
     );
@@ -169,7 +200,11 @@ async function loadPvp(store: Store, id: unknown) {
 async function startSeries(store: Store, ctx: Ctx, id: string, rec: PvpRecord, rev: number, date: string) {
   const now = nowOf(ctx);
   const guestDecks = decksOrThrow(await myProgress(store));
-  const first = newMatch(rec.hostDecks[0].map(cardOrThrow), guestDecks[0].map(cardOrThrow), ctx.rng, ctx.rng() < 0.5 ? 'player' : 'cpu');
+  // modalità Strategica (mano di 3 carte e jolly), come nella gara classificata ma senza coppe;
+  // la prima partita la guida chi ha la carta più debole, le altre chi ha perso la precedente
+  const hostDeck = rec.hostDecks[0].map(cardOrThrow);
+  const guestDeck = guestDecks[0].map(cardOrThrow);
+  const first = newMatch(hostDeck, guestDeck, ctx.rng, firstLeader(hostDeck, guestDeck, 0, 0, ctx.rng), HAND_SIZE);
   const next: PvpRecord = {
     ...rec,
     status: 'playing',
@@ -183,6 +218,58 @@ async function startSeries(store: Store, ctx: Ctx, id: string, rec: PvpRecord, r
   };
   if (!(await store.updatePvp(id, next, rev))) throw new GameError('bad_code', 404); // entrato prima un altro
   return pvpResponse(store, id, next, now);
+}
+
+// ---- gara classificata ----
+
+const newCode = (ctx: Ctx) => Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(ctx.rng() * CODE_CHARS.length)]).join('');
+
+// Cerca un avversario per chi è in coda (me): se c'è, toglie entrambi dalla coda e crea la partita.
+// L'host è l'avversario (era in coda per primo), l'ospite sono io.
+async function tryPair(store: Store, ctx: Ctx, me: Omit<QueueRow, 'user'> & { joinedAt: number }): Promise<GameResponse> {
+  const now = nowOf(ctx);
+  const fresh = now - QUEUE_FRESH_MS;
+  const w = QUEUE_WINDOW(now - me.joinedAt);
+  const opp = await store.queueClaim(me.points, me.points - w, me.points + w, fresh);
+  if (!opp) {
+    const searching = Math.max(0, (await store.queueCount(fresh)) - 1);
+    return { queue: { waited: now - me.joinedAt, searching } };
+  }
+  // gara classificata: modalità Strategica (mano di 3 carte, jolly di gara per entrambi)
+  // guida il primo round chi ha la carta più debole (vedi firstLeader)
+  const hostDeck = opp.deck.map(cardOrThrow);
+  const guestDeck = me.deck.map(cardOrThrow);
+  const leader = firstLeader(hostDeck, guestDeck, opp.points, me.points, ctx.rng);
+  const first = newMatch(hostDeck, guestDeck, ctx.rng, leader, HAND_SIZE);
+  const rec: PvpRecord = {
+    code: newCode(ctx),
+    status: 'playing',
+    host: opp.user,
+    hostName: opp.name,
+    hostDecks: [opp.deck],
+    hostDate: opp.date,
+    invitee: null,
+    guest: store.me.id,
+    guestName: store.me.name,
+    guestDecks: [me.deck],
+    guestDate: me.date,
+    games: [storeMatch(first)],
+    results: [],
+    deadline: now + PVP_TURN_MS,
+    forfeit: null,
+    rewards: {},
+    createdAt: now,
+    bestOf: 1,
+    ranked: { host: opp.points, guest: me.points },
+  };
+  const id = await store.createPvp(rec);
+  if (!id) throw new GameError('busy', 409);
+  return pvpResponse(store, id, rec, now);
+}
+
+async function activeRankedResponse(store: Store, now: number) {
+  const active = await store.activeRanked();
+  return active ? pvpResponse(store, active.id, active.rec, now) : null;
 }
 
 // null = azione non della sfida tra amici
@@ -252,7 +339,12 @@ export async function handlePvp(req: GameRequest, store: Store, ctx: Ctx): Promi
         const state = loadMatch(rec.games[rec.games.length - 1]);
         const { player, cpu } = currentCards(state);
         try {
-          if (!state.passed && !matchOutcome(state)) rec = await passChoice(store, ctx, req.match, rec, rev, state);
+          if (state.hand && !matchOutcome(state)) {
+            // Strategica: chi non ha scelto gioca la prima carta (e, se guida, la metrica migliore)
+            let s = state;
+            for (const side of ['player', 'cpu'] as const) if (!s.pending?.[side]) s = commitMove(s, side, autoMove(s, side));
+            rec = await commitHand(store, ctx, req.match, rec, rev, s);
+          } else if (!state.passed && !matchOutcome(state)) rec = await passChoice(store, ctx, req.match, rec, rev, state);
           else {
             const next = playRound(state, bestStat(state.chooser === 'player' ? player : cpu, availableStats(state)));
             rec = await advance(store, ctx, req.match, rec, rev, next);
@@ -271,6 +363,27 @@ export async function handlePvp(req: GameRequest, store: Store, ctx: Ctx): Promi
       if (req.game !== rec.games.length - 1) throw new GameError('not_your_turn', 409);
       const side = sideOf(rec, store.me.id)!;
       const state = loadMatch(rec.games[req.game]);
+      if (state.hand) {
+        // Strategica: tutti e due scelgono in segreto la carta (chi guida anche la metrica), poi si scopre
+        if (state.pending?.[side]) throw new GameError('not_your_turn', 409);
+        if (req.jolly !== undefined && (!isJollyKind(req.jolly) || jollyUsedBy(state, side))) throw new GameError('bad_jolly');
+        if (req.jolly && boostsOf(await myProgress(store), req.jolly) <= 0) throw new GameError('no_jolly');
+        const free = req.stat && STATS.some((s) => s.key === req.stat) ? req.stat : undefined;
+        let committed: MatchState;
+        try {
+          committed = commitMove(state, side, { card: Number(req.card ?? 0), stat: free, jolly: req.jolly });
+        } catch {
+          throw new GameError(state.chooser === side && !free ? 'bad_stat' : 'bad_card');
+        }
+        const next = await commitHand(store, ctx, req.match, rec, rev, committed);
+        const res = await pvpResponse(store, req.match, next, now, req.game);
+        if (req.jolly) {
+          const kind = req.jolly;
+          const spent = await withProfile(store, ctx, (p) => ({ progress: spendBoost(p, kind) ?? p }));
+          if (!res.progress) res.progress = spent.progress;
+        }
+        return res;
+      }
       if (state.chooser !== side) throw new GameError('not_your_turn', 409);
       if (!req.stat || !STATS.some((s) => s.key === req.stat) || !isAvailable(state, req.stat)) throw new GameError('bad_stat');
       const next = await advance(store, ctx, req.match, rec, rev, playRound(state, req.stat));
@@ -283,7 +396,8 @@ export async function handlePvp(req: GameRequest, store: Store, ctx: Ctx): Promi
       if (rec.status !== 'playing') throw new GameError('match_finished');
       if (req.game !== rec.games.length - 1) throw new GameError('not_your_turn', 409);
       const state = loadMatch(rec.games[req.game]);
-      if (state.chooser !== sideOf(rec, store.me.id) || state.passed) throw new GameError('not_your_turn', 409);
+      // Strategica: il tempo lo gestisce il server (allo scadere gioca la prima carta)
+      if (state.hand || state.chooser !== sideOf(rec, store.me.id) || state.passed) throw new GameError('not_your_turn', 409);
       const next = await passChoice(store, ctx, req.match, rec, rev, state);
       return pvpResponse(store, req.match, next, now, req.game);
     }
@@ -299,6 +413,38 @@ export async function handlePvp(req: GameRequest, store: Store, ctx: Ctx): Promi
       // chi abbandona perde la serie
       const next = await advance(store, ctx, req.match, rec, rev, null, side);
       return pvpResponse(store, req.match, next, now);
+    }
+
+    case 'ranked_join': {
+      checkDate(req.date, ctx.today);
+      // già in una gara (app riaperta, doppio tocco): si rientra in quella
+      const active = await activeRankedResponse(store, now);
+      if (active) return active;
+      // si gioca con il mazzo in uso
+      const p = await myProgress(store);
+      const deck = validDeck(deckSlots(p)[activeSlot(p)], p).map((c) => c.id);
+      const row = { name: store.me.name, points: rankedOf(p).points, deck, date: req.date };
+      const { joinedAt } = await store.queueJoin(row, now);
+      return tryPair(store, ctx, { ...row, joinedAt });
+    }
+
+    case 'ranked_poll': {
+      const active = await activeRankedResponse(store, now);
+      if (active) return active;
+      const me = await store.queueTouch(now);
+      if (!me) {
+        // appena preso da un avversario (la partita sta per nascere) oppure fuori dalla coda: il telefono riprova
+        const again = await activeRankedResponse(store, now);
+        if (again) return again;
+        throw new GameError('not_queued', 409);
+      }
+      return tryPair(store, ctx, me);
+    }
+
+    case 'ranked_cancel': {
+      await store.queueLeave();
+      // preso da un avversario proprio adesso: la partita c'è già, si gioca
+      return (await activeRankedResponse(store, now)) ?? {};
     }
 
     case 'ping': {
