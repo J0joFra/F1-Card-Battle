@@ -59,7 +59,14 @@ export type GameRequest =
   | { action: 'ping' }
   | { action: 'friends' }
   | { action: 'friend_add'; match: string }
-  | { action: 'friend_remove'; friend: string };
+  | { action: 'friend_remove'; friend: string }
+  // scambi tra amici: cosa si può scambiare con un amico, proporre, elenco, accettare, rifiutare o ritirare
+  | { action: 'trade_options'; friend: string; date: string }
+  | { action: 'trade_propose'; friend: string; give: string; want: string; date: string }
+  | { action: 'trade_list' }
+  | { action: 'trade_accept'; trade: string; date: string }
+  | { action: 'trade_decline'; trade: string }
+  | { action: 'trade_cancel'; trade: string };
 
 export type PvpStatus = 'waiting' | 'playing' | 'finished' | 'cancelled';
 export type Outcome = Exclude<MatchOutcome, null>;
@@ -110,6 +117,35 @@ export interface PvpInfo {
 export interface QueueInfo {
   waited: number; // ms
   searching: number; // altri giocatori in coda in questo momento
+}
+
+// scambio proposto: from cede `give` e riceve `want` da to
+export interface TradeRecord {
+  id: string;
+  from: string;
+  to: string;
+  give: string;
+  want: string;
+  status: 'pending' | 'accepted' | 'declined' | 'cancelled';
+  createdAt: number;
+}
+
+// scambio visto da uno dei due: give è sempre la carta che cedi tu, want quella che ricevi
+export interface TradeView {
+  id: string;
+  incoming: boolean; // proposto dall'amico a te
+  friend: string;
+  friendName: string | null;
+  give: string;
+  want: string;
+  expiresAt: number;
+}
+
+export interface TradeOptions {
+  mine: string[]; // tuoi doppioni che l'amico non ha
+  theirs: string[]; // doppioni dell'amico che tu non hai
+  readyAt: number; // da quando si può scambiare con questo amico (ms)
+  today: number; // scambi già conclusi oggi
 }
 
 export interface QueueRow {
@@ -193,6 +229,8 @@ export interface GameResponse {
   queue?: QueueInfo; // gara classificata: ancora in cerca di un avversario
   inviteCode?: string; // il tuo codice invito
   referrals?: number; // amici che si sono iscritti con il tuo codice
+  trades?: TradeView[]; // scambi in attesa (ricevuti e proposti)
+  tradeOptions?: TradeOptions;
 }
 
 // dati del profilo salvati accanto alla progressione
@@ -282,4 +320,18 @@ export interface Store {
   setInviteCode(code: string): Promise<boolean>;
   findByInviteCode(code: string): Promise<string | null>;
   setInvitedBy(inviter: string): Promise<boolean>;
+  // scambi: da quando siete amici (ms, null se non lo siete), nuova proposta, proposte in attesa che ti riguardano,
+  // una proposta, cambio di stato (solo se è ancora in attesa)
+  friendSince(other: string): Promise<number | null>;
+  createTrade(row: Omit<TradeRecord, 'id' | 'status' | 'createdAt'>): Promise<string>;
+  pendingTrades(): Promise<TradeRecord[]>;
+  getTrade(id: string): Promise<TradeRecord | null>;
+  closeTrade(id: string, status: 'declined' | 'cancelled'): Promise<boolean>;
+  // conclude lo scambio in un colpo solo: salva i due profili (se nessuno li ha cambiati nel frattempo) e segna la
+  // proposta come accettata (se era ancora in attesa); false se qualcosa è cambiato e non è stato salvato nulla
+  completeTrade(
+    id: string,
+    a: { uid: string; progress: Progress; version: number },
+    b: { uid: string; progress: Progress; version: number },
+  ): Promise<boolean>;
 }

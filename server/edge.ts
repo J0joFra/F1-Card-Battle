@@ -2,7 +2,7 @@
 // Questo file viene impacchettato con la logica di gioco in supabase/functions/game/index.js
 // da `npm run build:server` (vedi scripts/build-edge.mjs).
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { GameError, handle, type GameRequest, type MatchRecord, type PvpRecord, type QueueRow, type Store, type SupportAnswers } from '../src/server/actions';
+import { GameError, handle, type GameRequest, type MatchRecord, type PvpRecord, type QueueRow, type Store, type SupportAnswers, type TradeRecord } from '../src/server/actions';
 import type { Progress } from '../src/game/collection';
 import { usernameOf, type Avatar } from '../src/game/profile';
 
@@ -80,6 +80,17 @@ async function accountOf(device: string): Promise<string> {
   }
   return id;
 }
+
+type TradeRow = { id: string; from_user: string; to_user: string; give: string; want: string; status: TradeRecord['status']; created_at: string };
+const tradeOf = (r: TradeRow): TradeRecord => ({
+  id: r.id,
+  from: r.from_user,
+  to: r.to_user,
+  give: r.give,
+  want: r.want,
+  status: r.status,
+  createdAt: Date.parse(r.created_at),
+});
 
 function storeFor(userId: string, device: string, displayName: string | null): Store {
   return {
@@ -403,6 +414,54 @@ function storeFor(userId: string, device: string, displayName: string | null): S
       const { data, error } = await admin.from('profiles').update({ invited_by: inviter }).eq('id', userId).is('invited_by', null).select('id');
       if (error) throw error;
       return (data?.length ?? 0) > 0;
+    },
+    async friendSince(other) {
+      const { data, error } = await admin.from('friends').select('created_at').eq('user_id', userId).eq('friend_id', other).maybeSingle();
+      if (error) throw error;
+      return data ? Date.parse(data.created_at as string) : null;
+    },
+    async createTrade(row) {
+      const { data, error } = await admin.from('trades').insert({ from_user: row.from, to_user: row.to, give: row.give, want: row.want }).select('id').single();
+      if (error) throw error;
+      return data.id as string;
+    },
+    async pendingTrades() {
+      const { data, error } = await admin
+        .from('trades')
+        .select('id, from_user, to_user, give, want, status, created_at')
+        .eq('status', 'pending')
+        .or(`from_user.eq.${userId},to_user.eq.${userId}`);
+      if (error) throw error;
+      return ((data ?? []) as TradeRow[]).map(tradeOf);
+    },
+    async getTrade(id) {
+      const { data, error } = await admin.from('trades').select('id, from_user, to_user, give, want, status, created_at').eq('id', id).maybeSingle();
+      if (error?.code === '22P02') return null; // id non valido
+      if (error) throw error;
+      return data ? tradeOf(data as TradeRow) : null;
+    },
+    async closeTrade(id, status) {
+      const { data, error } = await admin
+        .from('trades')
+        .update({ status, resolved_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('status', 'pending')
+        .select('id');
+      if (error) throw error;
+      return (data?.length ?? 0) > 0;
+    },
+    async completeTrade(id, a, b) {
+      const { data, error } = await admin.rpc('trade_complete', {
+        p_trade: id,
+        a: a.uid,
+        a_progress: a.progress,
+        a_version: a.version,
+        b: b.uid,
+        b_progress: b.progress,
+        b_version: b.version,
+      });
+      if (error) throw error;
+      return data === true;
     },
     async createPvp(rec) {
       const { data, error } = await admin

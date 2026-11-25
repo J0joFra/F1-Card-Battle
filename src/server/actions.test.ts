@@ -8,7 +8,7 @@ import { deckProblems, decksProblems } from '../game/deckRules';
 import { hashRecoveryCode, usernameOf } from '../game/profile';
 import { FIRST_WIN_CREDITS, MATCH_CREDITS, PACK_PRICE } from '../game/collection';
 import { CLASSIC, fillDeck } from '../game/deckRules';
-import { PVP_REVEAL_MS, PVP_TURN_MS, handle, type AccountRow, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type QueueRow, type Store, type SupportRequestRow } from './actions';
+import { PVP_REVEAL_MS, PVP_TURN_MS, handle, type AccountRow, type Ctx, type GameRequest, type MatchRecord, type PvpRecord, type QueueRow, type Store, type TradeRecord, type SupportRequestRow } from './actions';
 import { LEAGUE_MAX_ORO, firstLeader, LEAGUES, MAX_REFERRALS, PROMOTION_REWARD, RANKED_POINTS, REFERRAL_PACKS, applyRanked, leagueOf } from '../game/ranked';
 
 const AVATAR = { skin: 2, hair: 3, hairColor: 1, eyes: 0, eyeColor: 1, brows: 0, mouth: 0, beard: 4, glasses: 0, suit: 0 };
@@ -22,6 +22,9 @@ function memoryDb() {
   const seen = new Map<string, number>();
   const names = new Map<string, string | null>();
   const friendships = new Set<string>(); // "a|b"
+  const friendTimes = new Map<string, number>(); // "a|b" → da quando sono amici (ms)
+  const trades = new Map<string, TradeRecord>();
+  let tradeSeq = 0;
   // dati del profilo (nickname, avatar…), codici di recupero e profili del vecchio accesso con Google
   const accounts = new Map<string, AccountRow & { recoveryHash: string | null; legacy: number | null }>();
   const links = new Map<string, string>(); // dispositivo → account (accesso con username e codice)
@@ -145,6 +148,37 @@ function memoryDb() {
     async addFriend(other) {
       friendships.add(`${id}|${other}`);
       friendships.add(`${other}|${id}`);
+      for (const k of [`${id}|${other}`, `${other}|${id}`]) if (!friendTimes.has(k)) friendTimes.set(k, Date.now());
+    },
+    async friendSince(other) {
+      return friendships.has(`${id}|${other}`) ? (friendTimes.get(`${id}|${other}`) ?? 0) : null;
+    },
+    async createTrade(row) {
+      const tid = `t${++tradeSeq}`;
+      trades.set(tid, { ...row, id: tid, status: 'pending', createdAt: Date.now() });
+      return tid;
+    },
+    async pendingTrades() {
+      return [...trades.values()].filter((t) => t.status === 'pending' && (t.from === id || t.to === id)).map((t) => structuredClone(t));
+    },
+    async getTrade(tid) {
+      const t = trades.get(tid);
+      return t ? structuredClone(t) : null;
+    },
+    async closeTrade(tid, status) {
+      const t = trades.get(tid);
+      if (!t || t.status !== 'pending') return false;
+      t.status = status;
+      return true;
+    },
+    async completeTrade(tid, a, b) {
+      const t = trades.get(tid);
+      if (!t || t.status !== 'pending') return false;
+      if (profiles.get(a.uid)?.version !== a.version || profiles.get(b.uid)?.version !== b.version) return false;
+      profiles.set(a.uid, { progress: structuredClone(a.progress), version: a.version + 1 });
+      profiles.set(b.uid, { progress: structuredClone(b.progress), version: b.version + 1 });
+      t.status = 'accepted';
+      return true;
     },
     async removeFriend(other) {
       friendships.delete(`${id}|${other}`);
@@ -261,6 +295,8 @@ function memoryDb() {
     profiles,
     accounts,
     friendships,
+    friendTimes,
+    trades,
     pvps,
     queue,
     simulateConflicts(n: number) {
@@ -1265,5 +1301,102 @@ describe('server: invita un amico', () => {
     const { inviteCode } = await call(db.as('anna'), { action: 'invite_code' });
     for (const n of ['Uno', 'Due']) await call(db.as(n), { action: 'profile_create', ...NEW_PROFILE, nickname: n, referral: inviteCode });
     expect(db.profiles.get('anna')!.progress).toMatchObject({ packs: REFERRAL_PACKS, referrals: MAX_REFERRALS });
+  });
+});
+
+describe('server: scambi tra amici', () => {
+  const D = '2026-10-16';
+  const bronze = ALL_CARDS.filter((c) => c.rarity === 'bronzo' && c.kind === 'team');
+  const silver = ALL_CARDS.find((c) => c.rarity === 'argento' && c.kind === 'team')!;
+  const [X, Y, Z, W] = bronze;
+  // due (o più) giocatori con le carte indicate, amici da `hoursAgo` ore
+  function setup(cards: Record<string, Record<string, number>>, hoursAgo = 49) {
+    const db = memoryDb();
+    for (const [uid, owned] of Object.entries(cards)) db.profiles.set(uid, { progress: { ...starterProgress(), owned: { ...owned } }, version: 1 });
+    const users = Object.keys(cards);
+    for (const u of users.slice(1)) {
+      db.friendships.add(`a|${u}`).add(`${u}|a`);
+      db.friendTimes.set(`a|${u}`, Date.now() - hoursAgo * 3_600_000).set(`${u}|a`, Date.now() - hoursAgo * 3_600_000);
+    }
+    return db;
+  }
+  const owned = (db: ReturnType<typeof memoryDb>, uid: string) => db.profiles.get(uid)!.progress.owned;
+
+  it('opzioni: i miei doppioni che lui non ha, i suoi che io non ho', async () => {
+    const db = setup({ a: { [X.id]: 3, [Z.id]: 1 }, b: { [Y.id]: 2, [Z.id]: 2 } });
+    const { tradeOptions } = await call(db.as('a'), { action: 'trade_options', friend: 'b', date: D });
+    expect(tradeOptions!.mine).toEqual([X.id]);
+    expect(tradeOptions!.theirs).toEqual([Y.id]); // Z: ce l'ho già
+    expect(tradeOptions!.today).toBe(0);
+  });
+
+  it('proposta e accettazione: una carta a testa, stessa rarità', async () => {
+    const db = setup({ a: { [X.id]: 3 }, b: { [Y.id]: 2 } });
+    const { trades } = await call(db.as('a'), { action: 'trade_propose', friend: 'b', give: X.id, want: Y.id, date: D });
+    expect(trades).toHaveLength(1);
+    const inbox = (await call(db.as('b'), { action: 'trade_list' })).trades!;
+    expect(inbox[0]).toMatchObject({ incoming: true, friend: 'a', give: Y.id, want: X.id });
+    await expect(call(db.as('a'), { action: 'trade_accept', trade: inbox[0].id, date: D })).rejects.toThrow('no_trade');
+    const res = await call(db.as('b'), { action: 'trade_accept', trade: inbox[0].id, date: D });
+    expect(res.progress!.owned).toMatchObject({ [X.id]: 1, [Y.id]: 1 });
+    expect(owned(db, 'a')).toMatchObject({ [X.id]: 2, [Y.id]: 1 });
+    expect(owned(db, 'b')).toMatchObject({ [X.id]: 1, [Y.id]: 1 });
+    expect(res.trades).toEqual([]);
+    expect(db.profiles.get('a')!.progress.trade).toMatchObject({ given: { [X.id]: 1 }, day: D, n: 1 });
+  });
+
+  it('regole: stessa rarità, solo doppioni, solo carte che non hai, amici da almeno 2 giorni', async () => {
+    const db = setup({ a: { [X.id]: 2, [W.id]: 1, [silver.id]: 2 }, b: { [Y.id]: 2, [W.id]: 2, [Z.id]: 2 } });
+    const a = db.as('a');
+    await expect(call(a, { action: 'trade_propose', friend: 'b', give: silver.id, want: Y.id, date: D })).rejects.toThrow('trade_rarity');
+    await expect(call(a, { action: 'trade_propose', friend: 'b', give: W.id, want: Y.id, date: D })).rejects.toThrow('trade_not_yours');
+    await expect(call(a, { action: 'trade_propose', friend: 'b', give: X.id, want: W.id, date: D })).rejects.toThrow('trade_already_owned');
+    await expect(call(a, { action: 'trade_propose', friend: 'c', give: X.id, want: Y.id, date: D })).rejects.toThrow('not_friend');
+    const fresh = setup({ a: { [X.id]: 2 }, b: { [Y.id]: 2 } }, 10);
+    await expect(call(fresh.as('a'), { action: 'trade_propose', friend: 'b', give: X.id, want: Y.id, date: D })).rejects.toThrow('trade_too_soon');
+  });
+
+  it('la stessa carta si cede al massimo 2 volte', async () => {
+    const db = setup({ a: { [X.id]: 6 }, b: { [Y.id]: 2 }, c: { [Z.id]: 2 }, d: { [W.id]: 2 } });
+    for (const [u, card] of [['b', Y], ['c', Z]] as const) {
+      const { trades } = await call(db.as('a'), { action: 'trade_propose', friend: u, give: X.id, want: card.id, date: D });
+      await call(db.as(u), { action: 'trade_accept', trade: trades!.find((t) => t.friend === u)!.id, date: D });
+    }
+    expect(owned(db, 'a')[X.id]).toBe(4);
+    await expect(call(db.as('a'), { action: 'trade_propose', friend: 'd', give: X.id, want: W.id, date: D })).rejects.toThrow('trade_not_yours');
+  });
+
+  it('al massimo 3 scambi al giorno', async () => {
+    const extra = bronze.slice(4, 8);
+    const db = setup({ a: Object.fromEntries(extra.map((c) => [c.id, 2])), b: { [X.id]: 2, [Y.id]: 2, [Z.id]: 2, [W.id]: 2 } });
+    for (let i = 0; i < 3; i++) {
+      const { trades } = await call(db.as('a'), { action: 'trade_propose', friend: 'b', give: extra[i].id, want: bronze[i].id, date: D });
+      await call(db.as('b'), { action: 'trade_accept', trade: trades![0].id, date: D });
+    }
+    await expect(call(db.as('a'), { action: 'trade_propose', friend: 'b', give: extra[3].id, want: W.id, date: D })).rejects.toThrow('trade_daily_limit');
+  });
+
+  it('rifiutare e ritirare; proposta non più possibile si chiude all’accettazione', async () => {
+    const db = setup({ a: { [X.id]: 2, [Z.id]: 2 }, b: { [Y.id]: 2 } });
+    let t = (await call(db.as('a'), { action: 'trade_propose', friend: 'b', give: X.id, want: Y.id, date: D })).trades![0];
+    expect((await call(db.as('b'), { action: 'trade_decline', trade: t.id })).trades).toEqual([]);
+    t = (await call(db.as('a'), { action: 'trade_propose', friend: 'b', give: X.id, want: Y.id, date: D })).trades![0];
+    expect((await call(db.as('a'), { action: 'trade_cancel', trade: t.id })).trades).toEqual([]);
+    t = (await call(db.as('a'), { action: 'trade_propose', friend: 'b', give: X.id, want: Y.id, date: D })).trades![0];
+    // nel frattempo b ha già preso X in un altro modo
+    db.profiles.get('b')!.progress.owned[X.id] = 1;
+    await expect(call(db.as('b'), { action: 'trade_accept', trade: t.id, date: D })).rejects.toThrow('trade_already_owned');
+    expect(db.trades.get(t.id)!.status).toBe('cancelled');
+    expect(owned(db, 'a')[X.id]).toBe(2);
+  });
+
+  it('al massimo 3 proposte aperte; la stessa proposta non si duplica', async () => {
+    const db = setup({ a: { [X.id]: 2, [Z.id]: 2, [W.id]: 2, [bronze[4].id]: 2 }, b: { [Y.id]: 2 } });
+    const a = db.as('a');
+    await call(a, { action: 'trade_propose', friend: 'b', give: X.id, want: Y.id, date: D });
+    expect((await call(a, { action: 'trade_propose', friend: 'b', give: X.id, want: Y.id, date: D })).trades).toHaveLength(1);
+    await call(a, { action: 'trade_propose', friend: 'b', give: Z.id, want: Y.id, date: D });
+    await call(a, { action: 'trade_propose', friend: 'b', give: W.id, want: Y.id, date: D });
+    await expect(call(a, { action: 'trade_propose', friend: 'b', give: bronze[4].id, want: Y.id, date: D })).rejects.toThrow('trade_pending_max');
   });
 });

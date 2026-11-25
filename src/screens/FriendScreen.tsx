@@ -1,14 +1,17 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { noteFriends } from '../lib/achievements';
 import { coin } from '../lib/season';
-import { Copy, Layers, Share2, Swords, UserMinus, Users } from 'lucide-react';
+import { ArrowLeftRight, Copy, Layers, Share2, Swords, UserMinus, Users } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 import { callGame } from '../lib/api';
 import { DECK_SLOTS, FRIEND_DRAW_CREDITS, FRIEND_WIN_CREDITS, maxOroOf, savedDeck, type Progress } from '../game/collection';
 import { deckProblems } from '../game/deckRules';
 import { DECK_SIZE, TURN_SECONDS } from '../game/engine';
 import type { Account } from '../hooks/useAccount';
-import type { Friend, GameResponse, PvpInfo } from '../server/actions';
+import type { Friend, GameRequest, GameResponse, PvpInfo, TradeView } from '../server/actions';
+import { TradeSheet } from '../components/TradeSheet';
+import { CardView } from '../components/CardView';
+import { CARD_BY_ID } from '../game/cards';
 import { PlayerAvatar } from '../components/PlayerAvatar';
 import { InviteFriend } from '../components/Ranked';
 import { HelpButton } from '../components/TutorialSection';
@@ -32,13 +35,20 @@ interface Props {
   onCancel: (declined?: boolean) => void;
   onProfile: () => void; // crea il profilo (serve per sfidare gli amici)
   tabs?: ReactNode; // schede Campionato / Amici (sezione Ranked)
+  today: string;
+  call: (req: GameRequest) => Promise<GameResponse | null>; // azioni con avviso d'errore e progressi aggiornati
 }
 
-export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEditDecks, onStart, onCancel, onProfile, tabs }: Props) {
+export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEditDecks, onStart, onCancel, onProfile, tabs, today, call }: Props) {
   const { t } = useI18n();
   const [code, setCode] = useState('');
   const [copied, setCopied] = useState(false);
   const [friends, setFriends] = useState<Friend[] | null>(null);
+  // scambi: proposte in attesa, finestra di scambio aperta con un amico, avviso dell'ultimo scambio
+  const [trades, setTrades] = useState<TradeView[]>([]);
+  const [tradeWith, setTradeWith] = useState<Friend | null>(null);
+  const [tradeNote, setTradeNote] = useState<string | null>(null);
+  const [tradeBusy, setTradeBusy] = useState(false);
 
   // in attesa: appena l'amico entra il server manda un segnale; in ogni caso si controlla ogni pochi secondi
   useEffect(() => {
@@ -83,8 +93,16 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
           if (alive) setFriends(r.friends ?? []);
         })
         .catch(() => alive && setFriends((f) => f ?? []));
+    const loadTrades = () =>
+      callGame({ action: 'trade_list' })
+        .then((r) => alive && setTrades(r.trades ?? []))
+        .catch(() => {});
     load();
-    const id = setInterval(load, FRIENDS_POLL_MS);
+    loadTrades();
+    const id = setInterval(() => {
+      load();
+      loadTrades();
+    }, FRIENDS_POLL_MS);
     return () => {
       alive = false;
       clearInterval(id);
@@ -122,6 +140,21 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
       setTimeout(() => setCopied(false), 2000);
     } catch {
       /* niente appunti: il codice resta a schermo */
+    }
+  }
+
+  async function tradeAction(tr: TradeView, action: 'trade_accept' | 'trade_decline' | 'trade_cancel') {
+    if (tradeBusy) return;
+    setTradeBusy(true);
+    const r = await call(action === 'trade_accept' ? { action, trade: tr.id, date: today } : { action, trade: tr.id });
+    setTradeBusy(false);
+    if (r?.trades) setTrades(r.trades);
+    else callGame({ action: 'trade_list' }).then((x) => setTrades(x.trades ?? [])).catch(() => {});
+    if (r && action === 'trade_accept') {
+      const c = CARD_BY_ID.get(tr.want);
+      setTradeNote(t('tr_done', { card: c ? `${c.driver.name} · ${c.team.name}` : '' }));
+      sfx('select');
+      haptic('success');
     }
   }
 
@@ -255,6 +288,9 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
                 <button className="btn primary small friend-btn" onClick={() => onCreate(f)}>
                   <Swords size={15} /> {t('fr_challenge')}
                 </button>
+                <button className="icon-btn tr-open" onClick={() => setTradeWith(f)} aria-label={t('tr_trade')} title={t('tr_trade')}>
+                  <ArrowLeftRight size={18} />
+                </button>
                 <button className="icon-btn" onClick={() => remove(f)} aria-label={t('fr_remove')}>
                   <UserMinus size={18} />
                 </button>
@@ -263,6 +299,77 @@ export function FriendScreen({ account, progress, lobby, onCreate, onJoin, onEdi
           </ul>
         )}
       </section>
+
+      {/* scambi: proposte ricevute (accetta / rifiuta) e inviate (ritira) */}
+      <section className="panel fr-trades">
+        <div className="fr-friends-head">
+          <b>
+            <ArrowLeftRight size={16} /> {t('tr_title')}
+          </b>
+          {trades.some((x) => x.incoming) && <span className="tr-badge">{trades.filter((x) => x.incoming).length}</span>}
+        </div>
+        {tradeNote && <p className="tr-done">{tradeNote}</p>}
+        {trades.length === 0 ? (
+          <p className="muted tr-hint">{t('tr_hint')}</p>
+        ) : (
+          <ul className="tr-list">
+            {trades.map((tr) => {
+              const give = CARD_BY_ID.get(tr.give);
+              const want = CARD_BY_ID.get(tr.want);
+              if (!give || !want) return null;
+              const hours = Math.max(1, Math.ceil((tr.expiresAt - Date.now()) / 3_600_000));
+              return (
+                <li key={tr.id} className={tr.incoming ? 'in' : 'out'}>
+                  <small className="tr-who">
+                    {tr.incoming ? t('tr_in', { name: tr.friendName ?? '?' }) : t('tr_out', { name: tr.friendName ?? '?' })} · {t('tr_expires', { h: hours })}
+                  </small>
+                  <div className="tr-swap">
+                    <div className="tr-card">
+                      <small>{t('tr_give')}</small>
+                      <CardView card={give} size="sm" />
+                    </div>
+                    <ArrowLeftRight size={22} className="tr-arrow" />
+                    <div className="tr-card">
+                      <small>{t('tr_receive')}</small>
+                      <CardView card={want} size="sm" />
+                    </div>
+                  </div>
+                  <div className="tr-actions">
+                    {tr.incoming ? (
+                      <>
+                        <button className="btn primary small" disabled={tradeBusy} onClick={() => tradeAction(tr, 'trade_accept')}>
+                          {t('tr_accept')}
+                        </button>
+                        <button className="btn ghost small" disabled={tradeBusy} onClick={() => tradeAction(tr, 'trade_decline')}>
+                          {t('tr_decline')}
+                        </button>
+                      </>
+                    ) : (
+                      <button className="btn ghost small" disabled={tradeBusy} onClick={() => tradeAction(tr, 'trade_cancel')}>
+                        {t('tr_cancel')}
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      {tradeWith && (
+        <TradeSheet
+          friend={tradeWith}
+          today={today}
+          call={call}
+          onClose={() => setTradeWith(null)}
+          onSent={(list) => {
+            setTrades(list);
+            setTradeWith(null);
+            setTradeNote(t('tr_sent', { name: tradeWith.name ?? '?' }));
+          }}
+        />
+      )}
 
       {/* mazzi pronti per la sfida */}
       <section className="panel fr-decks">
