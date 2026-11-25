@@ -8,7 +8,7 @@ import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
  * Suoni: di base sono generati dal codice (Web Audio), quindi non servono file né licenze.
  * Per sostituirne uno basta mettere un file in src/assets/sounds/ con lo stesso nome dell'effetto
  * (es. victory.mp3): viene usato al posto di quello generato.
- * Musica: music-menu-1 e music-menu-2 si alternano fuori dalla partita, music-match suona in loop durante
+ * Musica: i brani music-menu-1, music-menu-2, … si alternano fuori dalla partita, music-match suona in loop durante
  * la partita. Istruzioni in src/assets/sounds/LEGGIMI.md.
  */
 
@@ -62,7 +62,10 @@ const files = import.meta.glob('../assets/sounds/*.{mp3,ogg,wav}', {
 const CUSTOM = new Map(
   Object.entries(files).map(([path, url]) => [path.split('/').pop()!.replace(/\.(mp3|ogg|wav)$/, ''), url]),
 );
-const MENU_TRACKS = ['music-menu-1', 'music-menu-2'].filter((n) => CUSTOM.has(n));
+// tutti i brani music-menu-N presenti, in ordine (1, 2, 3, …): si alternano fuori dalla partita
+const MENU_TRACKS = [...CUSTOM.keys()]
+  .filter((n) => /^music-menu-\d+$/.test(n))
+  .sort((a, b) => Number(a.split('-')[2]) - Number(b.split('-')[2]));
 const MATCH_TRACK = CUSTOM.has('music-match') ? 'music-match' : null;
 export const hasMusic = MENU_TRACKS.length > 0 || !!MATCH_TRACK;
 
